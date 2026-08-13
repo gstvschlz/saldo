@@ -140,4 +140,35 @@ class ProjectionEngineTest {
     fun faturaAtualNulaSemCompras() {
         assertNull(ProjectionEngine.totais(input(), jul).faturaAtual)
     }
+
+    @Test
+    fun mediaIgnoraLancamentosAnterioresAoSaldoInicial() {
+        // saldoInicialData é 2026-07-01; este avulso está dentro da janela de 30 dias mas antes do piso.
+        val movs = listOf(mov("2026-06-25", -3_000_00))
+        val m = ProjectionEngine.mes(input(movs), jul, FiltroLedger.TODAS)
+        assertEquals(0L, m.estimativaCentavos)
+    }
+
+    @Test
+    fun faturaAtualCompletaAoVerMesPassado() {
+        val movs = listOf(
+            mov("2026-07-05", -100_00, natureza = Natureza.CARTAO),
+            mov("2026-07-10", -50_00, natureza = Natureza.CARTAO),
+        )
+        val jun = YearMonth.of(2026, 6)
+        val t = ProjectionEngine.totais(
+            input(movs, materializados = setOf(jun, jul)).copy(saldoInicialData = LocalDate.parse("2026-06-01")),
+            jun,
+        )
+        assertEquals(-150_00L, t.faturaAtual!!.totalCentavos)
+    }
+
+    @Test
+    fun deltaDoMesFuturoCobraSoOMesFuturo() {
+        // média 100,00/dia (3.000,00 em avulsas DIARIO na janela); nenhuma agendada em ago.
+        val movs = listOf(mov("2026-07-10", -3_000_00))
+        val ago = YearMonth.of(2026, 8)
+        val m = ProjectionEngine.mes(input(movs), ago, FiltroLedger.TODAS)
+        assertEquals(-(100_00L * 31), m.deltaNoMesCentavos)
+    }
 }

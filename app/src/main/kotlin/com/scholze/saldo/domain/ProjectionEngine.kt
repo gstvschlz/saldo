@@ -89,30 +89,18 @@ object ProjectionEngine {
         }
 
         // Projeção (sempre sobre o conjunto completo, não o filtrado).
-        val estimativa: Long
-        val projetado: Long
-        if (fimMes <= input.hoje) {
-            estimativa = 0
-            projetado = saldoReal(input, efetivas, faturas, fimMes)
-        } else {
-            val media = mediaDiaria(input)
-            val diasRestantes = ChronoUnit.DAYS.between(input.hoje, fimMes)
-            estimativa = media * diasRestantes
-            val agendadas = efetivas
-                .filter { it.natureza != Natureza.CARTAO && it.data > input.hoje && it.data <= fimMes }
-                .sumOf { it.valorCentavos }
-            val faturasFuturas = faturas
-                .filter { it.vencimento > input.hoje && it.vencimento <= fimMes }
-                .sumOf { it.totalCentavos }
-            projetado = saldoReal(input, efetivas, faturas, input.hoje) + agendadas + faturasFuturas - estimativa
-        }
+        val estimativa =
+            if (fimMes <= input.hoje) 0L
+            else mediaDiaria(input) * ChronoUnit.DAYS.between(input.hoje, fimMes)
+        val projetado = projetadoDoMes(input, efetivas, faturas, mes)
+        val projetadoAnterior = projetadoDoMes(input, efetivas, faturas, mes.minusMonths(1))
 
         return MesLedger(
             mes = mes,
             dias = dias,
             saldoProjetadoCentavos = projetado,
             estimativaCentavos = estimativa,
-            deltaNoMesCentavos = projetado - saldoReal(input, efetivas, faturas, fimAnterior),
+            deltaNoMesCentavos = projetado - projetadoAnterior,
             projetadoEm = fimMes,
         )
     }
@@ -120,11 +108,14 @@ object ProjectionEngine {
     // Parameter deliberately NOT named `mes` — it would shadow the mes() function
     // and the call below would fail to resolve.
     fun totais(input: LedgerInput, mesAlvo: YearMonth): TotaisMes {
-        val efetivas = efetivas(input, mesAlvo)
-        val faturas = FaturaCalculator.faturas(efetivas, input.cartao)
-        val doMes = efetivas.filter { YearMonth.from(it.data) == mesAlvo }
+        val efetivasAteMesAlvo = efetivas(input, mesAlvo)
+        val doMes = efetivasAteMesAlvo.filter { YearMonth.from(it.data) == mesAlvo }
 
+        // faturaAtual é sobre o ciclo aberto em `hoje`, não sobre mesAlvo — precisa de
+        // efetivas expandidas até cobrir o mês do ciclo aberto, mesmo que mesAlvo seja passado.
         val cicloAberto = FaturaCalculator.cicloDaCompra(input.hoje, input.cartao)
+        val mesCicloAberto = YearMonth.from(FaturaCalculator.fechamentoDoCiclo(cicloAberto, input.cartao))
+        val faturasParaAtual = FaturaCalculator.faturas(efetivas(input, maxOf(mesAlvo, mesCicloAberto)), input.cartao)
         val ledger = mes(input, mesAlvo, FiltroLedger.TODAS)
 
         return TotaisMes(
@@ -134,10 +125,10 @@ object ProjectionEngine {
                 -doMes.filter { it.natureza == n && it.valorCentavos < 0 }.sumOf { it.valorCentavos }
             },
             sobrouCentavos = ledger.deltaNoMesCentavos,
-            economiaBucketCentavos = -efetivas
+            economiaBucketCentavos = -efetivasAteMesAlvo
                 .filter { it.natureza == Natureza.ECONOMIA && it.data <= mesAlvo.atEndOfMonth() }
                 .sumOf { it.valorCentavos },
-            faturaAtual = faturas.firstOrNull { it.ciclo == cicloAberto },
+            faturaAtual = faturasParaAtual.firstOrNull { it.ciclo == cicloAberto },
             fechamentoFaturaAtual = FaturaCalculator.fechamentoDoCiclo(cicloAberto, input.cartao),
             topTags = doMes.asSequence()
                 .filter { it.valorCentavos < 0 }
@@ -179,13 +170,31 @@ object ProjectionEngine {
             efetivas.filter { it.natureza != Natureza.CARTAO && it.data <= ate }.sumOf { it.valorCentavos } +
             faturas.filter { it.vencimento <= ate }.sumOf { it.totalCentavos }
 
-    /** Σ|one-off DIARIO saídas| in the 30 days ending today, ÷ 30. */
+    /**
+     * Saldo projetado ao fim de [mes]: saldo real se o mês já terminou (`estimativa` 0),
+     * senão saldo real de hoje + agendadas/faturas futuras dentro do mês − estimativa.
+     */
+    private fun projetadoDoMes(input: LedgerInput, efetivas: List<Movimentacao>, faturas: List<Fatura>, mes: YearMonth): Long {
+        val fimMes = mes.atEndOfMonth()
+        if (fimMes <= input.hoje) return saldoReal(input, efetivas, faturas, fimMes)
+        val estimativa = mediaDiaria(input) * ChronoUnit.DAYS.between(input.hoje, fimMes)
+        val agendadas = efetivas
+            .filter { it.natureza != Natureza.CARTAO && it.data > input.hoje && it.data <= fimMes }
+            .sumOf { it.valorCentavos }
+        val faturasFuturas = faturas
+            .filter { it.vencimento > input.hoje && it.vencimento <= fimMes }
+            .sumOf { it.totalCentavos }
+        return saldoReal(input, efetivas, faturas, input.hoje) + agendadas + faturasFuturas - estimativa
+    }
+
+    /** Σ|one-off DIARIO saídas| in the 30 days ending today (never before saldoInicialData), ÷ 30. */
     private fun mediaDiaria(input: LedgerInput): Long {
         val inicioJanela = input.hoje.minusDays(29)
         val total = input.movimentacoes
             .filter {
                 it.recorrenciaId == null && it.natureza == Natureza.DIARIO &&
-                    it.valorCentavos < 0 && it.data >= inicioJanela && it.data <= input.hoje
+                    it.valorCentavos < 0 && it.data >= inicioJanela && it.data <= input.hoje &&
+                    it.data >= input.saldoInicialData
             }
             .sumOf { -it.valorCentavos }
         return total / 30
