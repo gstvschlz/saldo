@@ -1,0 +1,28 @@
+[tools]
+java = "temurin-21"
+gradle = "9.7.0"
+android-sdk = "22.0"
+
+[tasks.build]
+description = "Compile the debug APK"
+run = "./gradlew assembleDebug"
+
+[tasks.test]
+description = "Run unit tests"
+run = "./gradlew test"
+
+[tasks.lint]
+description = "Run Android Lint"
+run = "./gradlew lint"
+
+[tasks.install]
+description = "Install the debug APK on a connected device/emulator"
+run = "./gradlew installDebug"
+
+[tasks.clean]
+description = "Delete build outputs"
+run = "./gradlew clean"
+
+[tasks.sdk-setup]
+description = "Install the Android SDK packages this project needs"
+run = "sdkmanager 'platform-tools' 'platforms;android-37.1' 'build-tools;37.0.0'"
