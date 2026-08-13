@@ -69,9 +69,7 @@ class RoomSaldoRepository(
     override suspend fun abrirMes(mes: YearMonth) = db.withTransaction {
         val marcados = mesDao.todos().map { it.toYearMonth() }.toSet()
         if (mes in marcados) return@withTransaction
-        val templates = recDao.observeAll().first().map { it.toDomain() }
-        RecurrenceExpander.ocorrenciasNoMes(templates, mes).forEach { insertComTags(it) }
-        mesDao.marcar(MesMaterializadoEntity(mes.toAnoMes()))
+        materializar(mes)
     }
 
     override suspend fun criar(mov: Movimentacao, repetir: RepetirOpcao) = db.withTransaction {
@@ -79,6 +77,7 @@ class RoomSaldoRepository(
             is RepetirOpcao.Nao -> insertComTags(mov)
             is RepetirOpcao.TodoMes -> {
                 val inicio = YearMonth.from(mov.data)
+                val marcados = mesDao.todos().map { it.toYearMonth() }.toSet()
                 val recId = recDao.insert(
                     Recorrencia(
                         descricao = mov.descricao, valorCentavos = mov.valorCentavos,
@@ -90,15 +89,16 @@ class RoomSaldoRepository(
                     id = recId, descricao = mov.descricao, valorCentavos = mov.valorCentavos,
                     natureza = mov.natureza, diaDoMes = repetir.dia, inicio = inicio, tags = mov.tags,
                 )
-                // Instância deste mês usa a data digitada; meses já materializados >= início são semeados.
+                // Instância deste mês usa a data digitada; meses já materializados > início são semeados.
                 insertComTags(mov.copy(recorrenciaId = recId))
-                mesDao.todos().map { it.toYearMonth() }
-                    .filter { it >= inicio && it != YearMonth.from(mov.data) }
-                    .forEach { m ->
-                        RecurrenceExpander.ocorrenciaNoMes(template, m)?.let { insertComTags(it) }
-                    }
-                // Garante o mês da própria movimentação marcado como materializado.
-                mesDao.marcar(MesMaterializadoEntity(inicio.toAnoMes()))
+                marcados.filter { it > inicio }.forEach { m ->
+                    RecurrenceExpander.ocorrenciaNoMes(template, m)?.let { insertComTags(it) }
+                }
+                // O mês da própria movimentação precisa ficar materializado — a instância acima já é
+                // uma linha real, e sem a marca o template seria AINDA expandido virtualmente ali.
+                // Marcar um mês nunca aberto, porém, desliga a expansão virtual das OUTRAS
+                // recorrências nele; então elas são semeadas antes, como faria `abrirMes`.
+                if (inicio !in marcados) materializar(inicio, excetoRecorrenciaId = recId)
             }
         }
     }
@@ -122,6 +122,16 @@ class RoomSaldoRepository(
                 val recId = requireNotNull(mov.recorrenciaId) { "escopo DAQUI_EM_DIANTE exige recorrência" }
                 val mesInicio = YearMonth.from(mov.data)
                 val templateAntigo = recDao.observeAll().first().first { it.rec.id == recId }.toDomain()
+                // Congela o passado ANTES de mexer no template: meses entre o início da recorrência
+                // e o mês da edição que nunca foram abertos ainda são expandidos virtualmente, e
+                // passariam a render os valores NOVOS. Materializá-los com os valores antigos
+                // (mês completo, como `abrirMes`) mantém "daqui em diante" olhando só para frente.
+                val marcados = mesDao.todos().map { it.toYearMonth() }.toSet()
+                var passado = templateAntigo.inicio
+                while (passado < mesInicio) {
+                    if (passado !in marcados) materializar(passado)
+                    passado = passado.plusMonths(1)
+                }
                 val templateNovo = templateAntigo.copy(
                     descricao = mov.descricao, valorCentavos = mov.valorCentavos,
                     natureza = mov.natureza, diaDoMes = mov.data.dayOfMonth, tags = mov.tags,
@@ -179,6 +189,19 @@ class RoomSaldoRepository(
     override suspend fun renomearTag(id: Long, nome: String) = tagDao.rename(id, nome)
 
     override suspend fun excluirTag(id: Long) = tagDao.deleteById(id)
+
+    /**
+     * Núcleo de [abrirMes]: expande todo template ativo em [mes] e marca o mês como materializado.
+     * [excetoRecorrenciaId] pula um template cuja instância do mês já foi inserida à mão.
+     * O chamador é responsável por só chamar quando [mes] ainda não estiver materializado.
+     */
+    private suspend fun materializar(mes: YearMonth, excetoRecorrenciaId: Long? = null) {
+        val templates = recDao.observeAll().first()
+            .map { it.toDomain() }
+            .filter { it.id != excetoRecorrenciaId }
+        RecurrenceExpander.ocorrenciasNoMes(templates, mes).forEach { insertComTags(it) }
+        mesDao.marcar(MesMaterializadoEntity(mes.toAnoMes()))
+    }
 
     private suspend fun insertComTags(mov: Movimentacao) {
         val id = movDao.insert(mov.toEntity())

@@ -91,6 +91,43 @@ class RepositoryTest {
     }
 
     @Test
+    fun criarRecorrenteEmMesNuncaAbertoSemeiaOutrosTemplates() = runBlocking {
+        repo.criar(mov("2026-07-15", 8_240_00).copy(descricao = "salário"), RepetirOpcao.TodoMes(15))
+        // Outubro nunca foi aberto: marcá-lo materializado sem semear "salário" o apagaria de lá.
+        repo.criar(mov("2026-10-03", -2_400_00).copy(descricao = "aluguel"), RepetirOpcao.TodoMes(3))
+
+        suspend fun outubro() = repo.ledger.first().movimentacoes
+            .filter { YearMonth.from(it.data) == YearMonth.of(2026, 10) }
+            .sortedBy { it.data }
+            .map { "${it.data} ${it.descricao}" }
+
+        assertEquals(listOf("2026-10-03 aluguel", "2026-10-15 salário"), outubro())
+
+        repo.abrirMes(YearMonth.of(2026, 10))
+        repo.abrirMes(YearMonth.of(2026, 10))
+        assertEquals(listOf("2026-10-03 aluguel", "2026-10-15 salário"), outubro())
+    }
+
+    @Test
+    fun editarDaquiEmDianteCongelaMesesPassadosNaoAbertos() = runBlocking {
+        repo.criar(mov("2026-06-03", -2_400_00).copy(descricao = "aluguel"), RepetirOpcao.TodoMes(3))
+        repo.abrirMes(YearMonth.of(2026, 8)) // julho fica pulado, nunca aberto
+        val agosto = repo.ledger.first().movimentacoes
+            .first { YearMonth.from(it.data) == YearMonth.of(2026, 8) }
+        repo.editar(agosto.copy(valorCentavos = -2_500_00), EscopoEdicao.DAQUI_EM_DIANTE)
+
+        repo.abrirMes(YearMonth.of(2026, 7)) // julho já foi congelado pela edição; não duplica
+        val porMes = repo.ledger.first().movimentacoes
+            .sortedBy { it.data }
+            .map { "${it.data} ${it.valorCentavos}" }
+        // Junho e julho preservam o valor ANTIGO; só agosto em diante muda.
+        assertEquals(
+            listOf("2026-06-03 -240000", "2026-07-03 -240000", "2026-08-03 -250000"),
+            porMes,
+        )
+    }
+
+    @Test
     fun excluirERestaurar() = runBlocking {
         repo.criar(mov("2026-07-10", -50_00), RepetirOpcao.Nao)
         val salva = repo.ledger.first().movimentacoes.single()
