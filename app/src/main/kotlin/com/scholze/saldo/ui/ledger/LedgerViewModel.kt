@@ -14,6 +14,7 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.ProjectionEngine
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,7 +79,13 @@ class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     private fun abrir(mes: YearMonth) {
         viewModelScope.launch {
-            runCatching { repo.abrirMes(mes) }.onFailure { Log.e(TAG, "abrirMes($mes) falhou", it) }
+            try {
+                repo.abrirMes(mes)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "abrirMes($mes) falhou", e)
+            }
         }
     }
 
@@ -86,14 +93,25 @@ class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     fun excluir(mov: Movimentacao) {
         viewModelScope.launch {
-            runCatching { _eventoExclusao.emit(repo.excluir(mov)) }
-                .onFailure { Log.e(TAG, "excluir falhou", it) }
+            try {
+                _eventoExclusao.emit(repo.excluir(mov))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "excluir falhou", e)
+            }
         }
     }
 
     fun desfazerExclusao(snapshot: Movimentacao) {
         viewModelScope.launch {
-            runCatching { repo.restaurar(snapshot) }.onFailure { Log.e(TAG, "restaurar falhou", it) }
+            try {
+                repo.restaurar(snapshot)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "restaurar falhou", e)
+            }
         }
     }
 

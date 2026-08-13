@@ -212,7 +212,18 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                 HairlineDivider(startIndent = 16.dp)
                 InsetRow(label = "data", value = rotuloData(state.data), onClick = { escolhendoData = true })
                 HairlineDivider(startIndent = 16.dp)
-                InsetRow(label = "repetir", value = rotuloRepetir(state.repetir), onClick = { escolhendoRepetir = true })
+                // Numa edição a recorrência não se liga nem desliga por aqui: `criar` é quem lê
+                // `repetir`, e `editar` só conhece SO_ESTE_MES / DAQUI_EM_DIANTE. A linha vira
+                // rótulo — um controle que não faz nada é pior do que nenhum controle.
+                if (state.editandoId == null) {
+                    InsetRow(
+                        label = "repetir",
+                        value = rotuloRepetir(state.repetir),
+                        onClick = { escolhendoRepetir = true },
+                    )
+                } else {
+                    InsetRow(label = "repetir", value = rotuloRepetir(state.repetir))
+                }
                 HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "tags",
