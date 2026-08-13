@@ -48,3 +48,4 @@ release/
 .idea/
 *.iml
 .DS_Store
+.superpowers/

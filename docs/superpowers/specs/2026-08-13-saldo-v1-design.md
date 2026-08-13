@@ -128,7 +128,15 @@ data/        Room (entities, DAOs, database), DataStore settings, SaldoRepositor
 - Hero caption discloses the estimate: "inclui estimativa de R$ X em diários".
   The estimate never fabricates day rows — future rows show scheduled entries
   only.
-- "no mês" delta = projected end(M) − saldoReal(end(M−1)).
+- "no mês" delta is month-scoped: `projetado(M) − projetado(M−1)`, where a fully
+  past M−1 has `projetado(M−1) = saldoReal(end(M−1))` — so for the current month
+  this reduces to `projetado(M) − saldoReal(end(M−1))`. (Revised during
+  implementation: the original formula charged the cumulative estimate of all
+  intervening months to a single future month.)
+- The estimate's trailing-30-day window also respects the `saldoInicialData`
+  floor — entries before the opening balance date never feed the média.
+- `faturaAtual` reflects the full open cycle at `hoje` even when viewing a past
+  month's totais.
 - All money is integer centavos end to end; display formatting via the
   existing `Money.kt` (pt-BR, U+2212 minus, tabular figures).
 
