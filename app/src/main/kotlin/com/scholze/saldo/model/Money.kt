@@ -42,3 +42,12 @@ fun Long.formatarCentavos(): String {
         .reversed()
     return "$agrupado,${cents.toString().padStart(2, '0')}"
 }
+
+/** 23850 -> "238,50" — magnitude only. */
+fun Long.centavosValor(): String = kotlin.math.abs(this).formatarCentavos()
+
+/** -23850 -> "−R$ 238,50"; 23850 -> "R$ 238,50". */
+fun Long.centavosComSimbolo(): String = (if (this < 0) MINUS else "") + "R$ " + centavosValor()
+
+/** -23850 -> "−238,50"; 23850 -> "+238,50". */
+fun Long.centavosAssinado(): String = (if (this < 0) MINUS else "+") + centavosValor()
