@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -192,6 +193,52 @@ class RepositoryTest {
         val agosto = repo.ledger.first().movimentacoes
             .single { YearMonth.from(it.data) == YearMonth.of(2026, 8) }
         assertEquals("comida", agosto.tags.single().nome)
+    }
+
+    @Test
+    fun excluirRejeitaMovimentacaoVirtual() = runBlocking {
+        // Ocorrência virtual do ProjectionEngine: id 0, sem linha correspondente no banco.
+        val virtual = mov("2026-07-15", -50_00)
+        try {
+            repo.excluir(virtual)
+            fail("excluir deveria rejeitar ocorrência virtual")
+        } catch (esperado: IllegalArgumentException) {
+            // o delete seria um no-op e o "desfazer" criaria uma duplicata permanente
+        }
+        try {
+            repo.editar(virtual, EscopoEdicao.SO_ESTE_MES)
+            fail("editar SO_ESTE_MES deveria rejeitar ocorrência virtual")
+        } catch (esperado: IllegalArgumentException) {
+            // o UPDATE ... WHERE id = 0 não acertaria linha nenhuma
+        }
+    }
+
+    @Test
+    fun moverInstanciaParaMesNaoAbertoMaterializaDestino() = runBlocking {
+        repo.criar(mov("2026-07-15", 8_240_00).copy(descricao = "salário"), RepetirOpcao.TodoMes(15))
+        repo.criar(mov("2026-07-03", -2_400_00).copy(descricao = "aluguel"), RepetirOpcao.TodoMes(3))
+
+        suspend fun setembro() = repo.ledger.first().movimentacoes
+            .filter { YearMonth.from(it.data) == YearMonth.of(2026, 9) }
+            .sortedBy { it.data }
+            .map { "${it.data} ${it.descricao}" }
+
+        val aluguel = repo.ledger.first().movimentacoes.first { it.descricao == "aluguel" }
+        // Setembro nunca foi aberto: sem materializar o destino, o template do aluguel seguiria
+        // expandindo virtualmente lá e a recorrência apareceria duas vezes.
+        repo.editar(aluguel.copy(data = LocalDate.parse("2026-09-03")), EscopoEdicao.SO_ESTE_MES)
+
+        assertEquals(listOf("2026-09-03 aluguel", "2026-09-15 salário"), setembro())
+        repo.abrirMes(YearMonth.of(2026, 9)) // destino já marcado: não duplica
+        assertEquals(listOf("2026-09-03 aluguel", "2026-09-15 salário"), setembro())
+
+        // O mês de origem segue materializado e simplesmente perde a instância movida.
+        assertEquals(
+            listOf("2026-07-15 salário"),
+            repo.ledger.first().movimentacoes
+                .filter { YearMonth.from(it.data) == YearMonth.of(2026, 7) }
+                .map { "${it.data} ${it.descricao}" },
+        )
     }
 
     @Test
