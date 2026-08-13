@@ -1,0 +1,124 @@
+package com.scholze.saldo.ui.ledger
+
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.domain.CartaoConfig
+import com.scholze.saldo.domain.FiltroLedger
+import com.scholze.saldo.domain.LedgerInput
+import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.ui.privacy.LocalPrivacy
+import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
+import com.scholze.saldo.ui.privacy.PrivacyState
+import com.scholze.saldo.ui.theme.SaldoTheme
+import java.time.LocalDate
+import java.time.YearMonth
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * A grade de dias, sobre estado fabricado — sem activity, sem banco.
+ *
+ * O fluxo ponta-a-ponta ([com.scholze.saldo.EntryFlowTest]) só consegue produzir um mês
+ * com uma linha; aqui o mês é montado à mão, com uma instância de recorrência e uma
+ * compra no cartão que vira linha de fatura, que é o que exercita a grade de verdade.
+ */
+@RunWith(AndroidJUnit4::class)
+class LedgerDayGridTest {
+
+    @get:Rule val rule = createComposeRule()
+
+    private val hoje = LocalDate.parse("2026-07-06")
+    private val mesAlvo = YearMonth.of(2026, 7)
+
+    // Fechamento 28 / vencimento 5: a compra de 15 jun fecha no ciclo de junho e vence
+    // em 05 jul — é assim que a fatura cai DENTRO do mês exibido.
+    private val input = LedgerInput(
+        saldoInicialCentavos = 5_000_00,
+        saldoInicialData = LocalDate.parse("2026-06-01"),
+        movimentacoes = listOf(
+            Movimentacao(
+                id = 1, descricao = "aluguel", valorCentavos = -2_400_00,
+                data = LocalDate.parse("2026-07-03"), natureza = Natureza.DIARIO, recorrenciaId = 7,
+            ),
+            Movimentacao(
+                id = 2, descricao = "mercado", valorCentavos = -189_90,
+                data = hoje, natureza = Natureza.DIARIO,
+            ),
+            Movimentacao(
+                id = 3, descricao = "fone", valorCentavos = -300_00,
+                data = LocalDate.parse("2026-06-15"), natureza = Natureza.CARTAO,
+            ),
+        ),
+        // Meses marcados: nada de expansão virtual por cima das linhas acima.
+        recorrencias = emptyList(),
+        mesesMaterializados = setOf(YearMonth.of(2026, 6), mesAlvo),
+        cartao = CartaoConfig(),
+        hoje = hoje,
+    )
+
+    private val estado = LedgerUiState(
+        mes = ProjectionEngine.mes(input, mesAlvo, FiltroLedger.TODAS),
+        mesAtual = mesAlvo,
+        filtro = FiltroLedger.TODAS,
+        hoje = hoje,
+    )
+
+    private fun montar(oculto: Boolean = false) {
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = oculto)) {
+                    LedgerScreen(
+                        state = estado,
+                        onMesAnterior = {},
+                        onProximoMes = {},
+                        onFiltro = {},
+                        onItemClick = {},
+                        onTogglePrivacidade = {},
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun diaMostraDescricaoDoItemESaldoNaColuna() {
+        montar()
+        rule.onNodeWithText("aluguel").assertIsDisplayed()
+        // 5.000,00 − 2.400,00 (03) − 300,00 (fatura, 05) − 189,90 (06)
+        rule.onNodeWithTag(tagSaldoDoDia(6)).assertTextEquals("2.110,10")
+    }
+
+    @Test
+    fun numeroDoDiaDeHojeAparece() {
+        montar()
+        rule.onNodeWithText("06").assertIsDisplayed()
+    }
+
+    @Test
+    fun linhaDeFaturaNaoEClicavel() {
+        montar()
+        // A fatura é um total calculado: não há linha para abrir no editor.
+        rule.onNodeWithText("fatura cartão")
+            .assertIsDisplayed()
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
+        // ...ao contrário de uma movimentação de verdade, que abre.
+        rule.onNodeWithText("aluguel").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+    }
+
+    @Test
+    fun colunaDeSaldoDoDiaMascaraQuandoOculto() {
+        montar(oculto = true)
+        rule.onNodeWithTag(tagSaldoDoDia(6)).assertTextEquals(MASCARA_PRIVACIDADE)
+    }
+}

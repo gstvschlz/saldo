@@ -214,6 +214,41 @@ class RepositoryTest {
     }
 
     @Test
+    fun editarDaquiEmDianteAceitaOcorrenciaVirtual() = runBlocking {
+        repo.criar(mov("2026-06-03", -2_400_00).copy(descricao = "aluguel"), RepetirOpcao.TodoMes(3))
+        val recId = repo.ledger.first().recorrencias.single().id
+
+        // Agosto NUNCA foi aberto: a linha que o usuário vê ali é a expansão virtual do
+        // template, montada aqui à mão exatamente como o ProjectionEngine a produz — id 0.
+        // SO_ESTE_MES e excluir rejeitam isso; DAQUI_EM_DIANTE é a exceção deliberada,
+        // porque reescreve o template e não a linha.
+        val virtualAgosto = Movimentacao(
+            id = 0,
+            descricao = "aluguel",
+            valorCentavos = -2_400_00,
+            data = LocalDate.parse("2026-08-03"),
+            natureza = Natureza.DIARIO,
+            recorrenciaId = recId,
+        )
+        repo.editar(virtualAgosto.copy(valorCentavos = -2_500_00), EscopoEdicao.DAQUI_EM_DIANTE)
+
+        val input = repo.ledger.first()
+        assertEquals(-2_500_00L, input.recorrencias.single().valorCentavos)
+        assertEquals(
+            -2_400_00L,
+            input.movimentacoes.single { YearMonth.from(it.data) == YearMonth.of(2026, 6) }.valorCentavos,
+        )
+        // Agosto continua sem linha e sem marca: a edição olhou só para o template.
+        assertEquals(
+            emptyList<String>(),
+            input.movimentacoes
+                .filter { YearMonth.from(it.data) == YearMonth.of(2026, 8) }
+                .map { it.data.toString() },
+        )
+        assertEquals(false, YearMonth.of(2026, 8) in input.mesesMaterializados)
+    }
+
+    @Test
     fun moverInstanciaParaMesNaoAbertoMaterializaDestino() = runBlocking {
         repo.criar(mov("2026-07-15", 8_240_00).copy(descricao = "salário"), RepetirOpcao.TodoMes(15))
         repo.criar(mov("2026-07-03", -2_400_00).copy(descricao = "aluguel"), RepetirOpcao.TodoMes(3))

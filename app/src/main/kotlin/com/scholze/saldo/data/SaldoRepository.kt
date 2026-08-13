@@ -27,7 +27,33 @@ interface SaldoRepository {
     val tags: Flow<List<Tag>>
     suspend fun abrirMes(mes: YearMonth)
     suspend fun criar(mov: Movimentacao, repetir: RepetirOpcao)
+
+    /**
+     * Grava uma edição.
+     *
+     * **Precondição ([EscopoEdicao.SO_ESTE_MES]): `mov.id != 0`.** Uma ocorrência virtual
+     * — a expansão que o `ProjectionEngine` faz de uma recorrência num mês ainda não
+     * materializado — não tem linha no banco, e o `UPDATE ... WHERE id = 0` não acertaria
+     * nada. Chamar assim lança `IllegalArgumentException`.
+     *
+     * [EscopoEdicao.DAQUI_EM_DIANTE] é a exceção deliberada: ele reescreve o *template* da
+     * recorrência, não a linha, então aceita `id == 0` desde que `recorrenciaId != null`.
+     *
+     * A UI deve chamar [abrirMes] (e esperar) antes de oferecer ações de linha, e nunca
+     * abrir o editor para uma linha com `id == 0`. Cuidado também com a data: mover uma
+     * instância para um mês nunca aberto materializa aquele mês inteiro (comportamento
+     * documentado, ver `moverInstanciaParaMesNaoAbertoMaterializaDestino`).
+     */
     suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao)
+
+    /**
+     * Apaga a linha e devolve o snapshot para o "desfazer".
+     *
+     * **Precondição: `mov.id != 0`.** Numa ocorrência virtual o delete seria um no-op e o
+     * "desfazer" seguinte inseriria uma duplicata permanente; por isso lança
+     * `IllegalArgumentException` em vez de falhar em silêncio. A UI deve chamar [abrirMes]
+     * antes de oferecer ações de linha.
+     */
     suspend fun excluir(mov: Movimentacao): Movimentacao
     suspend fun restaurar(mov: Movimentacao)
     suspend fun excluirRecorrencia(recorrenciaId: Long, aPartirDe: YearMonth, escopo: EscopoExclusao)

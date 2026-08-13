@@ -52,6 +52,7 @@ import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.theme.tabular
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -66,6 +67,9 @@ private val diaCurto = DateTimeFormatter.ofPattern("d MMM", ptBr)
 
 /** O hero, para os testes: há vários nós de dinheiro mascarados na tela. */
 const val TAG_SALDO_PROJETADO = "ledger:saldoProjetado"
+
+/** A coluna de saldo de um dia — mesma razão do hero: vários nós iguais na tela. */
+fun tagSaldoDoDia(dia: Int): String = "ledger:saldoDia:$dia"
 
 @Composable
 fun LedgerScreen(
@@ -317,7 +321,8 @@ private fun DayRow(
         Text(
             dia.data.dayOfMonth.toString().padStart(2, '0'),
             Modifier.width(DAY_COLUMN).padding(start = 16.dp, top = 10.dp),
-            style = SaldoTheme.type.row.let { if (ehHoje) it.copy(fontWeight = FontWeight.SemiBold) else it },
+            // Tabular: a coluna de dias é uma coluna de números e tem de alinhar.
+            style = SaldoTheme.type.row.tabular.let { if (ehHoje) it.copy(fontWeight = FontWeight.SemiBold) else it },
             color = if (ehHoje) colors.tint else colors.secondaryLabel,
         )
 
@@ -327,8 +332,11 @@ private fun DayRow(
             } else {
                 dia.itens.forEach { item ->
                     val mov = (item as? ItemDia.Mov)?.mov
+                    // A fatura é um total calculado, não uma linha editável: fica sem
+                    // `clickable` nenhum, para não anunciar um onClick desativado à
+                    // acessibilidade nem desenhar ripple.
                     Row(
-                        Modifier.clickable(enabled = mov != null) { mov?.let(onItemClick) },
+                        if (mov != null) Modifier.clickable { onItemClick(mov) } else Modifier,
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
@@ -367,7 +375,7 @@ private fun DayRow(
         ) {
             MoneyText(
                 centavos = dia.saldoCentavos,
-                modifier = Modifier.padding(end = 16.dp),
+                modifier = Modifier.padding(end = 16.dp).testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
                 style = SaldoTheme.type.row, color = colors.balance,
                 formato = FormatoMoney.VALOR, fontWeight = FontWeight.Medium,
             )

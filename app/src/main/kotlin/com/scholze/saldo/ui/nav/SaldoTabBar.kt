@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -104,6 +105,9 @@ private fun TabItem(
     }
 }
 
+/** O `+` central, para os testes: é um glifo desenhado, sem nó de texto para procurar. */
+const val TAG_ADD = "tab-add"
+
 @Composable
 private fun AddButton(onAdd: () -> Unit) {
     val colors = SaldoTheme.colors
@@ -112,7 +116,8 @@ private fun AddButton(onAdd: () -> Unit) {
             .size(46.dp)
             .clip(CircleShape)
             .background(colors.tint)
-            .clickable(onClick = onAdd),
+            .clickable(onClick = onAdd)
+            .testTag(TAG_ADD),
         contentAlignment = Alignment.Center,
     ) {
         SaldoGlyph(SaldoIcon.PLUS, Color.White, size = 26.dp, strokeWidth = 2.4.dp)

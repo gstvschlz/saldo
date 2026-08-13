@@ -77,4 +77,15 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     suspend fun definirTema(tema: Tema) {
         dataStore.edit { it[Keys.tema] = tema.name }
     }
+
+    /**
+     * Volta tudo ao default de instalação nova.
+     *
+     * Passa pela MESMA instância de [DataStore] de propósito: apagar o arquivo por fora
+     * não invalida o cache em memória do singleton, então só isto realmente reseta o
+     * estado dentro de um processo já em execução (o caso dos testes instrumentados).
+     */
+    suspend fun limpar() {
+        dataStore.edit { it.clear() }
+    }
 }

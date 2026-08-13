@@ -28,8 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.scholze.saldo.AppContainer
-import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
+import com.scholze.saldo.ui.entry.EntryViewModel
 import com.scholze.saldo.ui.entry.NewEntrySheet
 import com.scholze.saldo.ui.ledger.LedgerScreen
 import com.scholze.saldo.ui.ledger.LedgerViewModel
@@ -65,13 +65,15 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
     }
 
     val ledgerVm: LedgerViewModel = viewModel(factory = LedgerViewModel.factory(container))
+    val entryVm: EntryViewModel = viewModel(factory = EntryViewModel.factory(container))
     val ledgerState by ledgerVm.state.collectAsState()
     val privacidade = LocalPrivacy.current
     val snackbar = remember { SnackbarHostState() }
 
     var tab by rememberSaveable { mutableStateOf(SaldoTab.SALDOS) }
+    // Só o "a sheet está aberta" é saveable; o formulário em si vive no [EntryViewModel]
+    // e por isso sobrevive à rotação sem precisar ser serializado.
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
-    var emEdicao by remember { mutableStateOf<Movimentacao?>(null) }
 
     LaunchedEffect(Unit) {
         ledgerVm.eventoExclusao.collect { snapshot ->
@@ -92,7 +94,10 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                         onMesAnterior = ledgerVm::mesAnterior,
                         onProximoMes = ledgerVm::proximoMes,
                         onFiltro = ledgerVm::definirFiltro,
-                        onItemClick = { emEdicao = it; sheetAberto = true },
+                        // id 0 = ocorrência virtual: o mês ainda não foi materializado (a
+                        // `abrirMes` do ViewModel é assíncrona). Editá-la explodiria no save
+                        // com SO_ESTE_MES, então a linha simplesmente não abre o editor.
+                        onItemClick = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } },
                         onTogglePrivacidade = privacidade::alternar,
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
@@ -104,7 +109,7 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
             SaldoTabBar(
                 selected = tab,
                 onSelect = { tab = it },
-                onAdd = { emEdicao = null; sheetAberto = true },
+                onAdd = { entryVm.iniciarNova(LocalDate.now()); sheetAberto = true },
             )
         }
 
@@ -112,8 +117,8 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
 
         AnimatedVisibility(visible = sheetAberto, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
             NewEntrySheet(
-                onCancel = { sheetAberto = false },
-                onSave = { sheetAberto = false },
+                vm = entryVm,
+                onFechar = { sheetAberto = false },
                 modifier = Modifier.statusBarsPadding(),
             )
         }

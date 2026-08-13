@@ -1,5 +1,6 @@
 package com.scholze.saldo.ui.ledger
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,12 +14,15 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.ProjectionEngine
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -47,14 +51,21 @@ class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
                 filtro = f,
                 hoje = input.hoje,
             )
-        }.stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            LedgerUiState(mes = null, mesAtual = mesAtual.value, filtro = filtro.value, hoje = LocalDate.now()),
-        )
+        }
+            // A projeção do mês inteiro roda fora da main thread.
+            .flowOn(Dispatchers.Default)
+            // Uma exceção subindo do banco cancelaria o StateFlow e a tela ficaria
+            // congelada para sempre, sem nem um crash que explicasse. Registrar e parar
+            // de emitir preserva o último estado renderizado.
+            .catch { Log.e(TAG, "fluxo do ledger falhou", it) }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                LedgerUiState(mes = null, mesAtual = mesAtual.value, filtro = filtro.value, hoje = LocalDate.now()),
+            )
 
     init {
-        viewModelScope.launch { repo.abrirMes(mesAtual.value) }
+        abrir(mesAtual.value)
     }
 
     fun mesAnterior() = irPara(mesAtual.value.minusMonths(1))
@@ -62,20 +73,33 @@ class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     private fun irPara(mes: YearMonth) {
         mesAtual.value = mes
-        viewModelScope.launch { repo.abrirMes(mes) }
+        abrir(mes)
+    }
+
+    private fun abrir(mes: YearMonth) {
+        viewModelScope.launch {
+            runCatching { repo.abrirMes(mes) }.onFailure { Log.e(TAG, "abrirMes($mes) falhou", it) }
+        }
     }
 
     fun definirFiltro(f: FiltroLedger) { filtro.value = f }
 
     fun excluir(mov: Movimentacao) {
-        viewModelScope.launch { _eventoExclusao.emit(repo.excluir(mov)) }
+        viewModelScope.launch {
+            runCatching { _eventoExclusao.emit(repo.excluir(mov)) }
+                .onFailure { Log.e(TAG, "excluir falhou", it) }
+        }
     }
 
     fun desfazerExclusao(snapshot: Movimentacao) {
-        viewModelScope.launch { repo.restaurar(snapshot) }
+        viewModelScope.launch {
+            runCatching { repo.restaurar(snapshot) }.onFailure { Log.e(TAG, "restaurar falhou", it) }
+        }
     }
 
     companion object {
+        private const val TAG = "saldo"
+
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer { LedgerViewModel(container.repository) }
         }

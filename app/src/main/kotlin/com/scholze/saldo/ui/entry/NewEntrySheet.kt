@@ -13,24 +13,34 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.scholze.saldo.model.centavosComSimbolo
+import com.scholze.saldo.domain.EscopoEdicao
+import com.scholze.saldo.domain.EscopoExclusao
+import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.model.formatarCentavos
 import com.scholze.saldo.ui.components.FilledActionButton
 import com.scholze.saldo.ui.components.HairlineDivider
@@ -39,48 +49,86 @@ import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.components.SegmentedControl
+import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.theme.tabular
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-private val TIPOS = listOf("entrada", "saída")
-private val NATUREZAS = listOf("diário", "economia", "cartão")
+private val ptBr = Locale.forLanguageTag("pt-BR")
+private val dataCurta = DateTimeFormatter.ofPattern("EEE, d MMM", ptBr)
+private val NATUREZAS = listOf(Natureza.DIARIO to "diário", Natureza.ECONOMIA to "economia", Natureza.CARTAO to "cartão")
 
-/** Option 1d — HIG sheet: segmented type over a grouped-inset form. */
+/**
+ * Option 1d — HIG sheet: segmented type over a grouped-inset form, now driven by
+ * [EntryViewModel] and writing through to the repository.
+ *
+ * Tapping the amount hands off to the 1g keypad, which REPLACES the sheet content
+ * rather than stacking over it.
+ */
 @Composable
-fun NewEntrySheet(
-    onCancel: () -> Unit,
-    onSave: () -> Unit,
-    modifier: Modifier = Modifier,
-    // Demo state até a Task 10 ligar o sheet no repositório.
-    valorCentavos: Long = 23850L,
-    saldoResultanteCentavos: Long = 11265536L,
-) {
+fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
-    var tipo by rememberSaveable { mutableIntStateOf(1) }
-    var natureza by rememberSaveable { mutableIntStateOf(0) }
-    val descricao by rememberSaveable { mutableStateOf("mercado") }
-    var centavos by rememberSaveable { mutableLongStateOf(valorCentavos) }
-    var editandoValor by rememberSaveable { mutableStateOf(false) }
+    val state by vm.state.collectAsState()
 
-    // Tapping the amount hands off to the 1g decimal pad.
+    var editandoValor by rememberSaveable { mutableStateOf(false) }
+    var pedindoEscopo by remember { mutableStateOf(false) }
+    var pedindoExclusao by remember { mutableStateOf(false) }
+    var escolhendoData by remember { mutableStateOf(false) }
+    var escolhendoRepetir by remember { mutableStateOf(false) }
+    var escolhendoTags by remember { mutableStateOf(false) }
+    var editandoDescricao by remember { mutableStateOf(false) }
+
     if (editandoValor) {
         AmountKeypadScreen(
-            onContinue = {
-                centavos = it
-                editandoValor = false
-            },
-            initialCentavos = centavos,
+            onContinue = { vm.definirCentavos(it); editandoValor = false },
+            initialCentavos = state.centavos,
             modifier = modifier,
         )
         return
     }
 
-    Column(
-        modifier
-            .fillMaxSize()
-            .background(colors.background),
-    ) {
-        SheetNavBar(onCancel = onCancel, onSave = onSave)
+    val ehRecorrente = state.recorrenciaId != null
+    val salvar: () -> Unit = {
+        if (state.editandoId != null && ehRecorrente) pedindoEscopo = true
+        else vm.salvar(EscopoEdicao.SO_ESTE_MES) { onFechar() }
+    }
+
+    Column(modifier.fillMaxSize().background(colors.background)) {
+        // Nav bar da sheet.
+        Column {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(colors.navBar)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "cancelar",
+                    Modifier.clickable(onClick = onFechar),
+                    style = SaldoTheme.type.body,
+                    color = colors.tint,
+                )
+                Text(
+                    if (state.editandoId == null) "nova movimentação" else "editar movimentação",
+                    Modifier.weight(1f),
+                    style = SaldoTheme.type.navTitle,
+                    color = colors.label,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    "salvar",
+                    Modifier.clickable(enabled = state.podeSalvar, onClick = salvar),
+                    style = SaldoTheme.type.body.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (state.podeSalvar) colors.tint else colors.secondaryLabel,
+                )
+            }
+            HairlineDivider()
+        }
 
         Column(
             Modifier
@@ -90,52 +138,93 @@ fun NewEntrySheet(
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             SegmentedControl(
-                options = TIPOS,
-                selectedIndex = tipo,
-                onSelect = { tipo = it },
+                options = listOf("entrada", "saída"),
+                selectedIndex = if (state.saida) 1 else 0,
+                onSelect = { vm.definirSaida(it == 1) },
                 modifier = Modifier.padding(top = 16.dp),
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NATUREZAS.forEachIndexed { index, rotulo ->
-                    NaturezaChip(
-                        text = rotulo,
-                        selected = index == natureza,
-                        onClick = { natureza = index },
-                    )
+                NATUREZAS.forEach { (n, rotulo) ->
+                    val selecionada = state.natureza == n
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (selecionada) colors.tint else colors.surface)
+                            .clickable { vm.definirNatureza(n) }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                    ) {
+                        Text(
+                            rotulo,
+                            style = SaldoTheme.type.footnote.copy(
+                                fontWeight = if (selecionada) FontWeight.SemiBold else FontWeight.Normal,
+                            ),
+                            color = if (selecionada) Color.White else colors.label,
+                        )
+                    }
                 }
             }
 
-            AmountBlock(
-                centavos = centavos,
-                legenda = if (tipo == 1) {
-                    "gasto variável · sai do saldo hoje"
-                } else {
-                    "entrada · entra no saldo hoje"
-                },
-                onClick = { editandoValor = true },
-            )
+            // Valor — toca para abrir o teclado 1g. Este é o número SENDO DIGITADO, um
+            // contexto de entrada: fica em Text puro, fora da máscara de privacidade.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().clickable { editandoValor = true },
+            ) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "R$",
+                        Modifier.padding(bottom = 7.dp),
+                        style = SaldoTheme.type.navTitle,
+                        color = colors.secondaryLabel,
+                    )
+                    Text(
+                        state.centavos.formatarCentavos(),
+                        style = SaldoTheme.type.largeTitle.tabular.copy(fontSize = 44.sp),
+                        color = colors.label,
+                    )
+                }
+                Text(
+                    legenda(state),
+                    Modifier.padding(top = 6.dp),
+                    style = SaldoTheme.type.footnote,
+                    color = colors.secondaryLabel,
+                )
+            }
 
             InsetGroup {
-                InsetRow(label = "descrição", value = descricao)
+                if (editandoDescricao) {
+                    OutlinedTextField(
+                        value = state.descricao,
+                        onValueChange = vm::definirDescricao,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        placeholder = { Text("descrição", color = colors.secondaryLabel) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default,
+                    )
+                } else {
+                    InsetRow(
+                        label = "descrição",
+                        value = state.descricao.ifBlank { "toque para escrever" },
+                        onClick = { editandoDescricao = true },
+                    )
+                }
                 HairlineDivider(startIndent = 16.dp)
-                InsetRow(label = "data", value = "hoje, 20 jul")
+                InsetRow(label = "data", value = rotuloData(state.data), onClick = { escolhendoData = true })
                 HairlineDivider(startIndent = 16.dp)
-                InsetRow(label = "repetir", value = "não repete")
+                InsetRow(label = "repetir", value = rotuloRepetir(state.repetir), onClick = { escolhendoRepetir = true })
                 HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "tags",
+                    onClick = { escolhendoTags = true },
                     trailing = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            TagPill("comida")
+                            state.tagsSelecionadas.take(3).forEach { TagPill(it.nome) }
                             Box(
-                                Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(colors.segmentedTrack),
+                                Modifier.size(24.dp).clip(CircleShape).background(colors.segmentedTrack),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 SaldoGlyph(SaldoIcon.PLUS, colors.tint, size = 16.dp, strokeWidth = 1.6.dp)
@@ -146,115 +235,200 @@ fun NewEntrySheet(
             }
 
             FilledActionButton(
-                text = "adicionar ${NATUREZAS[natureza]}",
-                onClick = onSave,
+                text = when {
+                    state.editandoId != null -> "salvar alterações"
+                    else -> "adicionar " + NATUREZAS.first { it.first == state.natureza }.second
+                },
+                onClick = salvar,
+                enabled = state.podeSalvar,
             )
 
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) {
+            if (state.editandoId != null) {
                 Text(
-                    "saldo de hoje ficará em ",
-                    style = SaldoTheme.type.footnote,
-                    color = colors.secondaryLabel,
+                    if (ehRecorrente) "excluir recorrência" else "excluir movimentação",
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { if (ehRecorrente) pedindoExclusao = true else vm.excluir { onFechar() } }
+                        .padding(vertical = 6.dp),
+                    style = SaldoTheme.type.body,
+                    color = colors.categoryVariable,
+                    textAlign = TextAlign.Center,
                 )
-                Text(
-                    saldoResultanteCentavos.centavosComSimbolo(),
-                    style = SaldoTheme.type.footnote.tabular.copy(fontWeight = FontWeight.SemiBold),
-                    color = colors.balance,
-                )
+            }
+
+            val saldoFooter = state.saldoResultanteCentavos
+            if (saldoFooter != null) {
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "saldo de ${rotuloData(state.data)} ficará em ",
+                        style = SaldoTheme.type.footnote,
+                        color = colors.secondaryLabel,
+                    )
+                    MoneyText(
+                        centavos = saldoFooter,
+                        style = SaldoTheme.type.footnote,
+                        color = colors.balance,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
     }
-}
 
-@Composable
-private fun SheetNavBar(onCancel: () -> Unit, onSave: () -> Unit) {
-    val colors = SaldoTheme.colors
-    Column {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(colors.navBar)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "cancelar",
-                Modifier.clickable(onClick = onCancel),
-                style = SaldoTheme.type.body,
-                color = colors.tint,
-            )
-            Text(
-                "nova movimentação",
-                Modifier.weight(1f),
-                style = SaldoTheme.type.navTitle,
-                color = colors.label,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                "salvar",
-                Modifier.clickable(onClick = onSave),
-                style = SaldoTheme.type.body.copy(fontWeight = FontWeight.SemiBold),
-                color = colors.tint,
-            )
-        }
-        HairlineDivider()
+    if (escolhendoData) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = state.data.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { escolhendoData = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let {
+                        vm.definirData(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
+                    }
+                    escolhendoData = false
+                }) { Text("ok") }
+            },
+            dismissButton = { TextButton(onClick = { escolhendoData = false }) { Text("cancelar") } },
+        ) { DatePicker(state = pickerState) }
     }
-}
 
-@Composable
-private fun AmountBlock(centavos: Long, legenda: String, onClick: () -> Unit) {
-    val colors = SaldoTheme.colors
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-    ) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "R$",
-                Modifier.padding(bottom = 7.dp),
-                style = SaldoTheme.type.navTitle,
-                color = colors.secondaryLabel,
-            )
-            Text(
-                centavos.formatarCentavos(),
-                style = SaldoTheme.type.largeTitle.tabular.copy(fontSize = 44.sp),
-                color = colors.label,
-            )
-        }
-        Text(
-            legenda,
-            Modifier.padding(top = 6.dp),
-            style = SaldoTheme.type.footnote,
-            color = colors.secondaryLabel,
+    if (escolhendoRepetir) {
+        AlertDialog(
+            onDismissRequest = { escolhendoRepetir = false },
+            title = { Text("repetir") },
+            text = {
+                Column {
+                    Text(
+                        "não repete",
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                vm.definirRepetir(RepetirOpcao.Nao)
+                                escolhendoRepetir = false
+                            }
+                            .padding(vertical = 12.dp),
+                    )
+                    Text(
+                        "todo mês no dia ${state.data.dayOfMonth}",
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                vm.definirRepetir(RepetirOpcao.TodoMes(state.data.dayOfMonth))
+                                escolhendoRepetir = false
+                            }
+                            .padding(vertical = 12.dp),
+                    )
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
+    if (escolhendoTags) {
+        var novaTag by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { escolhendoTags = false },
+            title = { Text("tags") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.todasTags.forEach { tag ->
+                        val marcada = state.tagsSelecionadas.any { it.id == tag.id }
+                        Row(
+                            Modifier.fillMaxWidth().clickable { vm.alternarTag(tag) }.padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box(Modifier.size(10.dp).background(Color(tag.cor), CircleShape))
+                            Text(tag.nome, Modifier.weight(1f))
+                            if (marcada) Text("✓", color = SaldoTheme.colors.tint)
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = novaTag,
+                            onValueChange = { novaTag = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("nova tag") },
+                            singleLine = true,
+                        )
+                        TextButton(
+                            onClick = {
+                                if (novaTag.isNotBlank()) {
+                                    vm.criarTagInline(novaTag.trim()) { vm.alternarTag(it) }
+                                    novaTag = ""
+                                }
+                            },
+                        ) { Text("criar") }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { escolhendoTags = false }) { Text("ok") } },
+        )
+    }
+
+    if (pedindoEscopo) {
+        AlertDialog(
+            onDismissRequest = { pedindoEscopo = false },
+            title = { Text("aplicar a") },
+            text = { Text("essa movimentação vem de uma recorrência.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pedindoEscopo = false
+                    vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) { onFechar() }
+                }) { Text("daqui em diante") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pedindoEscopo = false
+                    vm.salvar(EscopoEdicao.SO_ESTE_MES) { onFechar() }
+                }) { Text("só este mês") }
+            },
+        )
+    }
+
+    if (pedindoExclusao) {
+        AlertDialog(
+            onDismissRequest = { pedindoExclusao = false },
+            title = { Text("excluir recorrência") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pedindoExclusao = false
+                    vm.excluirRecorrencia(EscopoExclusao.SO_FUTURAS) { onFechar() }
+                }) { Text("só futuras") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pedindoExclusao = false
+                    vm.excluirRecorrencia(EscopoExclusao.TODAS) { onFechar() }
+                }) { Text("todas") }
+            },
         )
     }
 }
 
-@Composable
-private fun NaturezaChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    val colors = SaldoTheme.colors
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) colors.tint else colors.surface)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    ) {
-        Text(
-            text,
-            style = SaldoTheme.type.footnote.copy(
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            ),
-            color = if (selected) androidx.compose.ui.graphics.Color.White else colors.label,
-        )
-    }
+private fun legenda(state: EntryUiState): String = when {
+    !state.saida -> "entrada · entra no saldo"
+    state.natureza == Natureza.DIARIO && state.repetir is RepetirOpcao.Nao -> "gasto variável · sai do saldo"
+    state.natureza == Natureza.DIARIO -> "gasto fixo · sai do saldo todo mês"
+    state.natureza == Natureza.ECONOMIA -> "vai para a reserva · sai do saldo"
+    else -> "no cartão · pesa na fatura, não no saldo de hoje"
+}
+
+private fun rotuloData(data: LocalDate): String =
+    if (data == LocalDate.now()) "hoje, " + data.format(dataCurta).substringAfter(", ").replace(".", "")
+    else data.format(dataCurta).replace(".", "")
+
+private fun rotuloRepetir(r: RepetirOpcao): String = when (r) {
+    is RepetirOpcao.Nao -> "não repete"
+    is RepetirOpcao.TodoMes -> "todo mês no dia ${r.dia}"
 }
 
 @Composable
@@ -268,16 +442,4 @@ private fun TagPill(text: String) {
     ) {
         Text(text, style = SaldoTheme.type.footnote, color = colors.label)
     }
-}
-
-@Preview(heightDp = 880)
-@Composable
-private fun NewEntryLightPreview() {
-    SaldoTheme(darkTheme = false) { NewEntrySheet(onCancel = {}, onSave = {}) }
-}
-
-@Preview(heightDp = 880)
-@Composable
-private fun NewEntryDarkPreview() {
-    SaldoTheme(darkTheme = true) { NewEntrySheet(onCancel = {}, onSave = {}) }
 }
