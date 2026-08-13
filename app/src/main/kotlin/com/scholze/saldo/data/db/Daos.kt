@@ -1,7 +1,6 @@
 package com.scholze.saldo.data.db
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -16,6 +15,9 @@ interface MesMaterializadoDao {
 
     @Query("SELECT anoMes FROM meses_materializados")
     suspend fun todos(): List<Int>
+
+    @Query("SELECT anoMes FROM meses_materializados")
+    fun observeTodos(): Flow<List<Int>>
 }
 
 @Dao
@@ -27,6 +29,24 @@ interface MovimentacaoDao {
     @Insert suspend fun insert(mov: MovimentacaoEntity): Long
     @Update suspend fun update(mov: MovimentacaoEntity)
     @Query("DELETE FROM movimentacoes WHERE id = :id") suspend fun deleteById(id: Long)
+
+    /**
+     * Edits the user-visible fields in place. Unlike [update], it leaves `recorrenciaId` and
+     * `criadaEm` untouched — `Movimentacao.toEntity()` cannot carry the original `criadaEm`.
+     */
+    @Query(
+        "UPDATE movimentacoes SET descricao = :descricao, valorCentavos = :valorCentavos, " +
+            "dataEpochDay = :dataEpochDay, natureza = :natureza, editadaManualmente = :editadaManualmente " +
+            "WHERE id = :id",
+    )
+    suspend fun updateCampos(
+        id: Long,
+        descricao: String,
+        valorCentavos: Long,
+        dataEpochDay: Long,
+        natureza: String,
+        editadaManualmente: Boolean,
+    )
 
     @Query("DELETE FROM movimentacao_tags WHERE movimentacaoId = :movId")
     suspend fun clearTags(movId: Long)
@@ -44,12 +64,18 @@ interface MovimentacaoDao {
 
     @Query("DELETE FROM movimentacoes WHERE recorrenciaId = :recorrenciaId")
     suspend fun deleteTodasInstancias(recorrenciaId: Long)
+
+    @Query(
+        "SELECT COUNT(*) FROM movimentacoes WHERE recorrenciaId = :recorrenciaId " +
+            "AND dataEpochDay BETWEEN :fromEpochDay AND :toEpochDay",
+    )
+    suspend fun countInstancias(recorrenciaId: Long, fromEpochDay: Long, toEpochDay: Long): Int
 }
 
 @Dao
 interface RecorrenciaDao {
     @Transaction
-    @Query("SELECT * FROM recorrencias")
+    @Query("SELECT * FROM recorrencias ORDER BY diaDoMes")
     fun observeAll(): Flow<List<RecorrenciaComTags>>
 
     @Insert suspend fun insert(rec: RecorrenciaEntity): Long

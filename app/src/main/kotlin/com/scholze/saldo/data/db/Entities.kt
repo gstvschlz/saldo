@@ -108,12 +108,14 @@ data class RecorrenciaComTags(
 
 fun TagEntity.toDomain() = Tag(id = id, nome = nome, cor = cor)
 fun Tag.toEntity() = TagEntity(id = id, nome = nome, cor = cor)
+/** Tags are persisted separately via `MovimentacaoDao.setTags` — inserting this entity alone writes no tags. */
 fun Movimentacao.toEntity() = MovimentacaoEntity(
     id = id, descricao = descricao, valorCentavos = valorCentavos,
     dataEpochDay = data.toEpochDay(), natureza = natureza.name,
     recorrenciaId = recorrenciaId, editadaManualmente = editadaManualmente,
     criadaEm = System.currentTimeMillis(),
 )
+/** Tags are persisted separately via `RecorrenciaDao.setTags` — inserting this entity alone writes no tags. */
 fun Recorrencia.toEntity() = RecorrenciaEntity(
     id = id, descricao = descricao, valorCentavos = valorCentavos, natureza = natureza.name,
     diaDoMes = diaDoMes, inicioAnoMes = inicio.toAnoMes(), fimAnoMes = fim?.toAnoMes(), ativa = ativa,
