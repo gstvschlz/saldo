@@ -1,0 +1,64 @@
+package com.scholze.saldo.data
+
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.domain.CartaoConfig
+import java.io.File
+import java.time.LocalDate
+import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+// NOTE: moved from a JVM unit test (app/src/test) to an instrumented test — the JVM
+// datastore-core-okio backend throws "multiple instances of DataStore for this file" on the
+// *second* sequential edit() against one DataStore instance on Windows, reproduced with both
+// datastore 1.2.1 and 1.1.7. The real (Android runtime) FileStorage backend does not have this
+// issue, so the test runs here instead.
+@RunWith(AndroidJUnit4::class)
+class SettingsStoreTest {
+    private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private fun store(): SettingsStore = SettingsStore(
+        PreferenceDataStoreFactory.create(scope = scope) {
+            File(context.cacheDir, "${UUID.randomUUID()}.preferences_pb")
+        },
+    )
+
+    @After fun tearDown() { scope.cancel() }
+
+    @Test
+    fun defaultsSaoSeguros() = runBlocking {
+        val s = store().settings.first()
+        assertNull(s.saldoInicialCentavos)
+        assertTrue(s.comecarOculto)
+        assertEquals(Tema.SISTEMA, s.tema)
+        assertEquals(28, s.cartao.fechamentoDia)
+    }
+
+    @Test
+    fun persisteSaldoInicialECartao() = runBlocking {
+        val st = store()
+        st.definirSaldoInicial(100_000_00, LocalDate.parse("2026-07-01"))
+        st.definirCartao(CartaoConfig(nome = "nubank", fechamentoDia = 27, vencimentoDia = 4))
+        st.definirComecarOculto(false)
+        st.definirTema(Tema.ESCURO)
+        val s = st.settings.first()
+        assertEquals(100_000_00L, s.saldoInicialCentavos)
+        assertEquals(LocalDate.parse("2026-07-01"), s.saldoInicialData)
+        assertEquals("nubank", s.cartao.nome)
+        assertEquals(false, s.comecarOculto)
+        assertEquals(Tema.ESCURO, s.tema)
+    }
+}
