@@ -98,6 +98,7 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                         // `abrirMes` do ViewModel é assíncrona). Editá-la explodiria no save
                         // com SO_ESTE_MES, então a linha simplesmente não abre o editor.
                         onItemClick = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } },
+                        onExcluir = ledgerVm::excluir,
                         onTogglePrivacidade = privacidade::alternar,
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )

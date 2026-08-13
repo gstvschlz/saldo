@@ -23,12 +23,20 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.DiaRow
+import com.scholze.saldo.domain.Fatura
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.MesLedger
@@ -78,6 +87,7 @@ fun LedgerScreen(
     onProximoMes: () -> Unit,
     onFiltro: (FiltroLedger) -> Unit,
     onItemClick: (Movimentacao) -> Unit,
+    onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -86,6 +96,9 @@ fun LedgerScreen(
     val mes = state.mes
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    // Fatura tocada: abre a lista de compras (Step 1b). Estado de tela, não de ViewModel —
+    // é só uma leitura, não muda dado nenhum.
+    var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
 
     // Índice do item de hoje na LazyColumn (3 headers antes dos dias). Num mês sem
     // movimentação alguma os dias nem viram itens — a pill não teria destino.
@@ -107,10 +120,11 @@ fun LedgerScreen(
             .background(colors.background)
             .pointerInput(state.mesAtual) {
                 var total = 0f
+                val limiar = 120.dp.toPx()
                 detectHorizontalDragGestures(
                     onDragStart = { total = 0f },
                     onDragEnd = {
-                        if (total > 120f) onMesAnterior() else if (total < -120f) onProximoMes()
+                        if (total > limiar) onMesAnterior() else if (total < -limiar) onProximoMes()
                     },
                 ) { _, dragAmount -> total += dragAmount }
             },
@@ -143,6 +157,8 @@ fun LedgerScreen(
                                 faixa = mes.faixaSaldos(),
                                 hoje = state.hoje,
                                 onItemClick = onItemClick,
+                                onExcluir = onExcluir,
+                                onFaturaClick = { faturaAberta = it },
                             )
                             HairlineDivider()
                         }
@@ -166,6 +182,27 @@ fun LedgerScreen(
             ) {
                 Text("hoje", style = SaldoTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
             }
+        }
+
+        faturaAberta?.let { fatura ->
+            AlertDialog(
+                onDismissRequest = { faturaAberta = null },
+                title = { Text("fatura · vence " + fatura.vencimento.format(diaCurto).removeSuffix(".")) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        fatura.compras.forEach { compra ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    compra.data.format(diaCurto).removeSuffix(".") + "  " + compra.descricao,
+                                    Modifier.weight(1f), style = SaldoTheme.type.row,
+                                )
+                                MoneyText(centavos = compra.valorCentavos, style = SaldoTheme.type.row, formato = FormatoMoney.ASSINADO)
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { faturaAberta = null }) { Text("ok") } },
+            )
         }
     }
 }
@@ -302,12 +339,15 @@ private fun EmptyMonth() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DayRow(
     dia: DiaRow,
     faixa: ClosedRange<Long>,
     hoje: LocalDate,
     onItemClick: (Movimentacao) -> Unit,
+    onExcluir: (Movimentacao) -> Unit,
+    onFaturaClick: (Fatura) -> Unit,
 ) {
     val colors = SaldoTheme.colors
     val ehHoje = dia.data == hoje
@@ -331,35 +371,101 @@ private fun DayRow(
                 Text("sem movimentações", style = SaldoTheme.type.row, color = colors.secondaryLabel)
             } else {
                 dia.itens.forEach { item ->
-                    val mov = (item as? ItemDia.Mov)?.mov
-                    // A fatura é um total calculado, não uma linha editável: fica sem
-                    // `clickable` nenhum, para não anunciar um onClick desativado à
-                    // acessibilidade nem desenhar ripple.
-                    Row(
-                        if (mov != null) Modifier.clickable { onItemClick(mov) } else Modifier,
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        if (item.recorrente) {
-                            SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 11.dp, strokeWidth = 1.3.dp)
-                        } else {
-                            Box(
-                                Modifier.size(7.dp).background(
-                                    when ((item as ItemDia.Mov).mov.natureza) {
-                                        Natureza.ECONOMIA -> colors.categoryFixed
-                                        else -> colors.categoryVariable
-                                    },
-                                    CircleShape,
-                                ),
+                    // Exaustivo na interface selada: cada ramo sabe exatamente com que tipo
+                    // de item está lidando, sem cast nenhum (nem seguro nem inseguro).
+                    when (item) {
+                        is ItemDia.Mov -> {
+                            val mov = item.mov
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { v ->
+                                    // Sempre retorna false: o dismiss nunca "assenta" visualmente.
+                                    // A linha some porque a exclusão remove o dado, não porque o
+                                    // SwipeToDismissBoxState decidiu escondê-la.
+                                    if (v == SwipeToDismissBoxValue.EndToStart) {
+                                        onExcluir(mov)
+                                    }
+                                    false
+                                },
                             )
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                enableDismissFromStartToEnd = false,
+                                backgroundContent = {
+                                    Box(
+                                        Modifier.fillMaxSize().background(colors.categoryVariable),
+                                        contentAlignment = Alignment.CenterEnd,
+                                    ) {
+                                        Text(
+                                            "excluir",
+                                            Modifier.padding(end = 16.dp),
+                                            style = SaldoTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold),
+                                            color = Color.White,
+                                        )
+                                    }
+                                },
+                            ) {
+                                // `segmentedTrack` é translúcida (é uma tinta, não uma cor
+                                // sólida) — pintar `surface` opaca por baixo primeiro é
+                                // obrigatório aqui: o SwipeToDismissBox mantém o
+                                // `backgroundContent` ("excluir", vermelho) sempre desenhado
+                                // atrás do conteúdo em primeiro plano, então sem a base opaca
+                                // o vermelho vazaria através da linha de hoje mesmo parada.
+                                Box(
+                                    Modifier
+                                        .background(colors.surface)
+                                        .then(if (ehHoje) Modifier.background(colors.segmentedTrack) else Modifier),
+                                ) {
+                                    Row(
+                                        Modifier.clickable { onItemClick(mov) },
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                    ) {
+                                        if (item.recorrente) {
+                                            SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 11.dp, strokeWidth = 1.3.dp)
+                                        } else {
+                                            Box(
+                                                Modifier.size(7.dp).background(
+                                                    when (mov.natureza) {
+                                                        Natureza.ECONOMIA -> colors.categoryFixed
+                                                        else -> colors.categoryVariable
+                                                    },
+                                                    CircleShape,
+                                                ),
+                                            )
+                                        }
+                                        Text(item.descricao, style = SaldoTheme.type.row, color = colors.label)
+                                        MoneyText(
+                                            centavos = item.valorCentavos,
+                                            modifier = Modifier.weight(1f),
+                                            style = SaldoTheme.type.row, color = colors.label,
+                                            formato = FormatoMoney.ASSINADO, textAlign = TextAlign.End,
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        Text(item.descricao, style = SaldoTheme.type.row, color = colors.label)
-                        MoneyText(
-                            centavos = item.valorCentavos,
-                            modifier = Modifier.weight(1f),
-                            style = SaldoTheme.type.row, color = colors.label,
-                            formato = FormatoMoney.ASSINADO, textAlign = TextAlign.End,
-                        )
+
+                        is ItemDia.FaturaDia -> {
+                            // A fatura é um total calculado, não uma movimentação de verdade:
+                            // toca para abrir a lista de compras (Step 1b), mas não passa por
+                            // onItemClick — não há editor para uma linha que não existe no banco.
+                            Row(
+                                Modifier.clickable { onFaturaClick(item.fatura) },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            ) {
+                                // FaturaDia.recorrente é sempre true, então este ramo nunca cai
+                                // no branch da bolinha colorida — só o glifo de recorrência.
+                                SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 11.dp, strokeWidth = 1.3.dp)
+                                Text(item.descricao, style = SaldoTheme.type.row, color = colors.label)
+                                MoneyText(
+                                    centavos = item.valorCentavos,
+                                    modifier = Modifier.weight(1f),
+                                    style = SaldoTheme.type.row, color = colors.label,
+                                    formato = FormatoMoney.ASSINADO, textAlign = TextAlign.End,
+                                )
+                            }
+                        }
                     }
                 }
             }

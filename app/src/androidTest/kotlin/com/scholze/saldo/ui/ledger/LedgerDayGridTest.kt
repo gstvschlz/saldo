@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.FiltroLedger
@@ -22,6 +23,7 @@ import com.scholze.saldo.ui.privacy.PrivacyState
 import com.scholze.saldo.ui.theme.SaldoTheme
 import java.time.LocalDate
 import java.time.YearMonth
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,7 +76,7 @@ class LedgerDayGridTest {
         hoje = hoje,
     )
 
-    private fun montar(oculto: Boolean = false) {
+    private fun montar(oculto: Boolean = false, onItemClick: (Movimentacao) -> Unit = {}) {
         rule.setContent {
             SaldoTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = oculto)) {
@@ -83,7 +85,8 @@ class LedgerDayGridTest {
                         onMesAnterior = {},
                         onProximoMes = {},
                         onFiltro = {},
-                        onItemClick = {},
+                        onItemClick = onItemClick,
+                        onExcluir = {},
                         onTogglePrivacidade = {},
                     )
                 }
@@ -106,14 +109,26 @@ class LedgerDayGridTest {
     }
 
     @Test
-    fun linhaDeFaturaNaoEClicavel() {
-        montar()
-        // A fatura é um total calculado: não há linha para abrir no editor.
+    fun linhaDeFaturaAbreDialogMasNaoInvocaOnItemClick() {
+        var cliques = 0
+        montar(onItemClick = { cliques++ })
+
+        // A fatura agora É clicável (Step 1b: abre o diálogo de compras)...
         rule.onNodeWithText("fatura cartão")
             .assertIsDisplayed()
-            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
-        // ...ao contrário de uma movimentação de verdade, que abre.
-        rule.onNodeWithText("aluguel").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+            .performClick()
+
+        // ...mas não é uma movimentação de verdade: onItemClick não dispara, e o diálogo
+        // com a compra ("fone", a única no ciclo) abre no lugar do editor. A linha da
+        // compra é um só nó de texto ("15 jun  fone"), daí o substring.
+        assertEquals(0, cliques)
+        rule.onNodeWithText("fone", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("ok").performClick()
+
+        // ...ao contrário de uma movimentação de verdade, que abre o editor via onItemClick.
+        rule.onNodeWithText("aluguel").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick)).performClick()
+        assertEquals(1, cliques)
     }
 
     @Test
