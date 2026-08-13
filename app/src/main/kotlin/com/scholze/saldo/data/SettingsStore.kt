@@ -4,12 +4,15 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.scholze.saldo.domain.CartaoConfig
+import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
 enum class Tema { SISTEMA, CLARO, ESCURO }
@@ -34,7 +37,10 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val tema = stringPreferencesKey("tema")
     }
 
-    val settings: Flow<Settings> = dataStore.data.map { p ->
+    // Um disco ilegível não pode travar a primeira composição: o app cai nos defaults.
+    val settings: Flow<Settings> = dataStore.data.catch { e ->
+        if (e is IOException) emit(emptyPreferences()) else throw e
+    }.map { p ->
         Settings(
             saldoInicialCentavos = p[Keys.saldoInicial],
             saldoInicialData = p[Keys.saldoInicialData]?.let(LocalDate::ofEpochDay),
@@ -44,7 +50,8 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
                 vencimentoDia = p[Keys.cartaoVencimento] ?: CartaoConfig().vencimentoDia,
             ),
             comecarOculto = p[Keys.comecarOculto] ?: true,
-            tema = p[Keys.tema]?.let(Tema::valueOf) ?: Tema.SISTEMA,
+            // Tolerante a um valor gravado por uma versão futura/antiga do enum.
+            tema = p[Keys.tema]?.let { v -> Tema.entries.find { it.name == v } } ?: Tema.SISTEMA,
         )
     }
 

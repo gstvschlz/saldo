@@ -42,7 +42,9 @@ import com.scholze.saldo.ui.theme.tabular
 fun AmountKeypadScreen(
     onContinue: (centavos: Long) -> Unit,
     modifier: Modifier = Modifier,
-    initialCentavos: Long = 23850L,
+    initialCentavos: Long = 0L,
+    titulo: String = "valor",
+    textoBotao: String = "continuar",
 ) {
     val colors = SaldoTheme.colors
     var centavos by rememberSaveable { mutableStateOf(initialCentavos) }
@@ -61,7 +63,7 @@ fun AmountKeypadScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("valor", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+            Text(titulo, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
             Text(
                 "R$ " + centavos.formatarCentavos(),
                 Modifier.padding(top = 4.dp),
@@ -76,7 +78,7 @@ fun AmountKeypadScreen(
         )
 
         FilledActionButton(
-            text = "continuar",
+            text = textoBotao,
             onClick = { onContinue(centavos) },
             enabled = centavos > 0,
             modifier = Modifier.padding(top = 16.dp, bottom = 24.dp),

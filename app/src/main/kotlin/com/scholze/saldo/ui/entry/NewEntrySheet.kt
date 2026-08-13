@@ -30,8 +30,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.scholze.saldo.model.centavosComSimbolo
 import com.scholze.saldo.model.formatarCentavos
-import com.scholze.saldo.model.formatarComSimbolo
 import com.scholze.saldo.ui.components.FilledActionButton
 import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
@@ -41,7 +41,6 @@ import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.components.SegmentedControl
 import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.theme.tabular
-import java.math.BigDecimal
 
 private val TIPOS = listOf("entrada", "saída")
 private val NATUREZAS = listOf("diário", "economia", "cartão")
@@ -52,14 +51,15 @@ fun NewEntrySheet(
     onCancel: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
-    valor: BigDecimal = BigDecimal("238.50"),
-    saldoResultante: BigDecimal = BigDecimal("112655.36"),
+    // Demo state até a Task 10 ligar o sheet no repositório.
+    valorCentavos: Long = 23850L,
+    saldoResultanteCentavos: Long = 11265536L,
 ) {
     val colors = SaldoTheme.colors
     var tipo by rememberSaveable { mutableIntStateOf(1) }
     var natureza by rememberSaveable { mutableIntStateOf(0) }
     val descricao by rememberSaveable { mutableStateOf("mercado") }
-    var centavos by rememberSaveable { mutableLongStateOf(valor.movePointRight(2).toLong()) }
+    var centavos by rememberSaveable { mutableLongStateOf(valorCentavos) }
     var editandoValor by rememberSaveable { mutableStateOf(false) }
 
     // Tapping the amount hands off to the 1g decimal pad.
@@ -162,7 +162,7 @@ fun NewEntrySheet(
                     color = colors.secondaryLabel,
                 )
                 Text(
-                    saldoResultante.formatarComSimbolo(),
+                    saldoResultanteCentavos.centavosComSimbolo(),
                     style = SaldoTheme.type.footnote.tabular.copy(fontWeight = FontWeight.SemiBold),
                     color = colors.balance,
                 )

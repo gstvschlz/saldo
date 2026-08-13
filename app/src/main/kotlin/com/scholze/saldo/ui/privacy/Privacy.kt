@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -13,6 +14,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.scholze.saldo.model.centavosAssinado
+import com.scholze.saldo.model.centavosAssinadoComSimbolo
 import com.scholze.saldo.model.centavosComSimbolo
 import com.scholze.saldo.model.centavosValor
 import com.scholze.saldo.ui.theme.tabular
@@ -29,7 +31,14 @@ class PrivacyState(ocultoInicial: Boolean) {
 
 val LocalPrivacy = staticCompositionLocalOf { PrivacyState(ocultoInicial = false) }
 
-enum class FormatoMoney { VALOR, COM_SIMBOLO, ASSINADO }
+/**
+ * Survives recomposition but not configuration change: the mask is a session
+ * choice, and [ocultoInicial] is only read the first time.
+ */
+@Composable
+fun rememberPrivacyState(ocultoInicial: Boolean): PrivacyState = remember { PrivacyState(ocultoInicial) }
+
+enum class FormatoMoney { VALOR, COM_SIMBOLO, ASSINADO, ASSINADO_COM_SIMBOLO }
 
 /** Every money value in the app renders through here — masking is centralized. */
 @Composable
@@ -49,6 +58,7 @@ fun MoneyText(
             FormatoMoney.VALOR -> centavos.centavosValor()
             FormatoMoney.COM_SIMBOLO -> centavos.centavosComSimbolo()
             FormatoMoney.ASSINADO -> centavos.centavosAssinado()
+            FormatoMoney.ASSINADO_COM_SIMBOLO -> centavos.centavosAssinadoComSimbolo()
         }
     }
     Text(

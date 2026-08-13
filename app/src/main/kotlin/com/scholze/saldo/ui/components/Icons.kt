@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
  * The tab-bar and chrome glyphs are drawn rather than imported, so the app
  * carries no icon-font dependency and the strokes match the canvas SVGs.
  */
-enum class SaldoIcon { SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE }
+enum class SaldoIcon { SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE, RECORRENTE }
 
 @Composable
 fun SaldoGlyph(
@@ -114,6 +114,21 @@ fun SaldoGlyph(
                 val x1 = w * 0.74f
                 drawLine(tint, Offset(x0, h * 0.40f), Offset(x1, h * 0.60f), sw, StrokeCap.Round)
                 drawLine(tint, Offset(x1, h * 0.40f), Offset(x0, h * 0.60f), sw, StrokeCap.Round)
+            }
+            // Circular arrow: an open arc with an arrowhead — marks recurrence/fatura rows.
+            SaldoIcon.RECORRENTE -> {
+                val inset = sw / 2 + w * 0.16f
+                drawArc(
+                    color = tint,
+                    startAngle = -60f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = androidx.compose.ui.geometry.Size(w - 2 * inset, h - 2 * inset),
+                    style = stroke,
+                )
+                drawLine(tint, Offset(w * 0.72f, h * 0.12f), Offset(w * 0.84f, h * 0.26f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.84f, h * 0.26f), Offset(w * 0.68f, h * 0.32f), sw, StrokeCap.Round)
             }
         }
     }

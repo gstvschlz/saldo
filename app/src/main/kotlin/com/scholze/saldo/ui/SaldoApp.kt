@@ -8,64 +8,109 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.scholze.saldo.model.mesDeExemplo
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.scholze.saldo.AppContainer
+import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.ui.entry.AmountKeypadScreen
 import com.scholze.saldo.ui.entry.NewEntrySheet
 import com.scholze.saldo.ui.ledger.LedgerScreen
+import com.scholze.saldo.ui.ledger.LedgerViewModel
 import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
+import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.theme.SaldoTheme
+import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 /**
- * The 1k shell: tabbed content with the nova-movimentação sheet sliding over
- * the top when the center add button is tapped.
+ * The shell: onboarding gate, tabbed content, undo snackbar and the
+ * nova-movimentação sheet sliding over the top.
  */
 @Composable
-fun SaldoApp(modifier: Modifier = Modifier) {
+fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
+    val settings by container.settings.settings.collectAsState(initial = null)
+    val s = settings ?: return   // aguarda o primeiro valor do DataStore
+
+    if (s.saldoInicialCentavos == null) {
+        // Onboarding: semear o saldo inicial com o teclado 1g.
+        val scope = rememberCoroutineScope()
+        AmountKeypadScreen(
+            onContinue = { centavos ->
+                scope.launch { container.settings.definirSaldoInicial(centavos, LocalDate.now()) }
+            },
+            titulo = "qual seu saldo hoje?",
+            textoBotao = "começar",
+            modifier = modifier.statusBarsPadding(),
+        )
+        return
+    }
+
+    val ledgerVm: LedgerViewModel = viewModel(factory = LedgerViewModel.factory(container))
+    val ledgerState by ledgerVm.state.collectAsState()
+    val privacidade = LocalPrivacy.current
+    val snackbar = remember { SnackbarHostState() }
+
     var tab by rememberSaveable { mutableStateOf(SaldoTab.SALDOS) }
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
+    var emEdicao by remember { mutableStateOf<Movimentacao?>(null) }
 
-    Box(
-        modifier
-            .fillMaxSize()
-            .background(colors.background),
-    ) {
+    LaunchedEffect(Unit) {
+        ledgerVm.eventoExclusao.collect { snapshot ->
+            val resultado = snackbar.showSnackbar(
+                message = "movimentação excluída",
+                actionLabel = "desfazer",
+            )
+            if (resultado == SnackbarResult.ActionPerformed) ledgerVm.desfazerExclusao(snapshot)
+        }
+    }
+
+    Box(modifier.fillMaxSize().background(colors.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Box(Modifier.weight(1f)) {
                 when (tab) {
                     SaldoTab.SALDOS -> LedgerScreen(
-                        mes = mesDeExemplo,
+                        state = ledgerState,
+                        onMesAnterior = ledgerVm::mesAnterior,
+                        onProximoMes = ledgerVm::proximoMes,
+                        onFiltro = ledgerVm::definirFiltro,
+                        onItemClick = { emEdicao = it; sheetAberto = true },
+                        onTogglePrivacidade = privacidade::alternar,
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
-                    SaldoTab.TOTAIS -> Placeholder("totais")
-                    SaldoTab.TAGS -> Placeholder("tags")
-                    SaldoTab.MAIS -> Placeholder("mais")
+                    SaldoTab.TOTAIS -> Placeholder("totais")   // Task 12
+                    SaldoTab.TAGS -> Placeholder("tags")       // Task 13
+                    SaldoTab.MAIS -> Placeholder("mais")       // Task 14
                 }
             }
-
             SaldoTabBar(
                 selected = tab,
                 onSelect = { tab = it },
-                onAdd = { sheetAberto = true },
+                onAdd = { emEdicao = null; sheetAberto = true },
             )
         }
 
-        AnimatedVisibility(
-            visible = sheetAberto,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it },
-        ) {
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp))
+
+        AnimatedVisibility(visible = sheetAberto, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
             NewEntrySheet(
                 onCancel = { sheetAberto = false },
                 onSave = { sheetAberto = false },
@@ -75,26 +120,10 @@ fun SaldoApp(modifier: Modifier = Modifier) {
     }
 }
 
-/** The tabs beyond saldos are not part of the four screens that were picked. */
+/** As abas além de saldos chegam nas tasks 12–14. */
 @Composable
 private fun Placeholder(nome: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            nome,
-            style = SaldoTheme.type.body,
-            color = SaldoTheme.colors.secondaryLabel,
-        )
+        Text(nome, style = SaldoTheme.type.body, color = SaldoTheme.colors.secondaryLabel)
     }
-}
-
-@Preview(heightDp = 900)
-@Composable
-private fun SaldoAppLightPreview() {
-    SaldoTheme(darkTheme = false) { SaldoApp() }
-}
-
-@Preview(heightDp = 900)
-@Composable
-private fun SaldoAppDarkPreview() {
-    SaldoTheme(darkTheme = true) { SaldoApp() }
 }
