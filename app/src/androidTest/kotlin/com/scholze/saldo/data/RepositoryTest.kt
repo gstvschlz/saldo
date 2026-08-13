@@ -5,9 +5,11 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.data.db.SaldoDatabase
 import com.scholze.saldo.domain.EscopoEdicao
+import com.scholze.saldo.domain.EscopoExclusao
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.RepetirOpcao
+import com.scholze.saldo.domain.Tag
 import java.io.File
 import java.time.LocalDate
 import java.time.YearMonth
@@ -125,6 +127,71 @@ class RepositoryTest {
             listOf("2026-06-03 -240000", "2026-07-03 -240000", "2026-08-03 -250000"),
             porMes,
         )
+    }
+
+    @Test
+    fun excluirInstanciaNaoRessuscita() = runBlocking {
+        repo.criar(mov("2026-07-15", 8_240_00), RepetirOpcao.TodoMes(15))
+        val julho = repo.ledger.first().movimentacoes.single()
+        repo.excluir(julho)
+        repo.abrirMes(YearMonth.of(2026, 7)) // julho já materializado: não re-semeia
+
+        val input = repo.ledger.first()
+        assertEquals(
+            emptyList<String>(),
+            input.movimentacoes
+                .filter { YearMonth.from(it.data) == YearMonth.of(2026, 7) }
+                .map { it.data.toString() },
+        )
+        assertEquals(1, input.recorrencias.size) // o template sobrevive, só a instância morreu
+    }
+
+    @Test
+    fun excluirRecorrenciaSoFuturas() = runBlocking {
+        repo.criar(mov("2026-06-03", -2_400_00).copy(descricao = "aluguel"), RepetirOpcao.TodoMes(3))
+        repo.abrirMes(YearMonth.of(2026, 8)) // julho fica pulado
+        repo.abrirMes(YearMonth.of(2026, 9))
+        val setembro = repo.ledger.first().movimentacoes
+            .first { YearMonth.from(it.data) == YearMonth.of(2026, 9) }
+        repo.editar(setembro.copy(valorCentavos = -2_600_00), EscopoEdicao.SO_ESTE_MES)
+
+        val recId = repo.ledger.first().recorrencias.single().id
+        repo.excluirRecorrencia(recId, YearMonth.of(2026, 8), EscopoExclusao.SO_FUTURAS)
+
+        val input = repo.ledger.first()
+        // Junho é anterior ao corte e sobrevive; agosto (não editado) some; setembro sobrevive
+        // por estar marcado como editado manualmente. Julho nunca foi aberto — segue virtual.
+        assertEquals(
+            listOf("2026-06-03 -240000", "2026-09-03 -260000"),
+            input.movimentacoes.sortedBy { it.data }.map { "${it.data} ${it.valorCentavos}" },
+        )
+        assertEquals(YearMonth.of(2026, 7), input.recorrencias.single().fim)
+    }
+
+    @Test
+    fun excluirRecorrenciaTodas() = runBlocking {
+        repo.criar(mov("2026-06-03", -2_400_00).copy(descricao = "aluguel"), RepetirOpcao.TodoMes(3))
+        repo.abrirMes(YearMonth.of(2026, 8))
+        repo.abrirMes(YearMonth.of(2026, 9))
+        val recId = repo.ledger.first().recorrencias.single().id
+        repo.excluirRecorrencia(recId, YearMonth.of(2026, 8), EscopoExclusao.TODAS)
+
+        val input = repo.ledger.first()
+        assertEquals(emptyList<Long?>(), input.movimentacoes.map { it.recorrenciaId })
+        assertEquals(0, input.recorrencias.size)
+    }
+
+    @Test
+    fun materializacaoCarregaTags() = runBlocking {
+        val tagId = repo.criarTag("comida", 0xFFA6486B)
+        val comTag = mov("2026-07-15", -50_00)
+            .copy(tags = listOf(Tag(id = tagId, nome = "comida", cor = 0xFFA6486B)))
+        repo.criar(comTag, RepetirOpcao.TodoMes(15))
+        repo.abrirMes(YearMonth.of(2026, 8))
+
+        val agosto = repo.ledger.first().movimentacoes
+            .single { YearMonth.from(it.data) == YearMonth.of(2026, 8) }
+        assertEquals("comida", agosto.tags.single().nome)
     }
 
     @Test

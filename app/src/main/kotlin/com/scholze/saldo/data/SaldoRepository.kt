@@ -106,6 +106,7 @@ class RoomSaldoRepository(
     override suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao) = db.withTransaction {
         when (escopo) {
             EscopoEdicao.SO_ESTE_MES -> {
+                require(mov.id != 0L) { "movimentação virtual — abra o mês antes de editar" }
                 // UPDATE campo a campo: `toEntity()` não carrega o `criadaEm` original e
                 // `recorrenciaId` não muda numa edição de instância.
                 movDao.updateCampos(
@@ -117,6 +118,15 @@ class RoomSaldoRepository(
                     editadaManualmente = mov.editadaManualmente || mov.recorrenciaId != null,
                 )
                 movDao.setTags(mov.id, mov.tags.map { it.id })
+                // Mover a instância para um mês nunca aberto deixaria o template dela ainda
+                // expandindo virtualmente lá — a recorrência apareceria duas vezes no destino.
+                // Materializa o destino sem o próprio template, cuja instância é a linha movida.
+                val recId = mov.recorrenciaId
+                if (recId != null) {
+                    val mesDestino = YearMonth.from(mov.data)
+                    val marcados = mesDao.todos().map { it.toYearMonth() }.toSet()
+                    if (mesDestino !in marcados) materializar(mesDestino, excetoRecorrenciaId = recId)
+                }
             }
             EscopoEdicao.DAQUI_EM_DIANTE -> {
                 val recId = requireNotNull(mov.recorrenciaId) { "escopo DAQUI_EM_DIANTE exige recorrência" }
@@ -146,13 +156,10 @@ class RoomSaldoRepository(
                         val existentes = movDao.countInstancias(
                             recId, m.atDay(1).toEpochDay(), m.atEndOfMonth().toEpochDay(),
                         )
+                        // Em `mesInicio` a expansão já cai exatamente em `mov.data`:
+                        // `templateNovo.diaDoMes` é `mov.data.dayOfMonth`, sempre válido no mês.
                         if (existentes == 0) {
-                            val occ = if (m == mesInicio) {
-                                RecurrenceExpander.ocorrenciaNoMes(templateNovo, m)?.copy(data = mov.data)
-                            } else {
-                                RecurrenceExpander.ocorrenciaNoMes(templateNovo, m)
-                            }
-                            occ?.let { insertComTags(it) }
+                            RecurrenceExpander.ocorrenciaNoMes(templateNovo, m)?.let { insertComTags(it) }
                         }
                     }
             }
@@ -160,6 +167,9 @@ class RoomSaldoRepository(
     }
 
     override suspend fun excluir(mov: Movimentacao): Movimentacao {
+        // Ocorrência virtual (id 0) não tem linha para apagar: o delete seria um no-op e o
+        // "desfazer" depois inseriria uma duplicata permanente.
+        require(mov.id != 0L) { "movimentação virtual — abra o mês antes de excluir" }
         movDao.deleteById(mov.id)
         return mov
     }
