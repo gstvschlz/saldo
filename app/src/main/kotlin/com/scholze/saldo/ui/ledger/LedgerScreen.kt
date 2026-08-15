@@ -33,6 +33,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -351,10 +352,15 @@ private fun DayRow(
 ) {
     val colors = SaldoTheme.colors
     val ehHoje = dia.data == hoje
+    // `surface` opaca primeiro, `segmentedTrack` (translúcida) por cima — a mesma pilha que
+    // cada linha de movimentação pinta lá dentro. Compor a tinta sobre bases diferentes
+    // (aqui sobre `background`, lá sobre `surface`) deixaria a linha de hoje com um bloco
+    // mais claro atrás de cada item do que nas colunas de dia e de saldo que a ladeiam.
     Row(
         Modifier
             .fillMaxWidth()
-            .background(if (ehHoje) colors.segmentedTrack else colors.surface)
+            .background(colors.surface)
+            .then(if (ehHoje) Modifier.background(colors.segmentedTrack) else Modifier)
             .defaultMinSize(minHeight = 52.dp)
             .height(IntrinsicSize.Min),
     ) {
@@ -374,7 +380,11 @@ private fun DayRow(
                     // Exaustivo na interface selada: cada ramo sabe exatamente com que tipo
                     // de item está lidando, sem cast nenhum (nem seguro nem inseguro).
                     when (item) {
-                        is ItemDia.Mov -> {
+                        is ItemDia.Mov -> key(item.mov.id, item.descricao) {
+                            // A chave prende o `rememberSwipeToDismissBoxState` ao item, não à
+                            // posição: sem ela, apagar o primeiro de dois itens do mesmo dia faria
+                            // o segundo herdar o slot do primeiro — e aparecer arrastado para a
+                            // esquerda, com o painel vermelho atrás, enquanto a animação volta.
                             val mov = item.mov
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { v ->
