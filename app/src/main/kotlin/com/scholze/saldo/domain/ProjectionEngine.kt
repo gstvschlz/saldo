@@ -55,7 +55,13 @@ data class TotaisMes(
 
 object ProjectionEngine {
 
-    fun mes(input: LedgerInput, mes: YearMonth, filtro: FiltroLedger): MesLedger {
+    /**
+     * [tagId] estreita a lista (e a coluna de saldo) a uma etiqueta só. As faturas somem
+     * junto: uma fatura é o total agregado de um ciclo, não uma linha que carrega tags.
+     * A projeção do hero — [MesLedger.saldoProjetadoCentavos], [MesLedger.estimativaCentavos],
+     * [MesLedger.deltaNoMesCentavos] — segue sobre o mês inteiro, sem filtro nenhum.
+     */
+    fun mes(input: LedgerInput, mes: YearMonth, filtro: FiltroLedger, tagId: Long? = null): MesLedger {
         val efetivas = efetivas(input, mes)
         val faturas = FaturaCalculator.faturas(efetivas, input.cartao)
         val fimMes = mes.atEndOfMonth()
@@ -65,17 +71,17 @@ object ProjectionEngine {
         val movsDoMes = efetivas.asSequence()
             .filter { it.natureza != Natureza.CARTAO }
             .filter { YearMonth.from(it.data) == mes }
-            .filter { passaFiltro(it, filtro) }
+            .filter { passaFiltro(it, filtro, tagId) }
             .toList()
         val faturasDoMes =
-            if (filtro == FiltroLedger.DIARIOS) emptyList()
+            if (filtro == FiltroLedger.DIARIOS || tagId != null) emptyList()
             else faturas.filter { YearMonth.from(it.vencimento) == mes }
 
         // Coluna de saldo corre sobre o conjunto filtrado.
         var corrente = input.saldoInicialCentavos +
-            efetivas.filter { it.natureza != Natureza.CARTAO && it.data <= fimAnterior && passaFiltro(it, filtro) }
+            efetivas.filter { it.natureza != Natureza.CARTAO && it.data <= fimAnterior && passaFiltro(it, filtro, tagId) }
                 .sumOf { it.valorCentavos } +
-            (if (filtro == FiltroLedger.DIARIOS) 0L
+            (if (filtro == FiltroLedger.DIARIOS || tagId != null) 0L
              else faturas.filter { it.vencimento <= fimAnterior }.sumOf { it.totalCentavos })
 
         val dias = (1..mes.lengthOfMonth()).map { dia ->
@@ -159,10 +165,13 @@ object ProjectionEngine {
         return (reais + virtuais).sortedBy { it.data }
     }
 
-    private fun passaFiltro(mov: Movimentacao, filtro: FiltroLedger): Boolean = when (filtro) {
-        FiltroLedger.TODAS -> true
-        FiltroLedger.DIARIOS -> mov.recorrenciaId == null && mov.natureza == Natureza.DIARIO
-        FiltroLedger.FIXAS -> mov.recorrenciaId != null
+    private fun passaFiltro(mov: Movimentacao, filtro: FiltroLedger, tagId: Long? = null): Boolean {
+        if (tagId != null && mov.tags.none { it.id == tagId }) return false
+        return when (filtro) {
+            FiltroLedger.TODAS -> true
+            FiltroLedger.DIARIOS -> mov.recorrenciaId == null && mov.natureza == Natureza.DIARIO
+            FiltroLedger.FIXAS -> mov.recorrenciaId != null
+        }
     }
 
     private fun saldoReal(input: LedgerInput, efetivas: List<Movimentacao>, faturas: List<Fatura>, ate: LocalDate): Long =

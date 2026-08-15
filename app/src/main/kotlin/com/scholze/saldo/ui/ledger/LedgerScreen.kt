@@ -90,6 +90,7 @@ fun LedgerScreen(
     onItemClick: (Movimentacao) -> Unit,
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
+    onLimparTag: () -> Unit = {},
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -101,11 +102,13 @@ fun LedgerScreen(
     // é só uma leitura, não muda dado nenhum.
     var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
 
-    // Índice do item de hoje na LazyColumn (3 headers antes dos dias). Num mês sem
+    // Índice do item de hoje na LazyColumn: 3 headers antes dos dias, 4 quando o chip de
+    // tag entra entre o segmented control e o cabeçalho de colunas. Num mês sem
     // movimentação alguma os dias nem viram itens — a pill não teria destino.
-    val indiceHoje = remember(mes, state.hoje) {
+    val cabecalhos = if (state.tagFiltro != null) 4 else 3
+    val indiceHoje = remember(mes, state.hoje, cabecalhos) {
         mes?.takeIf { m -> m.dias.any { it.itens.isNotEmpty() } }
-            ?.dias?.indexOfFirst { it.data == state.hoje }?.takeIf { it >= 0 }?.plus(3)
+            ?.dias?.indexOfFirst { it.data == state.hoje }?.takeIf { it >= 0 }?.plus(cabecalhos)
     }
     val mostraPillHoje by remember(indiceHoje) {
         derivedStateOf {
@@ -147,10 +150,27 @@ fun LedgerScreen(
                             )
                         }
                     }
+                    state.tagFiltro?.let { tag ->
+                        item(key = "tagchip") {
+                            Row(
+                                Modifier
+                                    .padding(start = 16.dp, bottom = 6.dp)
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .background(colors.segmentedTrack)
+                                    .clickable { onLimparTag() }
+                                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text("tag: ${tag.nome}", style = SaldoTheme.type.footnote, color = colors.label)
+                                Text("×", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                            }
+                        }
+                    }
                     item(key = "header") { ColumnHeader(); HairlineDivider() }
 
                     if (mes.dias.all { it.itens.isEmpty() }) {
-                        item(key = "vazio") { EmptyMonth() }
+                        item(key = "vazio") { EmptyMonth(comTagFiltro = state.tagFiltro != null) }
                     } else {
                         itemsIndexed(mes.dias, key = { _, d -> d.data.toEpochDay() }) { _, dia ->
                             DayRow(
@@ -328,15 +348,22 @@ private fun ColumnHeader() {
 }
 
 @Composable
-private fun EmptyMonth() {
+private fun EmptyMonth(comTagFiltro: Boolean = false) {
     val colors = SaldoTheme.colors
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("sem movimentações neste mês", style = SaldoTheme.type.row, color = colors.secondaryLabel)
-        Text("toque em + para adicionar", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+        // Sob filtro de tag o mês pode estar cheio: mandar "toque em +" seria mentira.
+        Text(
+            if (comTagFiltro) "nenhuma movimentação com essa tag" else "sem movimentações neste mês",
+            style = SaldoTheme.type.row, color = colors.secondaryLabel,
+        )
+        Text(
+            if (comTagFiltro) "toque no × acima para ver o mês inteiro" else "toque em + para adicionar",
+            style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
+        )
     }
 }
 

@@ -171,4 +171,51 @@ class ProjectionEngineTest {
         val m = ProjectionEngine.mes(input(movs), ago, FiltroLedger.TODAS)
         assertEquals(-(100_00L * 31), m.deltaNoMesCentavos)
     }
+
+    private val comida = Tag(id = 1, nome = "comida", cor = 1)
+
+    @Test
+    fun filtroPorTag() {
+        val movs = listOf(
+            mov("2026-07-10", -100_00, tags = listOf(comida)),
+            mov("2026-07-10", -900_00),
+        )
+        val m = ProjectionEngine.mes(input(movs), jul, FiltroLedger.TODAS, tagId = 1)
+        assertEquals(1, m.dias[9].itens.size)
+        assertEquals(-100_00L, m.dias[9].itens[0].valorCentavos)
+        assertEquals(100_000_00L - 100_00, m.dias[9].saldoCentavos)
+    }
+
+    @Test
+    fun filtroPorTagTambemPodaOSaldoDeArrasteEAsFaturas() {
+        val movs = listOf(
+            // Junho: só a etiquetada entra na semente do saldo de julho.
+            mov("2026-06-10", -100_00, tags = listOf(comida)),
+            mov("2026-06-11", -700_00),
+            // Uma compra no cartão etiquetada: a fatura é um total agregado, não uma
+            // linha da tag, e some junto com as outras quando o filtro está ligado.
+            mov("2026-06-15", -300_00, natureza = Natureza.CARTAO, tags = listOf(comida)),
+        )
+        val m = ProjectionEngine.mes(
+            input(movs, materializados = setOf(YearMonth.of(2026, 6), jul))
+                .copy(saldoInicialData = LocalDate.parse("2026-06-01")),
+            jul, FiltroLedger.TODAS, tagId = 1,
+        )
+        assertEquals(100_000_00L - 100_00, m.dias[0].saldoCentavos)
+        // A fatura de 05/jul (ciclo de junho) não aparece em nenhum dia.
+        assertEquals(emptyList<ItemDia>(), m.dias.flatMap { it.itens })
+    }
+
+    @Test
+    fun projecaoIgnoraOFiltroDeTag() {
+        // O hero é o saldo do mês inteiro; filtrar a lista não pode mexer nele.
+        val movs = listOf(
+            mov("2026-07-10", -100_00, tags = listOf(comida)),
+            mov("2026-07-10", -900_00),
+        )
+        val semTag = ProjectionEngine.mes(input(movs), jul, FiltroLedger.TODAS)
+        val comTag = ProjectionEngine.mes(input(movs), jul, FiltroLedger.TODAS, tagId = 1)
+        assertEquals(semTag.saldoProjetadoCentavos, comTag.saldoProjetadoCentavos)
+        assertEquals(semTag.estimativaCentavos, comTag.estimativaCentavos)
+    }
 }

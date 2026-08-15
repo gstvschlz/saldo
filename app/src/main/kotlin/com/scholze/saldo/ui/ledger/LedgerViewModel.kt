@@ -12,6 +12,7 @@ import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.domain.Tag
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
@@ -33,24 +34,32 @@ data class LedgerUiState(
     val mesAtual: YearMonth,
     val filtro: FiltroLedger,
     val hoje: LocalDate,
+    /** Etiqueta escolhida na aba tags; `null` = o mês inteiro. */
+    val tagFiltro: Tag? = null,
 )
 
 class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     private val mesAtual = MutableStateFlow(YearMonth.now())
     private val filtro = MutableStateFlow(FiltroLedger.TODAS)
+    // Guarda o id, não a Tag: renomear ou apagar a etiqueta na aba tags tem de chegar
+    // aqui, e um snapshot da Tag deixaria o chip preso ao nome antigo (ou o ledger preso
+    // a uma etiqueta que já não existe, filtrando tudo para fora sem saída visível).
+    private val tagFiltroId = MutableStateFlow<Long?>(null)
     private val _eventoExclusao = MutableSharedFlow<Movimentacao>(extraBufferCapacity = 1)
 
     /** Snapshot da linha apagada, para o "desfazer" do snackbar. */
     val eventoExclusao: SharedFlow<Movimentacao> = _eventoExclusao
 
     val state: StateFlow<LedgerUiState> =
-        combine(repo.ledger, mesAtual, filtro) { input, mes, f ->
+        combine(repo.ledger, repo.tags, mesAtual, filtro, tagFiltroId) { input, tags, mes, f, tagId ->
+            val tag = tagId?.let { id -> tags.firstOrNull { it.id == id } }
             LedgerUiState(
-                mes = ProjectionEngine.mes(input, mes, f),
+                mes = ProjectionEngine.mes(input, mes, f, tagId = tag?.id),
                 mesAtual = mes,
                 filtro = f,
                 hoje = input.hoje,
+                tagFiltro = tag,
             )
         }
             // A projeção do mês inteiro roda fora da main thread.
@@ -90,6 +99,8 @@ class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
     }
 
     fun definirFiltro(f: FiltroLedger) { filtro.value = f }
+
+    fun definirTagFiltro(tag: Tag?) { tagFiltroId.value = tag?.id }
 
     fun excluir(mov: Movimentacao) {
         viewModelScope.launch {

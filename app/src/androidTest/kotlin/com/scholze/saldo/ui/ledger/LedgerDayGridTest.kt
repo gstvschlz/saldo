@@ -17,6 +17,7 @@ import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
 import com.scholze.saldo.ui.privacy.PrivacyState
@@ -76,18 +77,24 @@ class LedgerDayGridTest {
         hoje = hoje,
     )
 
-    private fun montar(oculto: Boolean = false, onItemClick: (Movimentacao) -> Unit = {}) {
+    private fun montar(
+        oculto: Boolean = false,
+        onItemClick: (Movimentacao) -> Unit = {},
+        state: LedgerUiState = estado,
+        onLimparTag: () -> Unit = {},
+    ) {
         rule.setContent {
             SaldoTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = oculto)) {
                     LedgerScreen(
-                        state = estado,
+                        state = state,
                         onMesAnterior = {},
                         onProximoMes = {},
                         onFiltro = {},
                         onItemClick = onItemClick,
                         onExcluir = {},
                         onTogglePrivacidade = {},
+                        onLimparTag = onLimparTag,
                     )
                 }
             }
@@ -135,5 +142,29 @@ class LedgerDayGridTest {
     fun colunaDeSaldoDoDiaMascaraQuandoOculto() {
         montar(oculto = true)
         rule.onNodeWithTag(tagSaldoDoDia(6)).assertTextEquals(MASCARA_PRIVACIDADE)
+    }
+
+    @Test
+    fun chipDeTagApareceEDispensa() {
+        val comida = Tag(id = 1, nome = "comida", cor = 0xFFA6486B)
+        var limpou = 0
+        montar(state = estado.copy(tagFiltro = comida), onLimparTag = { limpou++ })
+
+        rule.onNodeWithText("tag: comida").assertIsDisplayed().performClick()
+        assertEquals(1, limpou)
+    }
+
+    @Test
+    fun mesVazioSobFiltroDeTagNaoMandaTocarNoMais() {
+        val comida = Tag(id = 1, nome = "comida", cor = 0xFFA6486B)
+        // O mesmo mês, projetado por uma tag que nenhuma linha carrega: fica vazio, mas
+        // "toque em + para adicionar" seria conselho errado — o mês tem movimentações.
+        val vazioPorTag = estado.copy(
+            mes = ProjectionEngine.mes(input, mesAlvo, FiltroLedger.TODAS, tagId = comida.id),
+            tagFiltro = comida,
+        )
+        montar(state = vazioPorTag)
+        rule.onNodeWithText("nenhuma movimentação com essa tag").assertIsDisplayed()
+        rule.onNodeWithText("toque no × acima para ver o mês inteiro").assertIsDisplayed()
     }
 }

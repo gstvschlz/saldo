@@ -36,6 +36,8 @@ import com.scholze.saldo.ui.ledger.LedgerViewModel
 import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
 import com.scholze.saldo.ui.privacy.LocalPrivacy
+import com.scholze.saldo.ui.tags.TagsScreen
+import com.scholze.saldo.ui.tags.TagsViewModel
 import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.totais.TotaisScreen
 import com.scholze.saldo.ui.totais.TotaisViewModel
@@ -105,10 +107,14 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                         // uma IllegalArgumentException engolida pelo ViewModel.
                         onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
                         onTogglePrivacidade = privacidade::alternar,
+                        onLimparTag = { ledgerVm.definirTagFiltro(null) },
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
                     SaldoTab.TOTAIS -> TotaisScreen(viewModel(factory = TotaisViewModel.factory(container)))
-                    SaldoTab.TAGS -> Placeholder("tags")       // Task 13
+                    SaldoTab.TAGS -> TagsScreen(
+                        vm = viewModel(factory = TagsViewModel.factory(container)),
+                        onTagClick = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
+                    )
                     SaldoTab.MAIS -> Placeholder("mais")       // Task 14
                 }
             }
