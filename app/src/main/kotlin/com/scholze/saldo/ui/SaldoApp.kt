@@ -87,8 +87,13 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
         return
     }
 
-    val ledgerVm: LedgerViewModel = viewModel(factory = LedgerViewModel.factory(container))
-    val entryVm: EntryViewModel = viewModel(factory = EntryViewModel.factory(container))
+    // As factories são lembradas, não reconstruídas: `viewModel()` só consulta a factory na
+    // primeira criação, então alocar uma nova a cada recomposição é lixo puro.
+    val ledgerVm: LedgerViewModel = viewModel(factory = remember(container) { LedgerViewModel.factory(container) })
+    val entryVm: EntryViewModel = viewModel(factory = remember(container) { EntryViewModel.factory(container) })
+    val totaisFactory = remember(container) { TotaisViewModel.factory(container) }
+    val tagsFactory = remember(container) { TagsViewModel.factory(container) }
+    val maisFactory = remember(container) { MaisViewModel.factory(container) }
     val ledgerState by ledgerVm.state.collectAsState()
     val privacidade = LocalPrivacy.current
     val snackbar = remember { SnackbarHostState() }
@@ -178,13 +183,13 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                         onLimparTag = { ledgerVm.definirTagFiltro(null) },
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
-                    SaldoTab.TOTAIS -> TotaisScreen(viewModel(factory = TotaisViewModel.factory(container)))
+                    SaldoTab.TOTAIS -> TotaisScreen(viewModel(factory = totaisFactory))
                     SaldoTab.TAGS -> TagsScreen(
-                        vm = viewModel(factory = TagsViewModel.factory(container)),
+                        vm = viewModel(factory = tagsFactory),
                         onTagClick = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
                     )
                     SaldoTab.MAIS -> MaisScreen(
-                        vm = viewModel(factory = MaisViewModel.factory(container)),
+                        vm = viewModel(factory = maisFactory),
                         onExportar = { escolhendoFormato = true },
                     )
                 }

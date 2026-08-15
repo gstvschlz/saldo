@@ -38,6 +38,11 @@ data class MesLedger(
     val mes: YearMonth,
     val dias: List<DiaRow>,
     val saldoProjetadoCentavos: Long,
+    /**
+     * Gasto avulso ainda esperado no intervalo `(hoje, fim de mes]` — não inclui hoje, e é
+     * zero num mês que já terminou. Já vem descontado de [saldoProjetadoCentavos]; quem
+     * mostra os dois lado a lado está mostrando o total e uma de suas parcelas.
+     */
     val estimativaCentavos: Long,
     val deltaNoMesCentavos: Long,
     val projetadoEm: LocalDate,
@@ -95,9 +100,7 @@ object ProjectionEngine {
         }
 
         // Projeção (sempre sobre o conjunto completo, não o filtrado).
-        val estimativa =
-            if (fimMes <= input.hoje) 0L
-            else mediaDiaria(input) * ChronoUnit.DAYS.between(input.hoje, fimMes)
+        val estimativa = estimativaDoMes(input, mes)
         val projetado = projetadoDoMes(input, efetivas, faturas, mes)
         val projetadoAnterior = projetadoDoMes(input, efetivas, faturas, mes.minusMonths(1))
 
@@ -183,10 +186,21 @@ object ProjectionEngine {
      * Saldo projetado ao fim de [mes]: saldo real se o mês já terminou (`estimativa` 0),
      * senão saldo real de hoje + agendadas/faturas futuras dentro do mês − estimativa.
      */
+    /**
+     * Gasto avulso ainda esperado no intervalo `(hoje, fim de mes]` — zero num mês que já
+     * terminou. Fonte única: [mes] a publica como `estimativaCentavos` e [projetadoDoMes]
+     * a desconta, e as duas contas têm de continuar sendo a mesma.
+     */
+    private fun estimativaDoMes(input: LedgerInput, mes: YearMonth): Long {
+        val fimMes = mes.atEndOfMonth()
+        return if (fimMes <= input.hoje) 0L
+        else mediaDiaria(input) * ChronoUnit.DAYS.between(input.hoje, fimMes)
+    }
+
     private fun projetadoDoMes(input: LedgerInput, efetivas: List<Movimentacao>, faturas: List<Fatura>, mes: YearMonth): Long {
         val fimMes = mes.atEndOfMonth()
         if (fimMes <= input.hoje) return saldoReal(input, efetivas, faturas, fimMes)
-        val estimativa = mediaDiaria(input) * ChronoUnit.DAYS.between(input.hoje, fimMes)
+        val estimativa = estimativaDoMes(input, mes)
         val agendadas = efetivas
             .filter { it.natureza != Natureza.CARTAO && it.data > input.hoje && it.data <= fimMes }
             .sumOf { it.valorCentavos }

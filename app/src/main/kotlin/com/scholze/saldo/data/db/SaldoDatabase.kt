@@ -24,8 +24,14 @@ abstract class SaldoDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
 
     companion object {
+        /**
+         * `applicationContext`: o banco vive enquanto o processo viver, e guardar um
+         * Context de Activity aqui seria segurá-la para sempre. Hoje o único chamador é o
+         * [com.scholze.saldo.AppContainer], que já recebe a Application — a normalização
+         * é para que continue verdade se alguém construir o container de outro lugar.
+         */
         fun build(context: Context): SaldoDatabase =
-            Room.databaseBuilder(context, SaldoDatabase::class.java, "saldo.db").build()
+            Room.databaseBuilder(context.applicationContext, SaldoDatabase::class.java, "saldo.db").build()
 
         fun inMemory(context: Context): SaldoDatabase =
             Room.inMemoryDatabaseBuilder(context, SaldoDatabase::class.java).build()
