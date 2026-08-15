@@ -79,11 +79,18 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     }
 
     /**
-     * Volta tudo ao default de instalação nova.
+     * Reset das preferências: volta tudo ao default de instalação nova, incluindo o saldo
+     * inicial — ou seja, o app cai de volta no onboarding.
+     *
+     * É uma API de produto, não um utilitário de teste, ainda que hoje só o `EstadoLimpo`
+     * dos testes instrumentados a chame; é daqui que sai o "apagar dados" quando ele
+     * existir. Note o que ela NÃO faz: o banco de movimentações continua intacto, então
+     * um reset sozinho deixaria o ledger com lançamentos e sem saldo inicial — quem
+     * chamar precisa limpar o banco também.
      *
      * Passa pela MESMA instância de [DataStore] de propósito: apagar o arquivo por fora
      * não invalida o cache em memória do singleton, então só isto realmente reseta o
-     * estado dentro de um processo já em execução (o caso dos testes instrumentados).
+     * estado dentro de um processo já em execução.
      */
     suspend fun limpar() {
         dataStore.edit { it.clear() }

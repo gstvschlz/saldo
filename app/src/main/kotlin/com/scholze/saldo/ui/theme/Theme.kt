@@ -52,6 +52,11 @@ fun SaldoTheme(
             onSurface = colors.label,
             onSurfaceVariant = colors.secondaryLabel,
             outline = colors.separator,
+            // O Snackbar se pinta com os papéis "inverse"; sem mapeá-los ele saía lavanda
+            // com a ação roxa no tema escuro.
+            inverseSurface = if (darkTheme) Color(0xFF3A3A3C) else Color(0xFF2C2C2E),
+            inverseOnSurface = Color.White,
+            inversePrimary = colors.tint,
         )
     } else {
         lightColorScheme(
@@ -69,6 +74,11 @@ fun SaldoTheme(
             onSurface = colors.label,
             onSurfaceVariant = colors.secondaryLabel,
             outline = colors.separator,
+            // O Snackbar se pinta com os papéis "inverse"; sem mapeá-los ele saía lavanda
+            // com a ação roxa no tema escuro.
+            inverseSurface = if (darkTheme) Color(0xFF3A3A3C) else Color(0xFF2C2C2E),
+            inverseOnSurface = Color.White,
+            inversePrimary = colors.tint,
         )
     }
 

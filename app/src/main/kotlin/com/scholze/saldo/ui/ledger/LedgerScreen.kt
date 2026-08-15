@@ -1,9 +1,12 @@
 package com.scholze.saldo.ui.ledger
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -41,8 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,6 +72,7 @@ import com.scholze.saldo.ui.theme.tabular
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 private val DAY_COLUMN = 34.dp
@@ -122,15 +129,49 @@ fun LedgerScreen(
         modifier
             .fillMaxSize()
             .background(colors.background)
+            // Navegação de mês por arrasto, cedendo a vez aos filhos.
+            //
+            // A versão anterior era um `detectHorizontalDragGestures` aqui na raiz, e ele
+            // COMPETE com o SwipeToDismissBox de cada linha: num arrasto real (não no
+            // swipeLeft() sintético dos testes) a raiz costumava ganhar a corrida do touch
+            // slop, engolir o gesto e trocar o mês em vez de excluir a linha.
+            //
+            // O loop abaixo roda no pass Main, que num nó pai chega DEPOIS dos filhos: se a
+            // linha (ou a rolagem da lista) já consumiu movimento, `alheio` fecha a porta e
+            // o mês não muda. Só o consumo de MOVIMENTO conta — `clickable` consome o down
+            // para marcar o press, e isso não pode valer como "alguém pegou o gesto".
+            //
+            // Quando é a raiz que assume, ela consome: sem isso o `clickable` do hero, que
+            // não tem slop nenhum, dispararia junto e alternaria a privacidade no fim do
+            // arrasto.
             .pointerInput(state.mesAtual) {
-                var total = 0f
                 val limiar = 120.dp.toPx()
-                detectHorizontalDragGestures(
-                    onDragStart = { total = 0f },
-                    onDragEnd = {
-                        if (total > limiar) onMesAnterior() else if (total < -limiar) onProximoMes()
-                    },
-                ) { _, dragAmount -> total += dragAmount }
+                val slop = viewConfiguration.touchSlop
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var totalX = 0f
+                    var totalY = 0f
+                    var meu = false
+                    var alheio = false
+                    while (true) {
+                        val evento = awaitPointerEvent()
+                        val mudanca = evento.changes.firstOrNull() ?: break
+                        val delta = mudanca.positionChangeIgnoreConsumed()
+                        if (!meu && mudanca.isConsumed && delta != Offset.Zero) alheio = true
+                        if (!alheio) {
+                            totalX += delta.x
+                            totalY += delta.y
+                            // Predominantemente horizontal, senão uma rolagem na diagonal
+                            // sobre a coluna de dias viraria troca de mês.
+                            if (!meu && abs(totalX) > slop && abs(totalX) > abs(totalY)) meu = true
+                            if (meu) mudanca.consume()
+                        }
+                        if (!mudanca.pressed) break
+                    }
+                    if (meu) {
+                        if (totalX > limiar) onMesAnterior() else if (totalX < -limiar) onProximoMes()
+                    }
+                }
             },
     ) {
         Column(Modifier.fillMaxSize()) {
@@ -274,8 +315,8 @@ private fun MonthNavBar(
                     .padding(6.dp),
             ) {
                 SaldoGlyph(
-                    if (privacidade.oculto) SaldoIcon.MAIS else SaldoIcon.TOTAIS,
-                    colors.tint, size = 18.dp,
+                    if (privacidade.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
+                    colors.tint, size = 20.dp,
                 )
             }
             Row(
@@ -306,8 +347,16 @@ private fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
             "saldo projetado · " + mes.projetadoEm.format(diaCurto).removeSuffix("."),
             style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
         )
+        // Contagem até o valor novo em vez de troca seca — de mês para mês, e quando uma
+        // movimentação entra ou sai. Mascarado o número nem aparece, então a animação
+        // simplesmente não se vê; o alvo continua sendo o valor real.
+        val animado by animateFloatAsState(
+            targetValue = mes.saldoProjetadoCentavos.toFloat(),
+            animationSpec = tween(durationMillis = 450),
+            label = "saldoCountUp",
+        )
         MoneyText(
-            centavos = mes.saldoProjetadoCentavos,
+            centavos = animado.toLong(),
             modifier = Modifier.padding(top = 2.dp).testTag(TAG_SALDO_PROJETADO),
             style = SaldoTheme.type.largeTitle, color = colors.label,
         )
@@ -413,17 +462,21 @@ private fun DayRow(
                             // o segundo herdar o slot do primeiro — e aparecer arrastado para a
                             // esquerda, com o painel vermelho atrás, enquanto a animação volta.
                             val mov = item.mov
-                            val dismissState = rememberSwipeToDismissBoxState(
-                                confirmValueChange = { v ->
-                                    // Sempre retorna false: o dismiss nunca "assenta" visualmente.
-                                    // A linha some porque a exclusão remove o dado, não porque o
-                                    // SwipeToDismissBoxState decidiu escondê-la.
-                                    if (v == SwipeToDismissBoxValue.EndToStart) {
-                                        onExcluir(mov)
-                                    }
-                                    false
-                                },
-                            )
+                            val dismissState = rememberSwipeToDismissBoxState()
+                            // Reagir à TRANSIÇÃO de currentValue, não a um confirmValueChange.
+                            // O anchoredDraggable chama aquele callback mais de uma vez no mesmo
+                            // gesto: um swipe produzia DOIS snackbars, e o "desfazer" do segundo
+                            // reinseria a linha de novo, agora duplicada. Um LaunchedEffect com
+                            // chave no valor dispara uma vez por transição — e ainda deixa de
+                            // usar uma API que a material3 já marcou como deprecada.
+                            LaunchedEffect(dismissState.currentValue) {
+                                if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                                    onExcluir(mov)
+                                    // A linha some porque o dado sumiu; se a exclusão for recusada
+                                    // (ocorrência virtual), o reset devolve a linha ao lugar.
+                                    dismissState.reset()
+                                }
+                            }
                             SwipeToDismissBox(
                                 state = dismissState,
                                 enableDismissFromStartToEnd = false,

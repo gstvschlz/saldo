@@ -16,7 +16,10 @@ import androidx.compose.ui.unit.dp
  * The tab-bar and chrome glyphs are drawn rather than imported, so the app
  * carries no icon-font dependency and the strokes match the canvas SVGs.
  */
-enum class SaldoIcon { SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE, RECORRENTE }
+enum class SaldoIcon {
+    SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE, RECORRENTE,
+    OLHO, OLHO_RISCADO,
+}
 
 @Composable
 fun SaldoGlyph(
@@ -129,6 +132,20 @@ fun SaldoGlyph(
                 )
                 drawLine(tint, Offset(w * 0.72f, h * 0.12f), Offset(w * 0.84f, h * 0.26f), sw, StrokeCap.Round)
                 drawLine(tint, Offset(w * 0.84f, h * 0.26f), Offset(w * 0.68f, h * 0.32f), sw, StrokeCap.Round)
+            }
+            // Olho: dois arcos e a pupila. OLHO_RISCADO acrescenta a barra na diagonal.
+            SaldoIcon.OLHO, SaldoIcon.OLHO_RISCADO -> {
+                val p = Path().apply {
+                    moveTo(w * 0.10f, h * 0.50f)
+                    quadraticTo(w * 0.50f, h * 0.18f, w * 0.90f, h * 0.50f)
+                    quadraticTo(w * 0.50f, h * 0.82f, w * 0.10f, h * 0.50f)
+                    close()
+                }
+                drawPath(p, tint, style = stroke)
+                drawCircle(tint, radius = w * 0.10f, center = Offset(w * 0.5f, h * 0.5f))
+                if (icon == SaldoIcon.OLHO_RISCADO) {
+                    drawLine(tint, Offset(w * 0.18f, h * 0.82f), Offset(w * 0.82f, h * 0.18f), sw, StrokeCap.Round)
+                }
             }
         }
     }

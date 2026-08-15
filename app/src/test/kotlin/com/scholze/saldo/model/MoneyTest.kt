@@ -16,8 +16,17 @@ class MoneyTest {
     }
 
     @Test
-    fun assinadoTrataZeroComoPositivo() {
-        assertEquals("+0,00", 0L.centavosAssinado())
+    fun zeroNaoLevaSinal() {
+        // A tela de totais mostra "saídas economia" e "entradas" no formato assinado; um
+        // "+0,00" numa linha de saída lê como ganho.
+        assertEquals("0,00", 0L.centavosAssinado())
+        assertEquals("R$ 0,00", 0L.centavosAssinadoComSimbolo())
+    }
+
+    @Test
+    fun assinadoMarcaOsDoisSentidos() {
+        assertEquals("−238,50", (-23850L).centavosAssinado())
+        assertEquals("+238,50", 23850L.centavosAssinado())
     }
 
     @Test

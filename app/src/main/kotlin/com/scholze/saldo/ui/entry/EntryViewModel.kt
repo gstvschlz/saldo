@@ -20,7 +20,9 @@ import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -69,6 +71,15 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
     private data class Original(val valorCentavos: Long, val data: LocalDate, val natureza: Natureza)
 
     private val original = MutableStateFlow<Original?>(null)
+
+    private val _erros = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val _exclusoes = MutableSharedFlow<Movimentacao>(extraBufferCapacity = 1)
+
+    /** Falha de escrita que a shell mostra no snackbar — a sheet NÃO fecha. */
+    val erros: SharedFlow<String> = _erros
+
+    /** Snapshot da linha apagada pela sheet, para o mesmo "desfazer" do swipe. */
+    val exclusoes: SharedFlow<Movimentacao> = _exclusoes
 
     val state: StateFlow<EntryUiState> =
         combine(form, original, repo.ledger, repo.tags) { f, orig, input, tags ->
@@ -151,57 +162,60 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
     fun salvar(escopo: EscopoEdicao, onDone: () -> Unit) {
         val f = form.value
         if (!f.podeSalvar) return
-        viewModelScope.launch {
-            try {
-                val mov = Movimentacao(
-                    id = f.editandoId ?: 0,
-                    descricao = f.descricao.trim(),
-                    valorCentavos = f.valorAssinado,
-                    data = f.data,
-                    natureza = f.natureza,
-                    recorrenciaId = f.recorrenciaId,
-                    tags = f.tagsSelecionadas,
-                )
-                if (f.editandoId == null) repo.criar(mov, f.repetir) else repo.editar(mov, escopo)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "salvar falhou", e)
-            }
-            onDone()
+        escrever("salvar", "não foi possível salvar", onDone) {
+            val mov = Movimentacao(
+                id = f.editandoId ?: 0,
+                descricao = f.descricao.trim(),
+                valorCentavos = f.valorAssinado,
+                data = f.data,
+                natureza = f.natureza,
+                recorrenciaId = f.recorrenciaId,
+                tags = f.tagsSelecionadas,
+            )
+            if (f.editandoId == null) repo.criar(mov, f.repetir) else repo.editar(mov, escopo)
         }
     }
 
     fun excluir(onDone: () -> Unit) {
         val f = form.value
         val id = f.editandoId ?: return
-        viewModelScope.launch {
-            try {
-                repo.excluir(
-                    Movimentacao(
-                        id = id, descricao = f.descricao, valorCentavos = f.valorAssinado,
-                        data = f.data, natureza = f.natureza, recorrenciaId = f.recorrenciaId,
-                    ),
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "excluir falhou", e)
-            }
-            onDone()
+        // As tags entram no snapshot: é ele que o "desfazer" reinsere, e sem elas a linha
+        // voltaria pelada.
+        val mov = Movimentacao(
+            id = id, descricao = f.descricao, valorCentavos = f.valorAssinado,
+            data = f.data, natureza = f.natureza, recorrenciaId = f.recorrenciaId,
+            tags = f.tagsSelecionadas,
+        )
+        escrever("excluir", "não foi possível excluir", onDone) {
+            _exclusoes.emit(repo.excluir(mov))
         }
     }
 
     fun excluirRecorrencia(escopo: EscopoExclusao, onDone: () -> Unit) {
         val f = form.value
         val recId = f.recorrenciaId ?: return
+        escrever("excluirRecorrencia", "não foi possível excluir", onDone) {
+            repo.excluirRecorrencia(recId, YearMonth.from(f.data), escopo)
+        }
+    }
+
+    /**
+     * Toda escrita da sheet passa por aqui.
+     *
+     * O ponto é o `return@launch`: antes, uma falha era registrada e o [onDone] rodava
+     * assim mesmo — a sheet fechava, o usuário via o formulário sumir e concluía que
+     * gravou. Agora a sheet fica aberta com o que ele digitou e o erro vira snackbar.
+     */
+    private fun escrever(qual: String, mensagem: String, onDone: () -> Unit, bloco: suspend () -> Unit) {
         viewModelScope.launch {
             try {
-                repo.excluirRecorrencia(recId, YearMonth.from(f.data), escopo)
+                bloco()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "excluirRecorrencia falhou", e)
+                Log.e(TAG, "$qual falhou", e)
+                _erros.emit(mensagem)
+                return@launch
             }
             onDone()
         }

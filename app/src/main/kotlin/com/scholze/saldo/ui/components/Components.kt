@@ -1,6 +1,8 @@
 package com.scholze.saldo.ui.components
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -74,6 +76,8 @@ fun SegmentedControl(
         val segmentWidth = maxWidth / options.size
         val thumbX by animateDpAsState(
             targetValue = segmentWidth * selectedIndex,
+            // Mola em vez de tween: o thumb chega com um resto de inércia, como no HIG.
+            animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
             label = "segmentedThumb",
         )
 

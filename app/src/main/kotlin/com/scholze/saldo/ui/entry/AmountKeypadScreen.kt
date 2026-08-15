@@ -21,6 +21,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -128,11 +130,17 @@ private sealed interface Key {
 private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
     val interaction = remember { MutableInteractionSource() }
+    // As teclas não têm ripple (indication = null) nem mudam de fundo: sem o tique no dedo
+    // não sobra retorno nenhum de que a tecla foi lida.
+    val haptics = LocalHapticFeedback.current
 
     Box(
         modifier
             .height(62.dp)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+            .clickable(interactionSource = interaction, indication = null) {
+                haptics.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                onClick()
+            },
         contentAlignment = Alignment.Center,
     ) {
         when (key) {

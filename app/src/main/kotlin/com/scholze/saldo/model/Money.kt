@@ -21,9 +21,19 @@ fun Long.centavosValor(): String = kotlin.math.abs(this).formatarCentavos()
 /** -23850 -> "−R$ 238,50"; 23850 -> "R$ 238,50". */
 fun Long.centavosComSimbolo(): String = (if (this < 0) MINUS else "") + "R$ " + centavosValor()
 
-/** -23850 -> "−238,50"; 23850 -> "+238,50". */
-fun Long.centavosAssinado(): String = (if (this < 0) MINUS else "+") + centavosValor()
+/**
+ * -23850 -> "−238,50"; 23850 -> "+238,50"; 0 -> "0,00".
+ *
+ * Zero não leva sinal. Este formato aparece em linhas de agregado — "entradas",
+ * "saídas economia", o delta do hero — e um "+0,00" numa linha de saída lê como ganho.
+ */
+fun Long.centavosAssinado(): String = sinal() + centavosValor()
 
-/** -23850 -> "−R$ 238,50"; 23850 -> "+R$ 238,50" — the hero delta form. */
-fun Long.centavosAssinadoComSimbolo(): String =
-    (if (this < 0) MINUS else "+") + "R$ " + centavosValor()
+/** -23850 -> "−R$ 238,50"; 23850 -> "+R$ 238,50"; 0 -> "R$ 0,00" — the hero delta form. */
+fun Long.centavosAssinadoComSimbolo(): String = sinal() + "R$ " + centavosValor()
+
+private fun Long.sinal(): String = when {
+    this < 0 -> MINUS
+    this > 0 -> "+"
+    else -> ""
+}

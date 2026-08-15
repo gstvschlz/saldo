@@ -1,5 +1,6 @@
 package com.scholze.saldo.ui.entry
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +84,9 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
     var editandoDescricao by remember { mutableStateOf(false) }
 
     if (editandoValor) {
+        // O teclado substitui o conteúdo da sheet e não tem "cancelar": sem isto, o back
+        // do sistema fecharia a sheet inteira (ou o app) em vez de só voltar ao formulário.
+        BackHandler { editandoValor = false }
         AmountKeypadScreen(
             onContinue = { vm.definirCentavos(it); editandoValor = false },
             initialCentavos = state.centavos,
@@ -90,6 +94,9 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
         )
         return
     }
+
+    // Back fecha a sheet, como o "cancelar" da nav bar.
+    BackHandler(onBack = onFechar)
 
     val ehRecorrente = state.recorrenciaId != null
     val salvar: () -> Unit = {
@@ -409,18 +416,27 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
         AlertDialog(
             onDismissRequest = { pedindoExclusao = false },
             title = { Text("excluir recorrência") },
-            confirmButton = {
-                TextButton(onClick = {
-                    pedindoExclusao = false
-                    vm.excluirRecorrencia(EscopoExclusao.SO_FUTURAS) { onFechar() }
-                }) { Text("só futuras") }
+            // Três opções não cabem nos dois slots de botão do AlertDialog, e a que faltava
+            // — apagar só a ocorrência deste mês, sem tocar no template — era justamente a
+            // mais comum. Ficam empilhadas no corpo, como no seletor de tema.
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        pedindoExclusao = false
+                        vm.excluir { onFechar() }
+                    }) { Text("só este mês") }
+                    TextButton(onClick = {
+                        pedindoExclusao = false
+                        vm.excluirRecorrencia(EscopoExclusao.SO_FUTURAS) { onFechar() }
+                    }) { Text("esta e as futuras") }
+                    TextButton(onClick = {
+                        pedindoExclusao = false
+                        vm.excluirRecorrencia(EscopoExclusao.TODAS) { onFechar() }
+                    }) { Text("todas") }
+                }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    pedindoExclusao = false
-                    vm.excluirRecorrencia(EscopoExclusao.TODAS) { onFechar() }
-                }) { Text("todas") }
-            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { pedindoExclusao = false }) { Text("cancelar") } },
         )
     }
 }

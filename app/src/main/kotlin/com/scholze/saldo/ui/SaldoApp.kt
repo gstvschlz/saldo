@@ -5,9 +5,13 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -54,6 +59,7 @@ import com.scholze.saldo.ui.totais.TotaisViewModel
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -92,14 +98,20 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
     // e por isso sobrevive à rotação sem precisar ser serializado.
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
 
+    // Um só "desfazer" para as duas portas de exclusão: o swipe na linha (LedgerViewModel)
+    // e o "excluir" dentro da sheet (EntryViewModel), que antes apagava sem volta.
     LaunchedEffect(Unit) {
-        ledgerVm.eventoExclusao.collect { snapshot ->
+        merge(ledgerVm.eventoExclusao, entryVm.exclusoes).collect { snapshot ->
             val resultado = snackbar.showSnackbar(
                 message = "movimentação excluída",
                 actionLabel = "desfazer",
             )
             if (resultado == SnackbarResult.ActionPerformed) ledgerVm.desfazerExclusao(snapshot)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        entryVm.erros.collect { snackbar.showSnackbar(it) }
     }
 
     // ---- exportar dados (SAF) ----
@@ -184,7 +196,20 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
             )
         }
 
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp))
+        // Scrim. Além de escurecer, é ele que ENGOLE o toque: a sheet é uma irmã do ledger
+        // dentro deste Box, e nas áreas dela sem nada clicável o hit test caía direto no
+        // ledger de trás — dava para arrastar o mês e tocar em linha por baixo da sheet.
+        AnimatedVisibility(visible = sheetAberto, enter = fadeIn(), exit = fadeOut()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { sheetAberto = false },
+            )
+        }
 
         AnimatedVisibility(visible = sheetAberto, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
             NewEntrySheet(
@@ -193,6 +218,10 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                 modifier = Modifier.statusBarsPadding(),
             )
         }
+
+        // Por último no Box, portanto por cima da sheet: um erro de gravação tem de ser
+        // visível justamente quando a sheet continua aberta.
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp))
 
         if (escolhendoFormato) {
             AlertDialog(
