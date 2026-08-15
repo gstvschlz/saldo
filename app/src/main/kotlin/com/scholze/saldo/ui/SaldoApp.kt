@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,6 +32,8 @@ import com.scholze.saldo.ui.entry.EntryViewModel
 import com.scholze.saldo.ui.entry.NewEntrySheet
 import com.scholze.saldo.ui.ledger.LedgerScreen
 import com.scholze.saldo.ui.ledger.LedgerViewModel
+import com.scholze.saldo.ui.mais.MaisScreen
+import com.scholze.saldo.ui.mais.MaisViewModel
 import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -115,7 +116,10 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                         vm = viewModel(factory = TagsViewModel.factory(container)),
                         onTagClick = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
                     )
-                    SaldoTab.MAIS -> Placeholder("mais")       // Task 14
+                    SaldoTab.MAIS -> MaisScreen(
+                        vm = viewModel(factory = MaisViewModel.factory(container)),
+                        onExportar = {},   // Task 15
+                    )
                 }
             }
             SaldoTabBar(
@@ -134,13 +138,5 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                 modifier = Modifier.statusBarsPadding(),
             )
         }
-    }
-}
-
-/** As abas além de saldos chegam nas tasks 12–14. */
-@Composable
-private fun Placeholder(nome: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(nome, style = SaldoTheme.type.body, color = SaldoTheme.colors.secondaryLabel)
     }
 }

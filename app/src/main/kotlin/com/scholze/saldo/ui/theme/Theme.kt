@@ -10,6 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 
 val LocalSaldoColors: ProvidableCompositionLocal<SaldoColors> =
@@ -38,6 +39,8 @@ fun SaldoTheme(
     val material = if (darkTheme) {
         darkColorScheme(
             primary = colors.tint,
+            // O polegar do Switch usa `onPrimary`; sem mapear, no escuro ele saía roxo.
+            onPrimary = Color.White,
             background = colors.background,
             surface = colors.surface,
             surfaceContainerLowest = colors.surface,
@@ -53,6 +56,8 @@ fun SaldoTheme(
     } else {
         lightColorScheme(
             primary = colors.tint,
+            // O polegar do Switch usa `onPrimary`; sem mapear, no escuro ele saía roxo.
+            onPrimary = Color.White,
             background = colors.background,
             surface = colors.surface,
             surfaceContainerLowest = colors.surface,
