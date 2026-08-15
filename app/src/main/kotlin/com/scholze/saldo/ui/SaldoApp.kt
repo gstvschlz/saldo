@@ -37,6 +37,8 @@ import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.totais.TotaisScreen
+import com.scholze.saldo.ui.totais.TotaisViewModel
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 
@@ -105,7 +107,7 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                         onTogglePrivacidade = privacidade::alternar,
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
-                    SaldoTab.TOTAIS -> Placeholder("totais")   // Task 12
+                    SaldoTab.TOTAIS -> TotaisScreen(viewModel(factory = TotaisViewModel.factory(container)))
                     SaldoTab.TAGS -> Placeholder("tags")       // Task 13
                     SaldoTab.MAIS -> Placeholder("mais")       // Task 14
                 }
