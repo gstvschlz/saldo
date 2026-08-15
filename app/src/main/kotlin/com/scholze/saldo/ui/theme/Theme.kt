@@ -30,21 +30,40 @@ fun SaldoTheme(
 ) {
     val colors = if (darkTheme) DarkSaldoColors else LightSaldoColors
 
+    // `surface` alone is not enough: AlertDialog paints itself with
+    // `surfaceContainerHigh`, and OutlinedTextField borders come from `outline` — left
+    // unmapped they fall back to Material's baseline lavender and land a Material dialog
+    // in the middle of an otherwise HIG-coloured app. Every container role is pinned to
+    // the app surface so the mapping cannot leak again.
     val material = if (darkTheme) {
         darkColorScheme(
             primary = colors.tint,
             background = colors.background,
             surface = colors.surface,
+            surfaceContainerLowest = colors.surface,
+            surfaceContainerLow = colors.surface,
+            surfaceContainer = colors.surface,
+            surfaceContainerHigh = colors.surface,
+            surfaceContainerHighest = colors.surface,
             onBackground = colors.label,
             onSurface = colors.label,
+            onSurfaceVariant = colors.secondaryLabel,
+            outline = colors.separator,
         )
     } else {
         lightColorScheme(
             primary = colors.tint,
             background = colors.background,
             surface = colors.surface,
+            surfaceContainerLowest = colors.surface,
+            surfaceContainerLow = colors.surface,
+            surfaceContainer = colors.surface,
+            surfaceContainerHigh = colors.surface,
+            surfaceContainerHighest = colors.surface,
             onBackground = colors.label,
             onSurface = colors.label,
+            onSurfaceVariant = colors.secondaryLabel,
+            outline = colors.separator,
         )
     }
 
