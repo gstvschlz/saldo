@@ -12,6 +12,7 @@ ksp = "2.2.21-2.0.5"
 room = "2.8.4"
 datastore = "1.2.1"
 lifecycleViewmodelCompose = "2.11.0"
+jsonJvm = "20260814"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -34,6 +35,8 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-datastore-preferences-core = { group = "androidx.datastore", name = "datastore-preferences-core", version.ref = "datastore" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
+# Só para os testes JVM: no device o org.json vem do próprio Android.
+json-jvm = { group = "org.json", name = "json", version.ref = "jsonJvm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

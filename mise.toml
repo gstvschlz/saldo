@@ -9,20 +9,20 @@ run = "./gradlew assembleDebug"
 
 [tasks.test]
 description = "Run unit tests"
-run = "./gradlew test"
+run = "gradlew.bat test"
 
 [tasks.lint]
 description = "Run Android Lint"
-run = "./gradlew lint"
+run = "gradlew.bat lint"
 
 [tasks.install]
 description = "Install the debug APK on a connected device/emulator"
-run = "./gradlew installDebug"
+run = "gradlew.bat installDebug"
 
 [tasks.clean]
 description = "Delete build outputs"
-run = "./gradlew clean"
+run = "gradlew.bat clean"
 
 [tasks.sdk-setup]
 description = "Install the Android SDK packages this project needs"
-run = "sdkmanager 'platform-tools' 'platforms;android-37.1' 'build-tools;37.0.0'"
+run = "sdkmanager platform-tools platforms;android-37.1 build-tools;37.0.0"

@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        A promessa do "100% local" da tela "mais". `allowBackup="false"` sozinho não
+        fecha a porta: a partir do Android 12 quem decide backup em nuvem e transferência
+        entre aparelhos é o dataExtractionRules, e o arquivo que vinha do template deixava
+        os dois blocos vazios — ou seja, liberados. Os três atributos juntos negam a saída
+        de dados em toda a faixa de minSdk 26..37.
+    -->
     <application
         android:name=".SaldoApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"

@@ -90,7 +90,7 @@ fun LedgerScreen(
     onItemClick: (Movimentacao) -> Unit,
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
-    onLimparTag: () -> Unit = {},
+    onLimparTag: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {

@@ -1,5 +1,9 @@
 package com.scholze.saldo.ui
 
+import android.net.Uri
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -10,9 +14,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,9 +31,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.scholze.saldo.AppContainer
+import com.scholze.saldo.data.Exporters
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
 import com.scholze.saldo.ui.entry.EntryViewModel
 import com.scholze.saldo.ui.entry.NewEntrySheet
@@ -43,7 +52,10 @@ import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.totais.TotaisScreen
 import com.scholze.saldo.ui.totais.TotaisViewModel
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The shell: onboarding gate, tabbed content, undo snackbar and the
@@ -90,6 +102,49 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
         }
     }
 
+    // ---- exportar dados (SAF) ----
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var escolhendoFormato by remember { mutableStateOf(false) }
+
+    // O conteúdo é montado e gravado fora da main thread; o Uri vem do seletor do sistema,
+    // então o app nunca pede permissão de armazenamento nem escolhe pasta por conta própria.
+    val gravar: (Uri, suspend () -> String) -> Unit = { uri, conteudo ->
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val texto = conteudo()
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(texto.toByteArray()) }
+                        ?: error("sem stream de escrita para $uri")
+                }
+            }.onSuccess {
+                snackbar.showSnackbar("dados exportados")
+            }.onFailure { e ->
+                Log.e("saldo", "exportar falhou", e)
+                snackbar.showSnackbar("falha ao exportar")
+            }
+        }
+    }
+
+    // Um launcher por formato: o mime do CreateDocument é fixo na construção, e assim não
+    // existe um "formato escolhido" guardado em estado para dessincronizar do arquivo.
+    val exportarCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) gravar(uri) { Exporters.csv(container.repository.ledger.first().movimentacoes) }
+    }
+    val exportarJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            gravar(uri) {
+                val input = container.repository.ledger.first()
+                Exporters.json(
+                    input.movimentacoes,
+                    input.recorrencias,
+                    container.repository.tags.first(),
+                    container.settings.settings.first(),
+                )
+            }
+        }
+    }
+
     Box(modifier.fillMaxSize().background(colors.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Box(Modifier.weight(1f)) {
@@ -118,7 +173,7 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                     )
                     SaldoTab.MAIS -> MaisScreen(
                         vm = viewModel(factory = MaisViewModel.factory(container)),
-                        onExportar = {},   // Task 15
+                        onExportar = { escolhendoFormato = true },
                     )
                 }
             }
@@ -136,6 +191,26 @@ fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
                 vm = entryVm,
                 onFechar = { sheetAberto = false },
                 modifier = Modifier.statusBarsPadding(),
+            )
+        }
+
+        if (escolhendoFormato) {
+            AlertDialog(
+                onDismissRequest = { escolhendoFormato = false },
+                title = { Text("exportar dados") },
+                text = { Text("csv abre em planilha; json é o dump completo (settings, tags, recorrências).") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        escolhendoFormato = false
+                        exportarCsv.launch("saldo-export.csv")
+                    }) { Text("csv") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        escolhendoFormato = false
+                        exportarJson.launch("saldo-export.json")
+                    }) { Text("json") }
+                },
             )
         }
     }

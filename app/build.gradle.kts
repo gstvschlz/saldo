@@ -68,6 +68,7 @@ dependencies {
     androidTestImplementation(libs.androidx.datastore.preferences.core)
 
     testImplementation(libs.junit)
+    testImplementation(libs.json.jvm)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

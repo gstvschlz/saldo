@@ -1,7 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Used on Android 12 and above. See
-     https://developer.android.com/about/versions/12/backup-restore -->
+<!--
+    Android 12+. `android:allowBackup="false"` sozinho não é a garantia inteira: a partir
+    do 12 as regras daqui é que mandam, e o arquivo que vinha do template tinha
+    <cloud-backup /> e <device-transfer /> VAZIOS — o que significa "leva tudo", não
+    "não leva nada". Excluir root, device_root e external nos dois blocos é o que
+    realmente sustenta o "saldo · 100% local" da tela "mais": o banco e as preferências
+    não sobem para o Drive nem viajam numa transferência entre aparelhos. A única saída
+    de dados do app é o "exportar dados", que o usuário dispara.
+-->
 <data-extraction-rules>
-    <cloud-backup />
-    <device-transfer />
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="device_root" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="device_root" />
+        <exclude domain="external" />
+    </device-transfer>
 </data-extraction-rules>

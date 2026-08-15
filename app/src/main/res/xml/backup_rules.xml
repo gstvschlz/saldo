@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Used on Android 11 and below. See
-     https://developer.android.com/guide/topics/data/autobackup -->
-<full-backup-content />
+<!--
+    Android 11 e abaixo. `allowBackup="false"` já basta nessas versões; isto está aqui
+    para que a intenção fique escrita nos dois lugares (o lint também cobra o par quando
+    minSdk é menor que 31) e para que ligar o backup por acidente não passe despercebido:
+    mesmo que alguém volte o allowBackup para true, nada daqui sobe.
+-->
+<full-backup-content>
+    <exclude domain="root" />
+    <exclude domain="device_root" />
+    <exclude domain="external" />
+</full-backup-content>
