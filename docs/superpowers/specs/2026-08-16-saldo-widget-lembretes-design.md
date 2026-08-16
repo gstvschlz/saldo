@@ -90,7 +90,7 @@ enum class Slot { INFORMATIVOS, NUDGE }
 
 sealed interface Lembrete {
     data class FaturaAmanha(val fatura: Fatura, val nomeCartao: String) : Lembrete
-    data class RecorrenciasHoje(val itens: List<ItemDia>) : Lembrete
+    data class RecorrenciasHoje(val dia: LocalDate, val itens: List<ItemDia>) : Lembrete
     data object RegistrarGastos : Lembrete
     data class FechamentoMes(val mes: YearMonth, val sobrouCentavos: Long, val entradas: Long, val saidas: Long) : Lembrete
 }
@@ -113,7 +113,8 @@ Rules (`hoje = input.hoje`; every rule is gated by its toggle):
   - `FechamentoMes`: only when `hoje.dayOfMonth == 1`; uses
     `ProjectionEngine.totais(input, hoje.minusMonths(1))`: `sobrouCentavos`
     (= `deltaNoMesCentavos` of that month), `entradasCentavos`, and the sum of
-    `saidasPorNatureza`.
+    `saidasPorNatureza`. Skipped when that month had neither entradas nor
+    saídas — nothing to close, no "sobrou R$ 0,00".
 - **NUDGE**
   - `RegistrarGastos`: when no `Movimentacao` in `input.movimentacoes` with
     `recorrenciaId == null` has `criadaEm` on `hoje` (epoch millis converted
@@ -193,10 +194,10 @@ sealed interface Destino {
 ```
 
 - Carried in the `Intent` as extras (`destino` name + `anoMes` int + optional
-  `dia`). Widget and notification PendingIntents use `FLAG_ACTIVITY_SINGLE_TOP
-  | FLAG_ACTIVITY_CLEAR_TOP`, so an already-open `MainActivity` receives
-  `onNewIntent` instead of being recreated; `launchMode` in the manifest stays
-  default.
+  `dia`). `MainActivity` is `android:launchMode="singleTop"` in the manifest
+  (Glance widget actions cannot set Intent flags), and notification
+  PendingIntents add `FLAG_ACTIVITY_SINGLE_TOP | FLAG_ACTIVITY_CLEAR_TOP`, so an
+  already-open `MainActivity` receives `onNewIntent` instead of being recreated.
 - `MainActivity` keeps `destinos: MutableStateFlow<Destino?>` set from
   `onCreate` (cold start) and `onNewIntent` (app already open).
 - `SaldoApp(container, settings, destino, onDestinoConsumido)`: a
@@ -264,12 +265,14 @@ sealed interface Destino {
   toggle off → empty; `proximaOcorrencia` slot math (before / after / exactly at
   the hour); `SettingsStore` defaults + round trip (instrumented, like today);
   `Movimentacao.toEntity()` keeps a non-zero `criadaEm`.
-- **Instrumented** — `LembretesWorker` via `TestListenableWorkerBuilder` on a
-  seeded in-memory container: fatura-amanhã scenario posts exactly one
-  notification with the expected title (`GrantPermissionRule` for
-  `POST_NOTIFICATIONS`); Glance unit test (`glance-appwidget-testing`): masked
-  vs revealed content; `MainActivity` launched with `Destino.NovaMovimentacao`
-  opens the sheet.
+- **Instrumented** — `LembretesWorker` via `TestListenableWorkerBuilder` on the
+  app container: the **nudge** scenario (deterministic on any day — nothing
+  created today → one notification; a one-off created today → none) with
+  `GrantPermissionRule` for `POST_NOTIFICATIONS`; `Notificacoes.construir`
+  title/text/public-version per lembrete; Glance unit test
+  (`glance-appwidget-testing`, JVM): masked vs revealed vs compact;
+  `MainActivity` launched with `Destino.NovaMovimentacao` opens the sheet;
+  `LembretesScreen` toggle persists.
 - **Emulator pass** — widget compact/wide, light/dark, masked/revealed; one of
   each notification (private + lock-screen public version); lembretes screen.
 
