@@ -29,14 +29,19 @@ import org.junit.runner.RunWith
 class SettingsStoreTest {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val arquivos = mutableListOf<File>()
 
-    private fun store(): SettingsStore = SettingsStore(
-        PreferenceDataStoreFactory.create(scope = scope) {
-            File(context.cacheDir, "${UUID.randomUUID()}.preferences_pb")
-        },
-    )
+    private fun store(): SettingsStore {
+        // Caminho decidido uma vez, fora da lambda: `produceFile` tem de devolver sempre o mesmo.
+        val arquivo = File(context.cacheDir, "${UUID.randomUUID()}.preferences_pb").also { arquivos += it }
+        return SettingsStore(PreferenceDataStoreFactory.create(scope = scope) { arquivo })
+    }
 
-    @After fun tearDown() { scope.cancel() }
+    @After
+    fun tearDown() {
+        scope.cancel()
+        arquivos.forEach { it.delete() }
+    }
 
     @Test
     fun defaultsSaoSeguros() = runBlocking {
@@ -56,8 +61,10 @@ class SettingsStoreTest {
         st.definirTema(Tema.ESCURO)
         val s = st.settings.first()
         assertEquals(100_000_00L, s.saldoInicialCentavos)
-        assertEquals(LocalDate.parse("2026-07-01"), s.saldoInicialData)
+        assertEquals(LocalDate.parse("2026-07-01"), s.saldoInicialData)   // epoch_day ida e volta
         assertEquals("nubank", s.cartao.nome)
+        assertEquals(27, s.cartao.fechamentoDia)
+        assertEquals(4, s.cartao.vencimentoDia)
         assertEquals(false, s.comecarOculto)
         assertEquals(Tema.ESCURO, s.tema)
     }

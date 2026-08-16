@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -49,7 +50,24 @@ android {
     }
 }
 
+// Cada versão do schema fica versionada em app/schemas: é o que a AutoMigration usa para
+// gerar a migração e o que o MigrationTest lê para criar um banco na versão antiga.
+room {
+    schemaDirectory("$projectDir/schemas")
+}
+
 dependencies {
+    constraints {
+        // room-testing (room-migration 2.8.4) precisa de kotlinx-serialization >= 1.8.1, mas o
+        // classpath principal resolve 1.7.3 via lifecycle-viewmodel-savedstate, e a resolução
+        // consistente do AGP força a MESMA versão no androidTest — o MigrationTestHelper caía
+        // com AbstractMethodError. Uma constraint não adiciona dependência: só levanta a versão
+        // do artefato que já vem transitivamente.
+        implementation(libs.kotlinx.serialization.core) {
+            because("room-testing 2.8.4 exige kotlinx-serialization >= 1.8.1 no androidTest")
+        }
+    }
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -66,9 +84,11 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     androidTestImplementation(libs.androidx.datastore.preferences.core)
+    androidTestImplementation(libs.androidx.room.testing)
 
     testImplementation(libs.junit)
     testImplementation(libs.json.jvm)
+    testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

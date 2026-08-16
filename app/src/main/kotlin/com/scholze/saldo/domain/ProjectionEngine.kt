@@ -66,8 +66,17 @@ object ProjectionEngine {
      * A projeção do hero — [MesLedger.saldoProjetadoCentavos], [MesLedger.estimativaCentavos],
      * [MesLedger.deltaNoMesCentavos] — segue sobre o mês inteiro, sem filtro nenhum.
      */
-    fun mes(input: LedgerInput, mes: YearMonth, filtro: FiltroLedger, tagId: Long? = null): MesLedger {
-        val efetivas = efetivas(input, mes)
+    fun mes(input: LedgerInput, mes: YearMonth, filtro: FiltroLedger, tagId: Long? = null): MesLedger =
+        mes(input, mes, filtro, tagId, efetivas(input, mes))
+
+    /** [efetivas] tem de ser exatamente `efetivas(input, mes)` — [totais] a reaproveita em vez de expandir de novo. */
+    private fun mes(
+        input: LedgerInput,
+        mes: YearMonth,
+        filtro: FiltroLedger,
+        tagId: Long?,
+        efetivas: List<Movimentacao>,
+    ): MesLedger {
         val faturas = FaturaCalculator.faturas(efetivas, input.cartao)
         val fimMes = mes.atEndOfMonth()
         val fimAnterior = mes.minusMonths(1).atEndOfMonth()
@@ -89,12 +98,15 @@ object ProjectionEngine {
             (if (filtro == FiltroLedger.DIARIOS || tagId != null) 0L
              else faturas.filter { it.vencimento <= fimAnterior }.sumOf { it.totalCentavos })
 
+        // Agrupados uma vez, em vez de varrer o mês inteiro a cada dia; `groupBy` preserva a
+        // ordem de `efetivas` (por data, estável), então a ordem dentro do dia não muda.
+        val movsPorDia = movsDoMes.groupBy { it.data }
+        val faturasPorDia = faturasDoMes.groupBy { it.vencimento }
         val dias = (1..mes.lengthOfMonth()).map { dia ->
             val data = mes.atDay(dia)
             val itens: List<ItemDia> =
-                movsDoMes.filter { it.data == data }.map { ItemDia.Mov(it) } +
-                    faturasDoMes.filter { it.vencimento == data }
-                        .map { ItemDia.FaturaDia(it, input.cartao.nome) }
+                movsPorDia[data].orEmpty().map { ItemDia.Mov(it) } +
+                    faturasPorDia[data].orEmpty().map { ItemDia.FaturaDia(it, input.cartao.nome) }
             corrente += itens.sumOf { it.valorCentavos }
             DiaRow(data, itens, corrente)
         }
@@ -117,15 +129,19 @@ object ProjectionEngine {
     // Parameter deliberately NOT named `mes` — it would shadow the mes() function
     // and the call below would fail to resolve.
     fun totais(input: LedgerInput, mesAlvo: YearMonth): TotaisMes {
-        val efetivasAteMesAlvo = efetivas(input, mesAlvo)
-        val doMes = efetivasAteMesAlvo.filter { YearMonth.from(it.data) == mesAlvo }
-
         // faturaAtual é sobre o ciclo aberto em `hoje`, não sobre mesAlvo — precisa de
         // efetivas expandidas até cobrir o mês do ciclo aberto, mesmo que mesAlvo seja passado.
         val cicloAberto = FaturaCalculator.cicloDaCompra(input.hoje, input.cartao)
         val mesCicloAberto = YearMonth.from(FaturaCalculator.fechamentoDoCiclo(cicloAberto, input.cartao))
-        val faturasParaAtual = FaturaCalculator.faturas(efetivas(input, maxOf(mesAlvo, mesCicloAberto)), input.cartao)
-        val ledger = mes(input, mesAlvo, FiltroLedger.TODAS)
+        // Uma expansão só, até o mais tardio dos dois meses. O recorte até mesAlvo é um filtro
+        // por data sobre ela: `efetivas(input, m)` é a lista completa cortada em fim(m), então
+        // filtrar a lista maior dá exatamente a mesma lista, na mesma ordem.
+        val efetivasAteCiclo = efetivas(input, maxOf(mesAlvo, mesCicloAberto))
+        val fimMesAlvo = mesAlvo.atEndOfMonth()
+        val efetivasAteMesAlvo = efetivasAteCiclo.filter { it.data <= fimMesAlvo }
+        val doMes = efetivasAteMesAlvo.filter { YearMonth.from(it.data) == mesAlvo }
+        val faturasParaAtual = FaturaCalculator.faturas(efetivasAteCiclo, input.cartao)
+        val ledger = mes(input, mesAlvo, FiltroLedger.TODAS, tagId = null, efetivas = efetivasAteMesAlvo)
 
         return TotaisMes(
             entradasCentavos = doMes.filter { it.natureza != Natureza.CARTAO && it.valorCentavos > 0 }
@@ -135,7 +151,7 @@ object ProjectionEngine {
             },
             sobrouCentavos = ledger.deltaNoMesCentavos,
             economiaBucketCentavos = -efetivasAteMesAlvo
-                .filter { it.natureza == Natureza.ECONOMIA && it.data <= mesAlvo.atEndOfMonth() }
+                .filter { it.natureza == Natureza.ECONOMIA }
                 .sumOf { it.valorCentavos },
             faturaAtual = faturasParaAtual.firstOrNull { it.ciclo == cicloAberto },
             fechamentoFaturaAtual = FaturaCalculator.fechamentoDoCiclo(cicloAberto, input.cartao),

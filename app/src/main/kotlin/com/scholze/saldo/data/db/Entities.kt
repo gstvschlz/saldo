@@ -21,7 +21,8 @@ data class MesMaterializadoEntity(
     @PrimaryKey val anoMes: Int,
 )
 
-@Entity(tableName = "movimentacoes")
+/** `recorrenciaId` indexado: toda edição/exclusão de recorrência filtra as instâncias por ele. */
+@Entity(tableName = "movimentacoes", indices = [Index("recorrenciaId")])
 data class MovimentacaoEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val descricao: String,

@@ -13,10 +13,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import com.scholze.saldo.model.centavosAssinado
-import com.scholze.saldo.model.centavosAssinadoComSimbolo
-import com.scholze.saldo.model.centavosComSimbolo
-import com.scholze.saldo.model.centavosValor
+import com.scholze.saldo.ui.money.centavosAssinado
+import com.scholze.saldo.ui.money.centavosAssinadoComSimbolo
+import com.scholze.saldo.ui.money.centavosComSimbolo
+import com.scholze.saldo.ui.money.centavosValor
 import com.scholze.saldo.ui.theme.tabular
 
 const val MASCARA_PRIVACIDADE = "R$ •••••"

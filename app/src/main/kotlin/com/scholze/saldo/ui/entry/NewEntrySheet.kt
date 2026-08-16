@@ -42,7 +42,7 @@ import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.RepetirOpcao
-import com.scholze.saldo.model.formatarCentavos
+import com.scholze.saldo.ui.money.formatarCentavos
 import com.scholze.saldo.ui.components.FilledActionButton
 import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup

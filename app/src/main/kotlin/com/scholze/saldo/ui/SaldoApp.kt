@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.scholze.saldo.AppContainer
 import com.scholze.saldo.data.Exporters
+import com.scholze.saldo.data.Settings
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
 import com.scholze.saldo.ui.entry.EntryViewModel
 import com.scholze.saldo.ui.entry.NewEntrySheet
@@ -66,12 +67,14 @@ import kotlinx.coroutines.withContext
 /**
  * The shell: onboarding gate, tabbed content, undo snackbar and the
  * nova-movimentação sheet sliding over the top.
+ *
+ * [settings] chega já coletado de [com.scholze.saldo.MainActivity] — que precisa dele para o
+ * tema e a privacidade — em vez de este composable abrir um segundo coletor do mesmo fluxo.
  */
 @Composable
-fun SaldoApp(container: AppContainer, modifier: Modifier = Modifier) {
+fun SaldoApp(container: AppContainer, settings: Settings, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
-    val settings by container.settings.settings.collectAsState(initial = null)
-    val s = settings ?: return   // aguarda o primeiro valor do DataStore
+    val s = settings
 
     if (s.saldoInicialCentavos == null) {
         // Onboarding: semear o saldo inicial com o teclado 1g.

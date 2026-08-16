@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.scholze.saldo.model.formatarCentavos
+import com.scholze.saldo.ui.money.formatarCentavos
 import com.scholze.saldo.ui.components.FilledActionButton
 import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon

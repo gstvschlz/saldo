@@ -1,6 +1,7 @@
 package com.scholze.saldo.data.db
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -14,8 +15,13 @@ import androidx.room.RoomDatabase
         MovimentacaoTagCross::class,
         RecorrenciaTagCross::class,
     ],
-    version = 1,
-    exportSchema = false,
+    version = 2,
+    exportSchema = true,
+    autoMigrations = [
+        // 1 -> 2: índice em movimentacoes.recorrenciaId. Só um índice novo, então a migração
+        // gerada basta; o MigrationTest a valida contra app/schemas/.../2.json.
+        AutoMigration(from = 1, to = 2),
+    ],
 )
 abstract class SaldoDatabase : RoomDatabase() {
     abstract fun mesMaterializadoDao(): MesMaterializadoDao

@@ -1,12 +1,24 @@
-package com.scholze.saldo.model
+package com.scholze.saldo.ui.money
 
 /** U+2212 MINUS SIGN, as used in the design rather than a hyphen. */
 private const val MINUS = "−"
 
 /** 23850 -> "238,50". Used while the keypad is accumulating centavos. */
-fun Long.formatarCentavos(): String {
-    val reais = this / 100
-    val cents = this % 100
+fun Long.formatarCentavos(): String = magnitude().formatarCentavos()
+
+/** 23850 -> "238,50" — magnitude only. */
+fun Long.centavosValor(): String = magnitude().formatarCentavos()
+
+/**
+ * `|this|` como ULong: `abs(Long.MIN_VALUE)` é o próprio `Long.MIN_VALUE` (a magnitude não
+ * cabe num Long), e formatá-lo por `abs` imprimia "-92...,-8". Em aritmética módulo 2^64,
+ * `0 - MIN_VALUE.toULong()` é exatamente 2^63 — a magnitude certa.
+ */
+private fun Long.magnitude(): ULong = if (this < 0) 0UL - toULong() else toULong()
+
+private fun ULong.formatarCentavos(): String {
+    val reais = this / 100UL
+    val cents = this % 100UL
     val agrupado = reais.toString()
         .reversed()
         .chunked(3)
@@ -14,9 +26,6 @@ fun Long.formatarCentavos(): String {
         .reversed()
     return "$agrupado,${cents.toString().padStart(2, '0')}"
 }
-
-/** 23850 -> "238,50" — magnitude only. */
-fun Long.centavosValor(): String = kotlin.math.abs(this).formatarCentavos()
 
 /** -23850 -> "−R$ 238,50"; 23850 -> "R$ 238,50". */
 fun Long.centavosComSimbolo(): String = (if (this < 0) MINUS else "") + "R$ " + centavosValor()

@@ -65,7 +65,8 @@ interface SaldoRepository {
 class RoomSaldoRepository(
     private val db: SaldoDatabase,
     private val settingsStore: SettingsStore,
-    private val hojeProvider: () -> LocalDate = LocalDate::now,
+    /** Ver [diaAtual]: um fluxo, para que a virada do dia chegue ao ledger sem depender de uma escrita. */
+    private val hoje: Flow<LocalDate> = diaAtual(),
 ) : SaldoRepository {
 
     private val movDao = db.movimentacaoDao()
@@ -78,15 +79,16 @@ class RoomSaldoRepository(
         recDao.observeAll(),
         mesDao.observeTodos(),
         settingsStore.settings,
-    ) { movs, recs, meses, settings ->
+        hoje,
+    ) { movs, recs, meses, settings, hoje ->
         LedgerInput(
             saldoInicialCentavos = settings.saldoInicialCentavos ?: 0L,
-            saldoInicialData = settings.saldoInicialData ?: hojeProvider(),
+            saldoInicialData = settings.saldoInicialData ?: hoje,
             movimentacoes = movs.map { it.toDomain() },
             recorrencias = recs.map { it.toDomain() },
             mesesMaterializados = meses.map { it.toYearMonth() }.toSet(),
             cartao = settings.cartao,
-            hoje = hojeProvider(),
+            hoje = hoje,
         )
     }
 

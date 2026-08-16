@@ -1,4 +1,4 @@
-package com.scholze.saldo.model
+package com.scholze.saldo.ui.money
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -33,6 +33,17 @@ class MoneyTest {
     fun valorEMagnitude() {
         assertEquals("238,50", 23850L.centavosValor())
         assertEquals("238,50", (-23850L).centavosValor())
+    }
+
+    /**
+     * `abs(Long.MIN_VALUE)` é o próprio `Long.MIN_VALUE`: a magnitude não cabe num Long. O
+     * teclado limita a entrada muito antes disso, mas um export/JSON importado ou uma soma
+     * de agregados não passa pelo teclado — o formato tem de continuar honesto na borda.
+     */
+    @Test
+    fun magnitudeDoMinimoNaoViraLixo() {
+        assertEquals("92.233.720.368.547.758,08", Long.MIN_VALUE.centavosValor())
+        assertEquals("−R$ 92.233.720.368.547.758,08", Long.MIN_VALUE.centavosComSimbolo())
     }
 
     @Test

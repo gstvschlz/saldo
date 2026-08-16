@@ -27,6 +27,15 @@ class RecurrenceExpanderTest {
         assertEquals(LocalDate.parse("2026-02-28"), RecurrenceExpander.ocorrenciaNoMes(t, YearMonth.of(2026, 2))!!.data)
     }
 
+    /** `inicio` é inclusivo: o primeiro mês da recorrência já expande. */
+    @Test
+    fun expandeNoProprioMesDeInicio() {
+        assertEquals(
+            LocalDate.parse("2026-01-15"),
+            RecurrenceExpander.ocorrenciaNoMes(salario, YearMonth.of(2026, 1))!!.data,
+        )
+    }
+
     @Test
     fun foraDoIntervaloNaoExpande() {
         assertNull(RecurrenceExpander.ocorrenciaNoMes(salario, YearMonth.of(2025, 12)))

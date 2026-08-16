@@ -96,6 +96,7 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
                         valorOriginal = orig?.valorCentavos ?: 0L,
                         dataForm = f.data,
                         dataOriginal = orig?.data,
+                        cartao = input.cartao,
                     )
                 },
             )

@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -34,20 +35,25 @@ class RepositoryTest {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val hoje = LocalDate.parse("2026-07-20")
 
+    private lateinit var arquivoSettings: File
+
     @Before
     fun setup() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         db = SaldoDatabase.inMemory(ctx)
-        val store = SettingsStore(
-            PreferenceDataStoreFactory.create(scope = scope) {
-                File(ctx.cacheDir, "test-${UUID.randomUUID()}.preferences_pb")
-            },
-        )
+        // Caminho decidido uma vez, fora da lambda: `produceFile` tem de devolver sempre o mesmo.
+        arquivoSettings = File(ctx.cacheDir, "test-${UUID.randomUUID()}.preferences_pb")
+        val store = SettingsStore(PreferenceDataStoreFactory.create(scope = scope) { arquivoSettings })
         runBlocking { store.definirSaldoInicial(100_000_00, LocalDate.parse("2026-07-01")) }
-        repo = RoomSaldoRepository(db, store) { hoje }
+        repo = RoomSaldoRepository(db, store, hoje = flowOf(hoje))
     }
 
-    @After fun tearDown() { db.close(); scope.cancel() }
+    @After
+    fun tearDown() {
+        db.close()
+        scope.cancel()
+        arquivoSettings.delete()
+    }
 
     private fun mov(dia: String, centavos: Long) = Movimentacao(
         descricao = "m", valorCentavos = centavos, data = LocalDate.parse(dia), natureza = Natureza.DIARIO,
@@ -284,5 +290,30 @@ class RepositoryTest {
         assertEquals(0, repo.ledger.first().movimentacoes.size)
         repo.restaurar(snapshot)
         assertEquals(-50_00L, repo.ledger.first().movimentacoes.single().valorCentavos)
+    }
+
+    // ---- tags: o fluxo `tags` e as três escritas ----
+
+    @Test
+    fun tagsFluemAoCriarRenomearEExcluir() = runBlocking {
+        val id = repo.criarTag("comida", 1L)
+        assertEquals(listOf("comida"), repo.tags.first().map { it.nome })
+        repo.renomearTag(id, "mercado")
+        assertEquals(listOf("mercado"), repo.tags.first().map { it.nome })
+        repo.excluirTag(id)
+        assertEquals(emptyList<Tag>(), repo.tags.first())
+    }
+
+    /** Excluir a etiqueta desanexa; a movimentação continua no ledger, só sem ela. */
+    @Test
+    fun excluirTagDesanexaDasMovimentacoes() = runBlocking {
+        val id = repo.criarTag("comida", 1L)
+        val tag = Tag(id = id, nome = "comida", cor = 1L)
+        repo.criar(mov("2026-07-10", -50_00).copy(tags = listOf(tag)), RepetirOpcao.Nao)
+        assertEquals(listOf("comida"), repo.ledger.first().movimentacoes.single().tags.map { it.nome })
+        repo.excluirTag(id)
+        val depois = repo.ledger.first().movimentacoes.single()
+        assertEquals(-50_00L, depois.valorCentavos)
+        assertEquals(emptyList<Tag>(), depois.tags)
     }
 }

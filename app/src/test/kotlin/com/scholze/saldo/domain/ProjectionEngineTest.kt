@@ -74,6 +74,14 @@ class ProjectionEngineTest {
         assertEquals(1_100_00L, m.estimativaCentavos)
     }
 
+    /** No mês corrente o delta é projetado(M) − saldoReal(fim de M−1) — aqui 95.700 − 100.000. */
+    @Test
+    fun deltaDoMesAtualEhProjetadoMenosSaldoRealDoMesAnterior() {
+        val movs = listOf(mov("2026-07-10", -3_000_00), mov("2026-07-25", -200_00))
+        val m = ProjectionEngine.mes(input(movs), jul, FiltroLedger.TODAS)
+        assertEquals(95_700_00L - 100_000_00L, m.deltaNoMesCentavos)
+    }
+
     @Test
     fun mesVirtualExpandeTemplates() {
         val rec = Recorrencia(id = 1, descricao = "salário", valorCentavos = 8_240_00, natureza = Natureza.DIARIO, diaDoMes = 15, inicio = YearMonth.of(2026, 1))

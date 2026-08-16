@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
             }
             CompositionLocalProvider(LocalPrivacy provides privacidade) {
                 SaldoTheme(darkTheme = escuro) {
-                    SaldoApp(container)
+                    SaldoApp(container, s)
                 }
             }
         }
