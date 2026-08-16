@@ -3,25 +3,39 @@ java = "temurin-21"
 gradle = "9.7.0"
 android-sdk = "22.0"
 
+# Every task has a POSIX `run` and a Windows `run_windows`: mise runs tasks through
+# `sh -c` on POSIX and `cmd /c` on Windows, and cmd cannot execute `./gradlew`
+# (nor find a bare `gradlew.bat` when NoDefaultCurrentDirectoryInExePath is set).
+
 [tasks.build]
 description = "Compile the debug APK"
 run = "./gradlew assembleDebug"
+run_windows = '.\gradlew.bat assembleDebug'
 
 [tasks.test]
 description = "Run unit tests"
-run = "gradlew.bat test"
+run = "./gradlew test"
+run_windows = '.\gradlew.bat test'
+
+[tasks.test-device]
+description = "Run instrumented tests on the connected device/emulator"
+run = "./gradlew connectedDebugAndroidTest"
+run_windows = '.\gradlew.bat connectedDebugAndroidTest'
 
 [tasks.lint]
 description = "Run Android Lint"
-run = "gradlew.bat lint"
+run = "./gradlew lint"
+run_windows = '.\gradlew.bat lint'
 
 [tasks.install]
 description = "Install the debug APK on a connected device/emulator"
-run = "gradlew.bat installDebug"
+run = "./gradlew installDebug"
+run_windows = '.\gradlew.bat installDebug'
 
 [tasks.clean]
 description = "Delete build outputs"
-run = "gradlew.bat clean"
+run = "./gradlew clean"
+run_windows = '.\gradlew.bat clean'
 
 [tasks.sdk-setup]
 description = "Install the Android SDK packages this project needs"
