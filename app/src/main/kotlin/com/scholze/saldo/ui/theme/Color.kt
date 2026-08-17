@@ -30,6 +30,9 @@ data class SaldoColors(
     /** Category dots. */
     val categoryVariable: Color,
     val categoryFixed: Color,
+    /** "para onde foi": as tags além do top 4 agrupadas, e o que não tem tag. */
+    val insightOutras: Color,
+    val insightSemTag: Color,
     val isDark: Boolean,
 )
 
@@ -50,6 +53,8 @@ val LightSaldoColors = SaldoColors(
     segmentedThumb = Color(0xFFFFFFFF),
     categoryVariable = Color(0xFFA6486B),
     categoryFixed = Color(0xFFB95A2E),
+    insightOutras = Color(0xFF8E8E93),
+    insightSemTag = Color(0xFFC7C7CC),
     isDark = false,
 )
 
@@ -70,5 +75,7 @@ val DarkSaldoColors = SaldoColors(
     segmentedThumb = Color(0xFF636366),
     categoryVariable = Color(0xFFE07A9E),
     categoryFixed = Color(0xFFE58A5A),
+    insightOutras = Color(0xFF8E8E93),
+    insightSemTag = Color(0xFF48484A),
     isDark = true,
 )
