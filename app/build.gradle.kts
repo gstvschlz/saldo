@@ -48,6 +48,15 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // runGlanceAppWidgetUnitTest (glance-appwidget-testing) builds a real android.os.Bundle
+    // under the hood to carry the fake widget size; without this the plain android.jar stub
+    // throws "Method putInt not mocked" on the very first call.
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 // Cada versão do schema fica versionada em app/schemas: é o que a AutoMigration usa para
@@ -83,6 +92,9 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.glance.appwidget)
+    testImplementation(libs.androidx.glance.testing)
+    testImplementation(libs.androidx.glance.appwidget.testing)
     androidTestImplementation(libs.androidx.datastore.preferences.core)
     androidTestImplementation(libs.androidx.room.testing)
 

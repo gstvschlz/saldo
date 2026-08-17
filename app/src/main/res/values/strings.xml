@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">saldo</string>
     <string name="app_tagline">um app 100%% local para controle dos seus próprios gastos</string>
+    <string name="widget_descricao">saldo projetado e novo lançamento</string>
 </resources>
