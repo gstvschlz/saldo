@@ -42,16 +42,12 @@ private val ptBr = Locale.forLanguageTag("pt-BR")
 private val mesCurto = DateTimeFormatter.ofPattern("MMM", ptBr)
 
 /**
- * Zero não desenha nada; um valor > 0 nunca fica abaixo do piso — do contrário vira um traço
- * subpixel que lê como "sem dado" (um dia sem gasto e um dia com R$ 1 não podem parecer iguais).
- * Mesma regra em [WeekdayBars] e [TrendChart]; só a unidade muda (dp na barra do dia, px dentro
- * do Canvas da tendência) — daí as duas sobrecargas em vez de uma função só.
+ * Sobrecarga em Dp de [ChartMath.pisoSeNaoZero] (a geometria mora lá, testável na JVM) — usada
+ * onde a UI já pensa em dp, como a altura das barrinhas em [WeekdayBars]. [TrendChart] chama
+ * [ChartMath.pisoSeNaoZero] direto, porque dentro do Canvas já está tudo em px.
  */
-private fun pisoSeNaoZero(fracao: Float, cheio: Float, piso: Float): Float =
-    if (fracao <= 0f) 0f else maxOf(piso, fracao * cheio)
-
 private fun pisoSeNaoZero(fracao: Float, cheio: Dp, piso: Dp): Dp =
-    if (fracao <= 0f) 0.dp else maxOf(piso, cheio * fracao)
+    ChartMath.pisoSeNaoZero(fracao, cheio.value, piso.value).dp
 
 /** A barra 100 % de "para onde foi": uma Row com pesos vindos de [ChartMath.larguras]. */
 @Composable
@@ -83,7 +79,7 @@ fun TrendChart(
     val n = pontos.size
     // Saídas e entradas dividem a escala: alturas calculadas sobre as duas séries juntas.
     val alturas = remember(pontos) { ChartMath.alturas(pontos.map { it.saidas } + pontos.map { it.entradas }) }
-    val linha = remember(pontos) { ChartMath.linha(pontos.map { it.sobrou }) }
+    val linha = remember(pontos) { ChartMath.linhaComSinal(pontos.map { it.sobrou }) }
     val linhaZero = remember(pontos) { ChartMath.linhaZero(pontos.map { it.sobrou }) }
     val corSaidas = colors.categoryVariable
     val corEntradas = colors.balance
@@ -117,16 +113,16 @@ fun TrendChart(
             val pisoPx = 2.dp.toPx()
             pontos.forEachIndexed { i, _ ->
                 val x0 = i * colW + (colW - (2 * barW + gap)) / 2
-                val hs = pisoSeNaoZero(alturas[i], h, pisoPx)
-                val he = pisoSeNaoZero(alturas[n + i], h, pisoPx)
+                val hs = ChartMath.pisoSeNaoZero(alturas[i], h, pisoPx)
+                val he = ChartMath.pisoSeNaoZero(alturas[n + i], h, pisoPx)
                 if (hs > 0f) drawRoundRect(corSaidas, topLeft = Offset(x0, h - hs), size = Size(barW, hs), cornerRadius = raio)
                 if (he > 0f) drawRoundRect(corEntradas, topLeft = Offset(x0 + barW + gap, h - he), size = Size(barW, he), cornerRadius = raio)
             }
             // A linha do sobrou fica entre 5 % e 95 % da altura, para os pontos não colarem nas bordas.
             val pts = linha.mapIndexed { i, y -> Offset(i * colW + colW / 2, h * 0.05f + h * 0.9f * (1f - y)) }
-            // ChartMath.linha agora inclui o zero na escala, então a posição da linha já carrega o
-            // sinal (mês positivo sobe, negativo desce). Quando a série realmente mistura os dois,
-            // uma régua no zero (sem número, só a linha) ajuda a localizar onde ele fica.
+            // ChartMath.linhaComSinal inclui o zero na escala, então a posição da linha já carrega
+            // o sinal (mês positivo sobe, negativo desce). Quando a série realmente mistura os
+            // dois, uma régua no zero (sem número, só a linha) ajuda a localizar onde ele fica.
             if (linhaZero != null) {
                 val yBase = h * 0.05f + h * 0.9f * (1f - linhaZero)
                 drawLine(corBase, Offset(0f, yBase), Offset(size.width, yBase), strokeWidth = 1.dp.toPx())
