@@ -88,6 +88,7 @@ data class MovimentacaoComTags(
         data = LocalDate.ofEpochDay(mov.dataEpochDay), natureza = Natureza.valueOf(mov.natureza),
         recorrenciaId = mov.recorrenciaId, editadaManualmente = mov.editadaManualmente,
         tags = tags.map { it.toDomain() },
+        criadaEm = mov.criadaEm,
     )
 }
 
@@ -109,12 +110,16 @@ data class RecorrenciaComTags(
 
 fun TagEntity.toDomain() = Tag(id = id, nome = nome, cor = cor)
 fun Tag.toEntity() = TagEntity(id = id, nome = nome, cor = cor)
-/** Tags are persisted separately via `MovimentacaoDao.setTags` — inserting this entity alone writes no tags. */
+/**
+ * Tags are persisted separately via `MovimentacaoDao.setTags` — inserting this entity alone writes no tags.
+ * `criadaEm` conhecido é preservado (o "desfazer" reinsere o snapshot com a data de criação
+ * original); só uma linha nova (`criadaEm == 0`) recebe o carimbo de agora.
+ */
 fun Movimentacao.toEntity() = MovimentacaoEntity(
     id = id, descricao = descricao, valorCentavos = valorCentavos,
     dataEpochDay = data.toEpochDay(), natureza = natureza.name,
     recorrenciaId = recorrenciaId, editadaManualmente = editadaManualmente,
-    criadaEm = System.currentTimeMillis(),
+    criadaEm = if (criadaEm != 0L) criadaEm else System.currentTimeMillis(),
 )
 /** Tags are persisted separately via `RecorrenciaDao.setTags` — inserting this entity alone writes no tags. */
 fun Recorrencia.toEntity() = RecorrenciaEntity(

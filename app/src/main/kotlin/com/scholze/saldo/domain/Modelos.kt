@@ -18,6 +18,13 @@ data class Movimentacao(
     val recorrenciaId: Long? = null,
     val editadaManualmente: Boolean = false,
     val tags: List<Tag> = emptyList(),
+    /**
+     * Epoch millis de quando a linha foi criada; `0` = desconhecido (fixtures de teste, ocorrências
+     * virtuais). É o sinal honesto de "o usuário lançou algo hoje" — a `data` não serve: uma
+     * recorrência materializada hoje tem `data` de hoje sem ninguém ter lançado nada, e uma
+     * despesa de ontem lançada hoje tem `data` de ontem.
+     */
+    val criadaEm: Long = 0,
 )
 
 data class Recorrencia(
