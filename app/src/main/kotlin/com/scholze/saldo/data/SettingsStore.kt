@@ -9,8 +9,10 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.scholze.saldo.domain.CartaoConfig
+import com.scholze.saldo.domain.LembretesConfig
 import java.io.IOException
 import java.time.LocalDate
+import java.time.LocalTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -23,6 +25,9 @@ data class Settings(
     val cartao: CartaoConfig,
     val comecarOculto: Boolean,
     val tema: Tema,
+    /** O widget mostra dinheiro na tela inicial? Padrão `false`: `R$ •••••` até o usuário optar. */
+    val widgetMostrarValores: Boolean = false,
+    val lembretes: LembretesConfig = LembretesConfig(),
 )
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -35,6 +40,14 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val cartaoVencimento = intPreferencesKey("cartao_vencimento_dia")
         val comecarOculto = booleanPreferencesKey("comecar_oculto")
         val tema = stringPreferencesKey("tema")
+        val widgetMostrarValores = booleanPreferencesKey("widget_mostrar_valores")
+        val lembreteFaturaAmanha = booleanPreferencesKey("lembrete_fatura_amanha")
+        val lembreteRecorrenciaHoje = booleanPreferencesKey("lembrete_recorrencia_hoje")
+        val lembreteRegistrarGastos = booleanPreferencesKey("lembrete_registrar_gastos")
+        val lembreteFechamentoMes = booleanPreferencesKey("lembrete_fechamento_mes")
+        /** Minutos desde a meia-noite (0..1439). */
+        val lembretesHoraInformativos = intPreferencesKey("lembretes_hora_informativos")
+        val lembretesHoraNudge = intPreferencesKey("lembretes_hora_nudge")
     }
 
     // Um disco ilegível não pode travar a primeira composição: o app cai nos defaults.
@@ -52,6 +65,15 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             comecarOculto = p[Keys.comecarOculto] ?: true,
             // Tolerante a um valor gravado por uma versão futura/antiga do enum.
             tema = p[Keys.tema]?.let { v -> Tema.entries.find { it.name == v } } ?: Tema.SISTEMA,
+            widgetMostrarValores = p[Keys.widgetMostrarValores] ?: false,
+            lembretes = LembretesConfig(
+                faturaAmanha = p[Keys.lembreteFaturaAmanha] ?: false,
+                recorrenciaHoje = p[Keys.lembreteRecorrenciaHoje] ?: false,
+                registrarGastos = p[Keys.lembreteRegistrarGastos] ?: false,
+                fechamentoMes = p[Keys.lembreteFechamentoMes] ?: false,
+                horaInformativos = p.hora(Keys.lembretesHoraInformativos, LembretesConfig().horaInformativos),
+                horaNudge = p.hora(Keys.lembretesHoraNudge, LembretesConfig().horaNudge),
+            ),
         )
     }
 
@@ -78,6 +100,21 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[Keys.tema] = tema.name }
     }
 
+    suspend fun definirWidgetMostrarValores(v: Boolean) {
+        dataStore.edit { it[Keys.widgetMostrarValores] = v }
+    }
+
+    suspend fun definirLembretes(config: LembretesConfig) {
+        dataStore.edit {
+            it[Keys.lembreteFaturaAmanha] = config.faturaAmanha
+            it[Keys.lembreteRecorrenciaHoje] = config.recorrenciaHoje
+            it[Keys.lembreteRegistrarGastos] = config.registrarGastos
+            it[Keys.lembreteFechamentoMes] = config.fechamentoMes
+            it[Keys.lembretesHoraInformativos] = config.horaInformativos.toSecondOfDay() / 60
+            it[Keys.lembretesHoraNudge] = config.horaNudge.toSecondOfDay() / 60
+        }
+    }
+
     /**
      * Reset das preferências: volta tudo ao default de instalação nova, incluindo o saldo
      * inicial — ou seja, o app cai de volta no onboarding.
@@ -96,3 +133,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it.clear() }
     }
 }
+
+/** Minutos do dia gravados → hora; um valor fora de 0..1439 (versão futura, disco corrompido) cai no padrão. */
+private fun Preferences.hora(key: Preferences.Key<Int>, padrao: LocalTime): LocalTime =
+    this[key]?.takeIf { it in 0..1439 }?.let { LocalTime.ofSecondOfDay(it * 60L) } ?: padrao

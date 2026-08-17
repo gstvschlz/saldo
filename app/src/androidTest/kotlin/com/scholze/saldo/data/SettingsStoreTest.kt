@@ -4,8 +4,10 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.domain.CartaoConfig
+import com.scholze.saldo.domain.LembretesConfig
 import java.io.File
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,6 +53,8 @@ class SettingsStoreTest {
         assertTrue(s.comecarOculto)
         assertEquals(Tema.SISTEMA, s.tema)
         assertEquals(28, s.cartao.fechamentoDia)
+        assertFalse(s.widgetMostrarValores)          // widget mascarado por padrão
+        assertEquals(LembretesConfig(), s.lembretes)  // tudo desligado, 09:00 / 20:00
     }
 
     @Test
@@ -67,5 +72,19 @@ class SettingsStoreTest {
         assertEquals(4, s.cartao.vencimentoDia)
         assertEquals(false, s.comecarOculto)
         assertEquals(Tema.ESCURO, s.tema)
+    }
+
+    @Test
+    fun persisteWidgetELembretes() = runBlocking {
+        val st = store()
+        val config = LembretesConfig(
+            faturaAmanha = true, recorrenciaHoje = false, registrarGastos = true, fechamentoMes = true,
+            horaInformativos = LocalTime.of(8, 30), horaNudge = LocalTime.of(21, 15),
+        )
+        st.definirWidgetMostrarValores(true)
+        st.definirLembretes(config)
+        val s = st.settings.first()
+        assertTrue(s.widgetMostrarValores)
+        assertEquals(config, s.lembretes)
     }
 }
