@@ -5,8 +5,10 @@ import android.util.Log
 import androidx.glance.appwidget.updateAll
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.data.SettingsStore
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
@@ -28,9 +30,14 @@ class WidgetRefresher(
         scope.launch {
             merge(repository.ledger.map { }, settings.settings.map { })
                 .debounce(300)
+                // `scope` sobrevive à Activity (vive com o processo, ver AppContainer): um erro do
+                // Room/DataStore aqui não pode escapar do collect e derrubar o app — só degrada o widget.
+                .catch { Log.e(TAG, "widget: fluxo de atualização falhou", it) }
                 .collect {
                     try {
                         SaldoWidget().updateAll(context)
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.e(TAG, "widget: updateAll falhou", e)
                     }

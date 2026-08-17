@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    2×1 por padrão (COMPACTO), redimensionável na horizontal até o LARGO. `updatePeriodMillis`
-    de 6 h é a rede de segurança para um processo morto; o refresh de verdade vem do
-    WidgetRefresher (processo vivo) e do worker dos lembretes.
+    2×1 por padrão (COMPACTO), redimensionável tanto na horizontal (até o LARGO) quanto na
+    vertical — mas como COMPACTO e LARGO têm as mesmas 50 dp de altura, uma célula mais alta só
+    acrescenta padding, não um layout novo. `updatePeriodMillis` de 6 h é a rede de segurança
+    para um processo morto; o refresh de verdade vem do WidgetRefresher (processo vivo) e do
+    worker dos lembretes.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"

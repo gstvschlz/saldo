@@ -13,6 +13,7 @@ import com.scholze.saldo.SaldoApplication
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.ProjectionEngine
 import java.time.YearMonth
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.first
 
 /**
@@ -28,6 +29,8 @@ class SaldoWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val estado = try {
             carregar(context)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "widget: falha ao carregar", e)
             WidgetEstado.Falha

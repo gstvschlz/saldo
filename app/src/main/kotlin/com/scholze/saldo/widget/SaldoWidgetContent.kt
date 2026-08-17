@@ -58,12 +58,19 @@ private object CoresWidget {
 
 /**
  * O widget: hero do saldo projetado (mascarado por padrão) e um `+`. Não lê Context nem
- * repositório — recebe tudo em [estado] — para poder ser testado na JVM. Em COMPACTO só cabem
- * o valor e o botão; em LARGO entram a legenda e o delta.
+ * repositório — recebe tudo em [estado], para poder ser testado na JVM; o único relógio é o mês
+ * corrente para os estados sem número. Em COMPACTO só cabem o valor e o botão; em LARGO entram a
+ * legenda e o delta.
  */
 @Composable
 fun SaldoWidgetContent(estado: WidgetEstado) {
     val largo = LocalSize.current.width >= SaldoWidget.LARGO.width
+    // O mês a que o número pertence, não o mês corrente — senão virar o mês sem abrir o app deixa
+    // o toque no valor abrindo o ledger no mês errado.
+    val destinoValor = when (estado) {
+        is WidgetEstado.Pronto -> Destino.Saldos(YearMonth.from(estado.projetadoEm))
+        else -> Destino.Saldos(YearMonth.now())
+    }
     Row(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -72,7 +79,7 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(GlanceModifier.defaultWeight().clickable(abrir(Destino.Saldos(YearMonth.now())))) {
+        Column(GlanceModifier.defaultWeight().clickable(abrir(destinoValor))) {
             when (estado) {
                 WidgetEstado.SemOnboarding -> Text(
                     "toque para começar",
