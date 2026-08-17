@@ -1369,8 +1369,9 @@ In `TotaisContentTest.kt` add imports `com.scholze.saldo.domain.PontoMes` and `j
     private val tendencia = (5 downTo 0).map { k ->
         val m = YearMonth.of(2026, 7).minusMonths(k.toLong())
         PontoMes(
-            mes = m, entradas = 8_000_00, saidas = 7_000_00 + k * 100_00, sobrou = 1_000_00 - k * 100_00,
-            reservaAcumulada = 1_200_00 - k * 100_00, taxaPoupanca = 12 - k,
+            // `k` é Int: o sufixo L é obrigatório, senão os campos Long não tipam.
+            mes = m, entradas = 8_000_00, saidas = 7_000_00 + k * 100_00L, sobrou = 1_000_00 - k * 100_00L,
+            reservaAcumulada = 1_200_00 - k * 100_00L, taxaPoupanca = 12 - k,
         )
     }
 
