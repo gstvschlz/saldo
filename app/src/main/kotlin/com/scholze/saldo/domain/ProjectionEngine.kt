@@ -165,6 +165,14 @@ object ProjectionEngine {
         )
     }
 
+    /**
+     * Todas as faturas cujas compras cabem até o fim de [ateMes] — linhas materializadas e
+     * expansões virtuais, como [mes] usa por dentro. É o que o `LembretesEngine` precisa para
+     * achar "a fatura que vence amanhã" sem refazer a expansão por conta própria.
+     */
+    fun faturasAte(input: LedgerInput, ateMes: YearMonth): List<Fatura> =
+        FaturaCalculator.faturas(efetivas(input, ateMes), input.cartao)
+
     // ---- internals ----
 
     /** Materialized rows + virtual expansions, from saldoInicialData through end of [ateMes]. */
