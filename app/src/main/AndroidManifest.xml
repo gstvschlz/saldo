@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Único pedido novo: os lembretes são notificações locais. Nada de alarme exato nem boot. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!--
         A promessa do "100% local" da tela "mais". `allowBackup="false"` sozinho não
         fecha a porta: a partir do Android 12 quem decide backup em nuvem e transferência
@@ -8,9 +11,6 @@
         os dois blocos vazios — ou seja, liberados. Os três atributos juntos negam a saída
         de dados em toda a faixa de minSdk 26..37.
     -->
-    <!-- Único pedido novo: os lembretes são notificações locais. Nada de alarme exato nem boot. -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
     <application
         android:name=".SaldoApplication"
         android:allowBackup="false"

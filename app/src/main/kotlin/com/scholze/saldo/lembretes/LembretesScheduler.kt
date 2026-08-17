@@ -25,16 +25,20 @@ class LembretesScheduler(private val context: Context) {
         politica: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE,
         agora: LocalDateTime = LocalDateTime.now(),
     ) {
-        agendarSlot(Slot.INFORMATIVOS, config.algumInformativo, config.horaInformativos, politica, agora)
-        agendarSlot(Slot.NUDGE, config.registrarGastos, config.horaNudge, politica, agora)
+        for (slot in Slot.entries) {
+            val (ligado, hora) = config.doSlot(slot)
+            agendarSlot(slot, ligado, hora, politica, agora)
+        }
     }
 
-    /** O worker chama ao terminar: a ocorrência de hoje acabou de rodar, então a próxima é amanhã. */
+    /**
+     * O worker chama ao terminar: a ocorrência de hoje acabou de rodar, então a próxima é amanhã.
+     * APPEND_OR_REPLACE, não REPLACE: isto roda de DENTRO do próprio unique work, então REPLACE
+     * cancelaria o trabalho em execução (ele mesmo) antes de inserir o novo.
+     */
     fun reagendar(slot: Slot, config: LembretesConfig, agora: LocalDateTime = LocalDateTime.now()) {
-        when (slot) {
-            Slot.INFORMATIVOS -> agendarSlot(slot, config.algumInformativo, config.horaInformativos, ExistingWorkPolicy.REPLACE, agora)
-            Slot.NUDGE -> agendarSlot(slot, config.registrarGastos, config.horaNudge, ExistingWorkPolicy.REPLACE, agora)
-        }
+        val (ligado, hora) = config.doSlot(slot)
+        agendarSlot(slot, ligado, hora, ExistingWorkPolicy.APPEND_OR_REPLACE, agora)
     }
 
     private fun agendarSlot(slot: Slot, ligado: Boolean, hora: LocalTime, politica: ExistingWorkPolicy, agora: LocalDateTime) {
@@ -53,11 +57,21 @@ class LembretesScheduler(private val context: Context) {
     companion object {
         fun nome(slot: Slot): String = "lembretes-" + slot.name.lowercase()
 
-        /** Quanto falta até a próxima [hora]: hoje, se ainda não passou; senão amanhã. Exatamente na hora conta como agora. */
+        /**
+         * Quanto falta até a próxima [hora]: hoje, se ainda não passou; senão amanhã. Exatamente
+         * na hora conta como agora. Relógio de parede ([LocalDateTime], não instante/UTC): num
+         * dia de troca de horário de verão o disparo pode errar por até uma hora — aceito, o
+         * Brasil não tem horário de verão desde 2019 e o agendamento já é inexato de propósito.
+         */
         fun proximaOcorrencia(agora: LocalDateTime, hora: LocalTime): Duration {
             val hoje = agora.toLocalDate().atTime(hora)
             val proxima = if (hoje.isBefore(agora)) hoje.plusDays(1) else hoje
             return Duration.between(agora, proxima)
         }
     }
+}
+
+private fun LembretesConfig.doSlot(slot: Slot): Pair<Boolean, LocalTime> = when (slot) {
+    Slot.INFORMATIVOS -> algumInformativo to horaInformativos
+    Slot.NUDGE -> registrarGastos to horaNudge
 }

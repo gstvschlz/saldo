@@ -93,12 +93,11 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.work.runtime.ktx)
     testImplementation(libs.androidx.glance.testing)
     testImplementation(libs.androidx.glance.appwidget.testing)
     androidTestImplementation(libs.androidx.datastore.preferences.core)
     androidTestImplementation(libs.androidx.room.testing)
-
-    implementation(libs.androidx.work.runtime.ktx)
     androidTestImplementation(libs.androidx.work.testing)
     androidTestImplementation(libs.androidx.test.rules)
 
