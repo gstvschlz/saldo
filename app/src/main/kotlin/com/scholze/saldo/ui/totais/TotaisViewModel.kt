@@ -9,6 +9,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.scholze.saldo.AppContainer
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.FiltroLedger
+import com.scholze.saldo.domain.InsightsEngine
+import com.scholze.saldo.domain.ParaOndeFoi
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.TotaisMes
 import java.time.YearMonth
@@ -28,6 +30,8 @@ data class TotaisUiState(
     /** `null` enquanto o primeiro `LedgerInput` não chegou do banco. */
     val totais: TotaisMes?,
     val estimativaCentavos: Long = 0,
+    /** "para onde foi" do mês visto; `null` junto com [totais]. */
+    val insights: ParaOndeFoi? = null,
 )
 
 class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
@@ -39,6 +43,7 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
             mesAtual = mes,
             totais = ProjectionEngine.totais(input, mes),
             estimativaCentavos = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).estimativaCentavos,
+            insights = InsightsEngine.paraOndeFoi(input, mes),
         )
     }
         // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa): fora da main thread.

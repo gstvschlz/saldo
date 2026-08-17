@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,7 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
@@ -49,9 +49,14 @@ private fun YearMonth.rotuloCurto(): String =
     format(mesCurto).removeSuffix(".") + "/" + (year % 100).toString().padStart(2, '0')
 
 @Composable
-fun TotaisScreen(vm: TotaisViewModel, modifier: Modifier = Modifier) {
+fun TotaisScreen(
+    vm: TotaisViewModel,
+    onVerTag: (Tag) -> Unit,
+    onAbrirMovimentacao: (Movimentacao) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val state by vm.state.collectAsState()
-    TotaisContent(state, vm::mesAnterior, vm::proximoMes, modifier)
+    TotaisContent(state, vm::mesAnterior, vm::proximoMes, onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, modifier = modifier)
 }
 
 @Composable
@@ -60,6 +65,8 @@ fun TotaisContent(
     onMesAnterior: () -> Unit,
     onProximoMes: () -> Unit,
     modifier: Modifier = Modifier,
+    onVerTag: (Tag) -> Unit = {},
+    onAbrirMovimentacao: (Movimentacao) -> Unit = {},
 ) {
     val colors = SaldoTheme.colors
     val t = state.totais
@@ -147,29 +154,7 @@ fun TotaisContent(
                 }
             }
 
-            if (t.topTags.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("TAGS DO MÊS", style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
-                    InsetGroup {
-                        t.topTags.forEachIndexed { i, (tag, total) ->
-                            if (i > 0) HairlineDivider(startIndent = 16.dp)
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Box(Modifier.size(8.dp).background(Color(tag.cor), CircleShape))
-                                Text(tag.nome, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
-                                MoneyText(
-                                    centavos = -total,
-                                    style = SaldoTheme.type.body, color = colors.label,
-                                    formato = FormatoMoney.ASSINADO,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            state.insights?.let { SegmentoMesInsights(it, onVerTag, onAbrirMovimentacao) }
         }
     }
 }

@@ -211,7 +211,12 @@ fun SaldoApp(
                         onAlvoConsumido = ledgerVm::limparAlvo,
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
-                    SaldoTab.TOTAIS -> TotaisScreen(totaisVm)
+                    SaldoTab.TOTAIS -> TotaisScreen(
+                        totaisVm,
+                        onVerTag = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
+                        // Mesma guarda do ledger: ocorrência virtual (id 0) não abre o editor.
+                        onAbrirMovimentacao = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } },
+                    )
                     SaldoTab.TAGS -> TagsScreen(
                         vm = viewModel(factory = tagsFactory),
                         onTagClick = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
