@@ -275,6 +275,49 @@ class InsightsEngineTest {
         assertNull(InsightsEngine.tendencia(i, jul).last().taxaPoupanca)
     }
 
+    @Test
+    fun taxaTruncaParaBaixo() {
+        val movs = listOf(
+            mov("2026-07-05", 1_000_00),
+            mov("2026-07-10", -333_33, Natureza.ECONOMIA),
+        )
+        // 333_33 * 100 / 1_000_00 = 33333 * 100 / 100000 = 33,333: divisão inteira trunca pra 33,
+        // não arredonda pra 33 (ok aqui, mas prende a regra contra um "vamos arredondar" futuro).
+        assertEquals(33, InsightsEngine.tendencia(input(movs), jul).last().taxaPoupanca)
+    }
+
+    @Test
+    fun tendenciaMesAbertoSobrouDescontaEstimativa() {
+        // hoje no meio de julho: julho ainda está aberto, e sobrou nesse ponto já desconta a
+        // estimativa do gasto avulso restante até o fim do mês — não é só entradas − saídas
+        // realizadas até hoje.
+        val movs = listOf(
+            mov("2026-07-05", 1_000_00),
+            mov("2026-07-08", -200_00),
+            mov("2026-07-10", -300_00, Natureza.ECONOMIA),
+        )
+        val p = InsightsEngine.tendencia(input(movs, hoje = "2026-07-15"), jul).last()
+        assertEquals(1_000_00L, p.entradas)
+        assertEquals(500_00L, p.saidas)   // 200_00 (DIARIO) + 300_00 (ECONOMIA)
+        // mediaDiaria = só a avulsa de 08/07 (200_00) dentro de [saldoInicialData, hoje] / 30 = 666.
+        // estimativa = 666 * 16 dias restantes (16 a 31/jul) = 10_656.
+        // saldoReal(hoje=15/07) = saldoInicial (100_000_00 = 10_000_000) + 1_000_00 − 200_00 − 300_00
+        //   = 10_000_000 + 50_000 = 10_050_000; sem agendadas/faturas futuras.
+        // projetado(jul) = 10_050_000 − 10_656 = 10_039_344.
+        // projetado(jun): mês fechado (fim 30/06 <= hoje) e sem nenhuma movimentação antes de
+        //   saldoInicialData (01/07) => saldoReal = saldoInicial = 10_000_000.
+        // sobrou = 10_039_344 − 10_000_000 = 39_344 centavos = R$ 393,44.
+        assertEquals(393_44L, p.sobrou)
+    }
+
+    /** A compra de cartão soma em `saidas` no mês da compra; ver faturaEntraNoVencimento para o
+     *  outro lado — a fatura só chega ao saldo (sobrou/aCaminho) no vencimento, mês seguinte. */
+    @Test
+    fun saidasContaCompraDeCartaoNaDataDaCompra() {
+        val movs = listOf(mov("2026-07-10", -250_00, Natureza.CARTAO))
+        assertEquals(250_00L, InsightsEngine.tendencia(input(movs), jul).last().saidas)
+    }
+
     // ---- a caminho ----
 
     @Test

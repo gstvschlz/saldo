@@ -49,7 +49,17 @@ data class ParaOndeFoi(
     val padroes: Padroes,
 )
 
-/** Um mês da tendência: totais fechados (ou projetados, para o mês corrente) e a reserva acumulada até ali. */
+/**
+ * Um mês da tendência: totais fechados (ou projetados, para o mês corrente) e a reserva acumulada até ali.
+ *
+ * [entradas]/[saidas] e [sobrou] vêm de bases de data diferentes e não fecham entre si —
+ * `entradas − saidas ≠ sobrou`, por design. [saidas] soma `TotaisMes.saidasPorNatureza` de
+ * todas as naturezas na data da própria movimentação: uma compra no CARTAO conta no dia da
+ * compra, não no vencimento, e ECONOMIA entra junto (o mesmo valor que [reservaAcumulada]
+ * também soma). [sobrou] é `TotaisMes.sobrouCentavos`, o delta de saldo do mês: a fatura só
+ * chega ali no vencimento, e num mês aberto (o corrente) já sai descontada a estimativa do
+ * gasto avulso restante.
+ */
 data class PontoMes(
     val mes: YearMonth,
     val entradas: Long,
@@ -127,6 +137,8 @@ object InsightsEngine {
         )
     }
 
+    // ---- tendência ----
+
     /** Os [meses] meses até [ateMes], inclusive; cada ponto vem de [ProjectionEngine.totais]. */
     fun tendencia(input: LedgerInput, ateMes: YearMonth, meses: Int = 6): List<PontoMes> =
         (meses - 1 downTo 0).map { ateMes.minusMonths(it.toLong()) }.map { m ->
@@ -142,6 +154,8 @@ object InsightsEngine {
             )
         }
 
+    // ---- a caminho ----
+
     /** Itens datados DEPOIS de hoje até o fim de [mes], tirados das linhas de dia do próprio ledger. */
     fun aCaminho(input: LedgerInput, mes: YearMonth): ACaminho {
         if (!mes.atEndOfMonth().isAfter(input.hoje)) return ACaminho(0L, 0L, emptyList(), mesEncerrado = true)
@@ -156,6 +170,14 @@ object InsightsEngine {
         )
     }
 
+    // ---- recorrências ----
+
+    /**
+     * Resumo das recorrências vistas em [mes]. Note a assimetria: [ResumoRecorrencias.ativas] inclui
+     * templates com `inicio` DEPOIS de [mes] (uma recorrência que só começa em setembro já é uma
+     * despesa fixa ativa, mesmo olhando julho), mas `entramMes`/`saemMes` somam só os VIGENTES
+     * (`inicio ≤ mes`) — em julho, aquela recorrência de setembro ainda não moveu dinheiro nenhum.
+     */
     fun recorrencias(input: LedgerInput, mes: YearMonth): ResumoRecorrencias {
         val (ativas, encerradas) = input.recorrencias.partition { r -> r.ativa && (r.fim?.let { it >= mes } ?: true) }
         val vigentes = ativas.filter { it.inicio <= mes }
