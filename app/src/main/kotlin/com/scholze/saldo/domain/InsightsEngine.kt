@@ -1,7 +1,6 @@
 package com.scholze.saldo.domain
 
 import java.time.DayOfWeek
-import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
@@ -15,13 +14,18 @@ sealed interface GrupoGasto {
 /**
  * [share] é fração de `ParaOndeFoi.saidasCentavos` (0..1). [deltaPercent] compara com o mês
  * anterior: `null` = o mês anterior não teve nada nessa fatia ("novo"); `0` = variou menos de 1 %.
+ * Só tem esse significado em `ParaOndeFoi.fatias` — em `ParaOndeFoi.barra` toda fatia carrega
+ * `deltaPercent = null` sempre (não calculado ali, e não deve ser lido como "novo").
  */
 data class Fatia(val grupo: GrupoGasto, val centavos: Long, val share: Float, val deltaPercent: Int?)
 
 /**
  * [porDiaDaSemana]: média de avulsas DIARIO por dia da semana nas últimas 12 semanas.
- * [diaMaisCaro] `null` = menos de 14 dias de dados ("ainda sem padrão").
- * [avulsasPorDiaMes] `null` = mês futuro (nenhum dia decorrido).
+ * [diaMaisCaro] `null` = menos de 14 dias de dados ("ainda sem padrão"), OU nenhuma saída avulsa
+ * na janela (todo dia da semana soma zero — sem isso, `maxBy` apontaria SEGUNDA por ser a
+ * primeira entrada do enum, um falso "dia mais caro" para um mês sem gasto avulso nenhum).
+ * [avulsasPorDiaMes] `null` = mês futuro, ou o ledger não cobre nenhum dia do mês até o limite
+ * (mês inteiro antes de `saldoInicialData`) — nos dois casos, nenhum dia decorrido.
  */
 data class Padroes(
     val porDiaDaSemana: Map<DayOfWeek, Long>,
@@ -32,7 +36,9 @@ data class Padroes(
 
 /**
  * [fatias]: toda etiqueta com saída no mês (a movimentação conta em CADA tag dela) + sem tag;
- * [barra]: top 4 + outras + sem tag pela PRIMEIRA tag, para somar 100 %.
+ * [barra]: top 4 + outras + sem tag pela PRIMEIRA tag, para somar 100 %. `barra` não carrega
+ * delta (todo item tem `Fatia.deltaPercent = null`) — a UI só renderiza deltas a partir de
+ * [fatias].
  */
 data class ParaOndeFoi(
     val saidasCentavos: Long,
@@ -108,13 +114,20 @@ object InsightsEngine {
         else porDia.maxBy { it.value }.key
 
         val mesAtual = YearMonth.from(input.hoje)
-        val diasDecorridos = when {
-            mes > mesAtual -> 0
-            mes == mesAtual -> input.hoje.dayOfMonth
-            else -> mes.lengthOfMonth()
+        // Fim da contagem: hoje se mes é o atual, fim do mês se mes já passou; mês futuro não tem dia decorrido.
+        val fimContagem = when {
+            mes > mesAtual -> null
+            mes == mesAtual -> input.hoje
+            else -> mes.atEndOfMonth()
         }
-        val avulsasPorDiaMes = if (diasDecorridos == 0) null
-        else -avulsas.filter { YearMonth.from(it.data) == mes && it.data <= input.hoje }.sumOf { it.valorCentavos } / diasDecorridos
+        // Início da contagem: só os dias que o ledger cobre — o mês pode ter começado antes de
+        // saldoInicialData (ex.: ledger criado no meio do mês corrente), e contar desde o dia 1
+        // do mês nesse caso subestima a média (menos gasto dividido por mais dias do que existiram).
+        val inicioContagem = maxOf(mes.atDay(1), input.saldoInicialData)
+        val diasDecorridos = if (fimContagem == null) 0L else ChronoUnit.DAYS.between(inicioContagem, fimContagem) + 1
+        val avulsasPorDiaMes = if (diasDecorridos <= 0) null
+        else -avulsas.filter { YearMonth.from(it.data) == mes && it.data >= input.saldoInicialData && it.data <= input.hoje }
+            .sumOf { it.valorCentavos } / diasDecorridos
 
         return Padroes(porDia, diaMaisCaro, avulsasPorDiaMes, ProjectionEngine.mediaDiaria(input))
     }
@@ -131,6 +144,10 @@ object InsightsEngine {
 
     private fun share(centavos: Long, total: Long): Float = if (total == 0L) 0f else centavos.toFloat() / total
 
-    private fun delta(atual: Long, anterior: Long): Int? =
-        if (anterior == 0L) null else Math.round((atual - anterior) * 100.0 / anterior).toInt()
+    private fun delta(atual: Long, anterior: Long): Int? {
+        if (anterior == 0L) return null
+        val percent = (atual - anterior) * 100.0 / anterior
+        // Variação abaixo de 1% em módulo é ruído para quem lê — mostra "=" (0), não arredonda pra ±1%.
+        return if (Math.abs(percent) < 1.0) 0 else Math.round(percent).toInt()
+    }
 }

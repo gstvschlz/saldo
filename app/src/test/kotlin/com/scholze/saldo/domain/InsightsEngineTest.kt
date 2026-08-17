@@ -86,6 +86,28 @@ class InsightsEngineTest {
         assertTrue(p.fatias.none { it.nome() == "transporte" })
     }
 
+    @Test
+    fun deltaNegativoQuandoGastoDiminui() {
+        val movs = listOf(
+            mov("2026-06-10", -200_00, tags = listOf(comida)),
+            mov("2026-07-10", -150_00, tags = listOf(comida)),
+        )
+        val p = InsightsEngine.paraOndeFoi(input(movs, materializados = setOf(jun, jul), saldoInicialData = "2026-06-01"), jul)
+        // (150 - 200) / 200 * 100 = -25 %.
+        assertEquals(-25, p.fatias.first { it.nome() == "comida" }.deltaPercent)
+    }
+
+    @Test
+    fun deltaMenorQueUmPorCentoVira0() {
+        val movs = listOf(
+            mov("2026-06-10", -200_00, tags = listOf(comida)),   // 20 000 centavos
+            mov("2026-07-10", -201_20, tags = listOf(comida)),   // 20 120 centavos
+        )
+        val p = InsightsEngine.paraOndeFoi(input(movs, materializados = setOf(jun, jul), saldoInicialData = "2026-06-01"), jul)
+        // (20120 - 20000) / 20000 * 100 = 0,6 %: abaixo de 1 %, mostra "=" (0), não arredonda pra +1 %.
+        assertEquals(0, p.fatias.first { it.nome() == "comida" }.deltaPercent)
+    }
+
     /** A lista conta a movimentação em cada tag; a barra a atribui só à primeira, para somar 100 %. */
     @Test
     fun movimentacaoComDuasTagsContaNasDuasNaListaMasUmaVezNaBarra() {
@@ -149,9 +171,28 @@ class InsightsEngineTest {
     }
 
     @Test
+    fun diaMaisCaroNuloQuandoNenhumGastoAvulsoNaJanela() {
+        val movs = listOf(
+            mov("2026-07-05", 500_00, descricao = "salario"),          // entrada: não é gasto
+            mov("2026-07-10", -300_00, natureza = Natureza.ECONOMIA),  // economia: fora do padrão
+            mov("2026-07-12", -999_00, rec = 1L),                      // recorrência: fora do padrão
+        )
+        val p = InsightsEngine.paraOndeFoi(input(movs), jul).padroes
+        // Janela com >= 14 dias (1 a 20 de julho), mas nenhuma saída avulsa nela: sem o guard,
+        // maxBy apontaria SEGUNDA por ser a primeira entrada do enum, um falso "dia mais caro".
+        assertTrue(p.porDiaDaSemana.values.all { it == 0L })
+        assertNull(p.diaMaisCaro)
+    }
+
+    @Test
     fun semDadosSuficientesNaoHaPadrao() {
         val p = InsightsEngine.paraOndeFoi(input(listOf(mov("2026-07-18", -100_00)), saldoInicialData = "2026-07-15"), jul).padroes
         assertNull(p.diaMaisCaro)
+        // porDiaDaSemana continua populado mesmo sem padrão: só diaMaisCaro exige os 14 dias.
+        assertEquals(100_00L, p.porDiaDaSemana[DayOfWeek.SATURDAY])   // única saída avulsa da janela, em 18/07 (sábado)
+        // saldoInicialData (15/07) é depois do dia 1 do mês: a média conta só os dias que o
+        // ledger cobre (15 a 20/07 = 6 dias), não os 20 dias corridos do mês.
+        assertEquals(16_66L, p.avulsasPorDiaMes)   // 100_00 / 6 dias
     }
 
     @Test
@@ -166,5 +207,26 @@ class InsightsEngineTest {
         assertEquals(10_00L, InsightsEngine.paraOndeFoi(i, jun).padroes.avulsasPorDiaMes)     // 300 / 30 dias
         assertNull(InsightsEngine.paraOndeFoi(i, ago).padroes.avulsasPorDiaMes)
         assertEquals(ProjectionEngine.mediaDiaria(i), InsightsEngine.paraOndeFoi(i, jul).padroes.mediaDiaria30)
+        // Literal, não só a fiação: janela de 30 dias termina em 20/07, começa 21/06 — só as
+        // avulsas de julho entram (02, 10, 15 = 200_00; 05/06 fica antes da janela). 200_00 / 30 = 666.
+        assertEquals(666L, InsightsEngine.paraOndeFoi(i, jul).padroes.mediaDiaria30)
+    }
+
+    @Test
+    fun recorrenciaNaoMaterializadaEntraNasFatiasMasNaoEAvulsa() {
+        val internet = Recorrencia(
+            id = 9, descricao = "internet", valorCentavos = -80_00, natureza = Natureza.DIARIO,
+            diaDoMes = 10, inicio = jun, tags = listOf(moradia),
+        )
+        // Avulsa real, para o denominador de avulsasPorDiaMes não zerar por falta de dado.
+        val movs = listOf(mov("2026-06-05", -20_00, tags = listOf(comida)))
+        val i = input(movs, recs = listOf(internet), materializados = setOf(jul), saldoInicialData = "2026-06-01")
+        val p = InsightsEngine.paraOndeFoi(i, jun)
+        // jun não está em materializados: a recorrência vem da expansão virtual de movimentacoesDoMes.
+        assertEquals(100_00L, p.saidasCentavos)                                          // 80 (virtual) + 20 (avulsa)
+        assertEquals(80_00L, p.fatias.first { it.nome() == "moradia" }.centavos)
+        assertEquals(20_00L, p.fatias.first { it.nome() == "comida" }.centavos)
+        // A recorrência tem recorrenciaId != null: não conta como avulsa, mesmo vindo de expansão virtual.
+        assertEquals(66L, p.padroes.avulsasPorDiaMes)                                    // só os 20_00 avulsos / 30 dias de junho
     }
 }
