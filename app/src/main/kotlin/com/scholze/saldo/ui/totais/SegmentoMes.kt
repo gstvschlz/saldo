@@ -6,16 +6,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.Fatia
 import com.scholze.saldo.domain.GrupoGasto
@@ -36,14 +38,21 @@ import java.time.DayOfWeek
 
 /** As três seções de insight do segmento "mês": para onde foi, maiores gastos, padrões. */
 @Composable
-fun SegmentoMesInsights(p: ParaOndeFoi, onVerTag: (Tag) -> Unit, onAbrirMovimentacao: (Movimentacao) -> Unit) {
+fun SegmentoMesInsights(
+    p: ParaOndeFoi,
+    onVerTag: (Tag) -> Unit,
+    onAbrirMovimentacao: (Movimentacao) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = SaldoTheme.colors
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    // A função emite três seções irmãs direto no Column do chamador (que já espaça os itens),
+    // não uma raiz só — o modifier cai na primeira seção, "para onde foi", que é sempre renderizada.
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("PARA ONDE FOI", Modifier.weight(1f), style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
             if (p.saidasCentavos > 0) {
-                Text("saídas ", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                Text("saídas", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
                 MoneyText(centavos = p.saidasCentavos, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
             }
         }
@@ -70,18 +79,7 @@ fun SegmentoMesInsights(p: ParaOndeFoi, onVerTag: (Tag) -> Unit, onAbrirMoviment
             InsetGroup {
                 p.maioresGastos.forEachIndexed { i, mov ->
                     if (i > 0) HairlineDivider(startIndent = 16.dp)
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onAbrirMovimentacao(mov) }.padding(horizontal = 16.dp, vertical = 11.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(
-                            mov.data.dayOfMonth.toString().padStart(2, '0'),
-                            style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
-                        )
-                        Text(mov.descricao, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
-                        MoneyText(centavos = mov.valorCentavos, style = SaldoTheme.type.body, color = colors.label, formato = FormatoMoney.ASSINADO)
-                    }
+                    LinhaMaiorGasto(mov, onClick = { onAbrirMovimentacao(mov) })
                 }
             }
         }
@@ -98,7 +96,7 @@ fun SegmentoMesInsights(p: ParaOndeFoi, onVerTag: (Tag) -> Unit, onAbrirMoviment
 @Composable
 private fun LinhaFatia(f: Fatia, onClick: (() -> Unit)?) {
     val colors = SaldoTheme.colors
-    val base = Modifier.fillMaxWidth()
+    val base = Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp)
     Row(
         (if (onClick != null) base.clickable(onClick = onClick) else base).padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -108,6 +106,9 @@ private fun LinhaFatia(f: Fatia, onClick: (() -> Unit)?) {
         Text(nomeDe(f.grupo), Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
         MoneyText(centavos = -f.centavos, style = SaldoTheme.type.body, color = colors.label, formato = FormatoMoney.ASSINADO)
         // Variação contra o mês anterior: gastar mais é vinho, menos é verde, "novo" e "=" neutros.
+        // `deltaPercent` não tem teto (InsightsEngine.delta não limita %) — largura MÍNIMA em vez de
+        // fixa, uma linha só e alinhado à direita, senão um "+4400%" ou "novo" em fonte grande quebra
+        // e deixa essa fatia mais alta que as vizinhas.
         val delta = f.deltaPercent
         Text(
             when {
@@ -116,7 +117,9 @@ private fun LinhaFatia(f: Fatia, onClick: (() -> Unit)?) {
                 delta > 0 -> "+$delta%"
                 else -> "−${-delta}%"
             },
-            Modifier.width(44.dp),
+            Modifier.widthIn(min = 44.dp),
+            maxLines = 1,
+            textAlign = TextAlign.End,
             style = SaldoTheme.type.footnote,
             color = when {
                 delta == null || delta == 0 -> colors.secondaryLabel
@@ -128,6 +131,23 @@ private fun LinhaFatia(f: Fatia, onClick: (() -> Unit)?) {
 }
 
 @Composable
+private fun LinhaMaiorGasto(mov: Movimentacao, onClick: () -> Unit) {
+    val colors = SaldoTheme.colors
+    Row(
+        Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            mov.data.dayOfMonth.toString().padStart(2, '0'),
+            style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
+        )
+        Text(mov.descricao, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
+        MoneyText(centavos = mov.valorCentavos, style = SaldoTheme.type.body, color = colors.label, formato = FormatoMoney.ASSINADO)
+    }
+}
+
+@Composable
 private fun PadroesRows(pd: Padroes) {
     val colors = SaldoTheme.colors
     Column(Modifier.padding(horizontal = 16.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -135,9 +155,9 @@ private fun PadroesRows(pd: Padroes) {
         if (dia == null) {
             Text("ainda sem padrão", style = SaldoTheme.type.body, color = colors.secondaryLabel)
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("${nomeDia(dia)} é o dia mais caro", Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
-                Text("média ", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                Text("média", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
                 MoneyText(centavos = pd.porDiaDaSemana[dia] ?: 0L, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
             }
         }

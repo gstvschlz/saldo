@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.domain.Fatia
 import com.scholze.saldo.domain.Fatura
@@ -52,10 +53,14 @@ class TotaisContentTest {
 
     private val comida = Tag(1, "comida", 0xFFA6486B)
     private val moradia = Tag(2, "moradia", 0xFFB95A2E)
+    private val lazer = Tag(3, "lazer", 0xFF3B7A57)
     private val mercado = Movimentacao(id = 9, descricao = "mercado", valorCentavos = -489_90, data = LocalDate.parse("2026-07-13"), natureza = Natureza.DIARIO)
     private val fatias = listOf(
         Fatia(GrupoGasto.DeTag(comida), 700_00, 0.25f, 30),
         Fatia(GrupoGasto.DeTag(moradia), 600_00, 0.21f, 0),
+        // Delta negativo: pega o "−" hand-typed de InsightsEngine.delta + o sinal invertido juntos
+        // (um bug de duplo-menos ou um hífen ASCII no lugar do U+2212 passariam pela fixture antiga).
+        Fatia(GrupoGasto.DeTag(lazer), 200_00, 0.07f, -18),
         Fatia(GrupoGasto.SemTag, 100_00, 0.04f, null),
     )
     private val insights = ParaOndeFoi(
@@ -108,12 +113,21 @@ class TotaisContentTest {
         rule.onNodeWithText("PARA ONDE FOI").assertIsDisplayed()
         rule.onNodeWithText("+30%").assertIsDisplayed()
         rule.onNodeWithText("=").assertIsDisplayed()
+        // U+2212 (mesmo caractere de InsightsEngine.delta), não hífen — pega duplo-menos e ASCII.
+        rule.onNodeWithText("−18%").assertIsDisplayed()
         rule.onNodeWithText("novo").assertIsDisplayed()
         rule.onNodeWithText("sem tag").assertIsDisplayed()
+        rule.onNodeWithText("MAIORES GASTOS").assertIsDisplayed()
         rule.onNodeWithText("mercado").assertIsDisplayed()
         rule.onNodeWithText("−489,90").assertIsDisplayed()
+        rule.onNodeWithText("PADRÕES").assertIsDisplayed()
         rule.onNodeWithText("sábado é o dia mais caro").assertIsDisplayed()
-        rule.onNodeWithText("avulsas por dia este mês").assertIsDisplayed()
+        // A fatia extra do delta negativo empurra estas duas linhas para fora da viewport inicial;
+        // performScrollTo() rola o Column da tela até elas antes de checar.
+        rule.onNodeWithText("avulsas por dia este mês").performScrollTo().assertIsDisplayed()
+        // As duas médias por dia (avulsasPorDiaMes ÷ dias cobertos pelo ledger vs. mediaDiaria30, a
+        // média fixa de 30 dias da projeção) não podem virar a mesma leitura por um merge futuro.
+        rule.onNodeWithText("média 30 dias (a da projeção)").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -125,6 +139,10 @@ class TotaisContentTest {
         assertEquals(comida, tagVista)
         rule.onNodeWithText("mercado").performClick()
         assertEquals(mercado, aberta)
+        // "sem tag" não é GrupoGasto.DeTag: o guard `as? GrupoGasto.DeTag` barra o clique e a linha
+        // fica inerte — sem isso o guard poderia sumir sem nenhum teste notar.
+        rule.onNodeWithText("sem tag").performClick()
+        assertEquals(comida, tagVista)
     }
 
     @Test
@@ -149,10 +167,14 @@ class TotaisContentTest {
 
     @Test
     fun privacidadeMascaraOsValores() {
-        montar(TotaisUiState(YearMonth.of(2026, 7), totais), oculto = true)
+        // `insights` entra aqui também: é o maior bloco com dinheiro da aba, e sem ele nenhum dos
+        // seis valores da seção nova fica testado sob máscara.
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights), oculto = true)
         // Os rótulos ficam; todo número passa por MoneyText e vira máscara.
         rule.onNodeWithText("reserva acumulada").assertIsDisplayed()
         rule.onNodeWithText("+5.440,00").assertDoesNotExist()
+        // A fatia "comida" (700_00 centavos, ASSINADO) revelaria "−700,00" se a máscara vazasse.
+        rule.onNodeWithText("−700,00").assertDoesNotExist()
         rule.onAllNodesWithText(MASCARA_PRIVACIDADE).onFirst().assertIsDisplayed()
     }
 }

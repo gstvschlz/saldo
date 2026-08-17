@@ -46,7 +46,8 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
             insights = InsightsEngine.paraOndeFoi(input, mes),
         )
     }
-        // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa): fora da main thread.
+        // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma mais
+        // duas passadas de `movimentacoesDoMes` (mês atual e anterior) e os padrões: tudo fora da main thread.
         .flowOn(Dispatchers.Default)
         // Mesma razão do LedgerViewModel: uma exceção subindo do banco cancelaria o
         // StateFlow e a aba ficaria congelada para sempre, sem crash que explicasse.
