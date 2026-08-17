@@ -33,7 +33,7 @@ data class TotaisUiState(
     val estimativaCentavos: Long = 0,
     /** "para onde foi" do mês visto; `null` junto com [totais]. */
     val insights: ParaOndeFoi? = null,
-    /** 6 meses até o mês visto. */
+    /** 6 meses até o mês visto; `null` junto com [totais]. */
     val tendencia: List<PontoMes>? = null,
 )
 
@@ -51,7 +51,10 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
         )
     }
         // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma mais
-        // duas passadas de `movimentacoesDoMes` (mês atual e anterior) e os padrões: tudo fora da main thread.
+        // duas passadas de `movimentacoesDoMes` (mês atual e anterior) e os padrões; `tendencia` roda
+        // mais seis passagens INTEIRAS de ProjectionEngine.totais (uma por mês, cada uma com sua
+        // própria expansão e cálculo de fatura) — a cada emissão do ledger, esteja a aba "tendência"
+        // aberta ou não. Tudo isso fica fora da main thread.
         .flowOn(Dispatchers.Default)
         // Mesma razão do LedgerViewModel: uma exceção subindo do banco cancelaria o
         // StateFlow e a aba ficaria congelada para sempre, sem crash que explicasse.

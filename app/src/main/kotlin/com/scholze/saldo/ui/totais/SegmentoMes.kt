@@ -36,7 +36,12 @@ import com.scholze.saldo.ui.totais.charts.SegmentedBar
 import com.scholze.saldo.ui.totais.charts.WeekdayBars
 import java.time.DayOfWeek
 
-/** As três seções de insight do segmento "mês": para onde foi, maiores gastos, padrões. */
+/**
+ * As três seções de insight do segmento "mês": para onde foi, maiores gastos, padrões.
+ *
+ * Emite três seções irmãs direto no Column do chamador (que já espaça os itens), não uma raiz
+ * só — [modifier] cai na primeira seção, "para onde foi", que é sempre renderizada.
+ */
 @Composable
 fun SegmentoMesInsights(
     p: ParaOndeFoi,
@@ -46,8 +51,6 @@ fun SegmentoMesInsights(
 ) {
     val colors = SaldoTheme.colors
 
-    // A função emite três seções irmãs direto no Column do chamador (que já espaça os itens),
-    // não uma raiz só — o modifier cai na primeira seção, "para onde foi", que é sempre renderizada.
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("PARA ONDE FOI", Modifier.weight(1f), style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)

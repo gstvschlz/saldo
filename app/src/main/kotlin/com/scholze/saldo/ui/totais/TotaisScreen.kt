@@ -40,18 +40,10 @@ import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
-private val ptBr = Locale.forLanguageTag("pt-BR")
-private val mesCurto = DateTimeFormatter.ofPattern("MMM", ptBr)
+// `ptBr`, `mesCurto` e `rotuloCurto()` moraram aqui; agora vêm de Formatos.kt (mesmo pacote,
+// sem import) — reutilizados por SegmentoTendencia.kt e, futuramente, pelas Tasks 6 e 7.
 private val diaMes = DateTimeFormatter.ofPattern("d MMM", ptBr)
-
-/**
- * "ago/26" — o mês abreviado em pt-BR sai com ponto ("ago."), que colidiria com a barra
- * do ano. Mesmo `removeSuffix(".")` que o resto do app usa, só que antes de concatenar.
- */
-private fun YearMonth.rotuloCurto(): String =
-    format(mesCurto).removeSuffix(".") + "/" + (year % 100).toString().padStart(2, '0')
 
 /** Os segmentos da aba totais; a seleção é estado de tela (`rememberSaveable`), não de ViewModel. */
 enum class SegmentoTotais(val rotulo: String) { MES("mês"), TENDENCIA("tendência") }
@@ -183,10 +175,13 @@ fun TotaisContent(
                 }
 
                 SegmentoTotais.TENDENCIA -> state.tendencia?.let { pontos ->
-                    SegmentoTendencia(pontos, state.mesAtual) { mes ->
-                        onIrParaMes(mes)
-                        segmento = SegmentoTotais.MES
-                    }
+                    SegmentoTendencia(
+                        pontos, state.mesAtual,
+                        onMes = { mes ->
+                            onIrParaMes(mes)
+                            segmento = SegmentoTotais.MES
+                        },
+                    )
                 }
             }
         }

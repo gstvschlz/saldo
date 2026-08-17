@@ -1,7 +1,12 @@
 package com.scholze.saldo.ui.totais
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -101,6 +106,14 @@ class TotaisContentTest {
         }
     }
 
+    /**
+     * Escopa a opção do segmented control via [TAG_SEGMENTO_TOTAIS] em vez de bater no texto
+     * visível solto — [TAG_SEGMENTO_TOTAIS] existia sem leitor nenhum; "tendência"/"mês" também
+     * poderiam colidir com cópia igual em outro canto da tela.
+     */
+    private fun segmento(rotulo: String) =
+        rule.onNode(hasAnyAncestor(hasTestTag(TAG_SEGMENTO_TOTAIS)) and hasText(rotulo))
+
     @Test
     fun mostraPerformanceEBlocos() {
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights))
@@ -127,11 +140,13 @@ class TotaisContentTest {
         rule.onNodeWithText("−18%").assertIsDisplayed()
         rule.onNodeWithText("novo").assertIsDisplayed()
         rule.onNodeWithText("sem tag").assertIsDisplayed()
-        rule.onNodeWithText("MAIORES GASTOS").assertIsDisplayed()
-        rule.onNodeWithText("mercado").assertIsDisplayed()
-        rule.onNodeWithText("−489,90").assertIsDisplayed()
-        rule.onNodeWithText("PADRÕES").assertIsDisplayed()
-        rule.onNodeWithText("sábado é o dia mais caro").assertIsDisplayed()
+        // O controle segmentado (Task 5) empurrou estas linhas ~50dp mais para baixo — abaixo da
+        // dobra em telas/fontes menores. performScrollTo() é um no-op quando já visível.
+        rule.onNodeWithText("MAIORES GASTOS").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("mercado").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("−489,90").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("PADRÕES").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("sábado é o dia mais caro").performScrollTo().assertIsDisplayed()
         // A fatia extra do delta negativo empurra estas duas linhas para fora da viewport inicial;
         // performScrollTo() rola o Column da tela até elas antes de checar.
         rule.onNodeWithText("avulsas por dia este mês").performScrollTo().assertIsDisplayed()
@@ -147,7 +162,9 @@ class TotaisContentTest {
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights), onVerTag = { tagVista = it }, onAbrirMovimentacao = { aberta = it })
         rule.onNodeWithText("comida").performClick()
         assertEquals(comida, tagVista)
-        rule.onNodeWithText("mercado").performClick()
+        // "mercado" (em MAIORES GASTOS) fica fora da viewport inicial — performClick() num nó fora
+        // da tela estoura por falta de bounds; performScrollTo() primeiro é um no-op se já visível.
+        rule.onNodeWithText("mercado").performScrollTo().performClick()
         assertEquals(mercado, aberta)
         // "sem tag" não é GrupoGasto.DeTag: o guard `as? GrupoGasto.DeTag` barra o clique e a linha
         // fica inerte — sem isso o guard poderia sumir sem nenhum teste notar.
@@ -192,13 +209,64 @@ class TotaisContentTest {
     fun tendenciaMostraGraficoPoupancaEVoltaAoMesTocado() {
         var mesPedido: YearMonth? = null
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia), onIrParaMes = { mesPedido = it })
-        rule.onNodeWithText("tendência").performClick()
+        segmento("tendência").performClick()
         rule.onNodeWithText("6 MESES").assertIsDisplayed()
         rule.onNodeWithText("POUPANÇA").assertIsDisplayed()
-        rule.onNodeWithText("12% este mês (jun 11%)").assertIsDisplayed()
+        // "reserva acumulada" existe nos dois segmentos (a linha que motivou o fix de formato) —
+        // contar 1 é um trap melhor pra um `when` que passasse a ACRESCENTAR em vez de substituir
+        // do que só checar a ausência de um rótulo exclusivo do segmento "mês" (abaixo).
+        // onAllNodesWithText enxerga nós fora da viewport (o Column com verticalScroll compõe tudo,
+        // só posiciona fora da tela), então não precisa de performScrollTo() aqui.
+        rule.onAllNodesWithText("reserva acumulada").assertCountEquals(1)
+        // O controle segmentado empurrou esta linha ~480dp para baixo, fora da viewport inicial.
+        rule.onNodeWithText("12% este mês (jun 11%)").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("PARA ONDE FOI").assertDoesNotExist()
         rule.onNodeWithText("mai").performClick()             // rótulo do mês no gráfico
         assertEquals(YearMonth.of(2026, 5), mesPedido)
-        rule.onNodeWithText("PARA ONDE FOI").assertIsDisplayed() // voltou ao segmento mês
+        // Volta ao segmento "mês", mas com o offset de rolagem que a tendência deixou no scroll
+        // state compartilhado — sem performScrollTo() aqui o teste depende de sorte de viewport.
+        rule.onNodeWithText("PARA ONDE FOI").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun segmentoTendenciaSobreviveARestauracaoDeEstado() {
+        // `segmento` usa rememberSaveable — um teste que só recompõe (como os outros desta classe)
+        // passa igualzinho contra `remember {}`, porque recomposição não recria a instância. Só
+        // StateRestorationTester força a recriação que rememberSaveable precisa sobreviver.
+        val restorationTester = StateRestorationTester(rule)
+        restorationTester.setContent {
+            SaldoTheme(darkTheme = false) {
+                CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = false)) {
+                    TotaisContent(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia), {}, {})
+                }
+            }
+        }
+        segmento("tendência").performClick()
+        rule.onNodeWithText("6 MESES").assertIsDisplayed()
+
+        restorationTester.emulateSavedInstanceStateRestore()
+
+        // Se `segmento` fosse `remember {}` puro, a restauração voltaria para "mês" — o teste
+        // continua vendo o conteúdo da tendência só porque o estado sobreviveu de verdade.
+        rule.onNodeWithText("6 MESES").assertIsDisplayed()
+    }
+
+    @Test
+    fun taxaPoupancaNulaMostraTraco() {
+        val semTaxa = tendencia.dropLast(1) + tendencia.last().copy(taxaPoupanca = null)
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, tendencia = semTaxa))
+        segmento("tendência").performClick()
+        rule.onNodeWithText("taxa de poupança").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("—").assertIsDisplayed()
+    }
+
+    @Test
+    fun taxaPoupancaSemMesAnteriorMostraFormaCurta() {
+        // Um único ponto: pontos.getOrNull(pontos.size - 2) dá null — o ramo de "não há taxa do mês
+        // anterior" que a fixture normal (6 meses) nunca exercita.
+        val umPonto = listOf(tendencia.last())
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, tendencia = umPonto))
+        segmento("tendência").performClick()
+        rule.onNodeWithText("12% este mês").performScrollTo().assertIsDisplayed()
     }
 }

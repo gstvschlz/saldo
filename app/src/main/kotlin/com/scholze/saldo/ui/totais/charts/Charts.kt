@@ -32,14 +32,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.PontoMes
+import com.scholze.saldo.ui.theme.SaldoColors
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.totais.mesCurto
 import java.time.DayOfWeek
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
-private val ptBr = Locale.forLanguageTag("pt-BR")
-private val mesCurto = DateTimeFormatter.ofPattern("MMM", ptBr)
+/**
+ * As cores dos três papéis (saídas, entradas, sobrou) que [TrendChart] desenha e a legenda em
+ * SegmentoTendencia.kt descreve — uma fonte só, para as duas nunca poderem descrever cores
+ * diferentes das que o gráfico realmente usa.
+ */
+internal data class CoresTendencia(val saidas: Color, val entradas: Color, val sobrou: Color)
+
+internal fun coresTendencia(colors: SaldoColors): CoresTendencia =
+    CoresTendencia(saidas = colors.categoryVariable, entradas = colors.balance, sobrou = colors.tint)
 
 /**
  * Sobrecarga em Dp de [ChartMath.pisoSeNaoZero] (a geometria mora lá, testável na JVM) — usada
@@ -81,9 +88,10 @@ fun TrendChart(
     val alturas = remember(pontos) { ChartMath.alturas(pontos.map { it.saidas } + pontos.map { it.entradas }) }
     val linha = remember(pontos) { ChartMath.linhaComSinal(pontos.map { it.sobrou }) }
     val linhaZero = remember(pontos) { ChartMath.linhaZero(pontos.map { it.sobrou }) }
-    val corSaidas = colors.categoryVariable
-    val corEntradas = colors.balance
-    val corLinha = colors.tint
+    val cores = coresTendencia(colors)
+    val corSaidas = cores.saidas
+    val corEntradas = cores.entradas
+    val corLinha = cores.sobrou
     val corFundoPonto = colors.surface
     val corBase = colors.separator
     // O gesto (pointerInput) só reinicia quando `pontos` muda — ele sobrevive à recomposição.
