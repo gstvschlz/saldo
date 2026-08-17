@@ -13,8 +13,10 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.first
 
 /**
- * A rodada diária de um [Slot]: lê settings + ledger, pergunta ao [LembretesEngine] o que sai e
- * posta. Duas categorias de falha, dois resultados:
+ * A rodada diária de um [Slot]: lê os lembretes (`SettingsStore.lerLembretes`, que NÃO engole
+ * `IOException`) + o ledger, pergunta ao [LembretesEngine] o que sai e sincroniza as
+ * notificações do slot com o resultado (`Notificacoes.sincronizar` cancela o que sumiu antes de
+ * mostrar o que ficou). Duas categorias de falha, dois resultados:
  * - settings ilegíveis (DataStore) é infraestrutura, não lógica de lembrete: `retry`, SEM
  *   reagendar. Reagendar aqui usaria os toggles default (todos desligados) e cancelaria o loop
  *   diário do slot até o próximo cold start — o retry do próprio WorkManager (backoff
@@ -33,7 +35,7 @@ class LembretesWorker(context: Context, params: WorkerParameters) : CoroutineWor
             ?: return Result.failure()
         val container = (applicationContext as SaldoApplication).container
         val config = try {
-            container.settings.settings.first().lembretes
+            container.settings.lerLembretes()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -42,7 +44,7 @@ class LembretesWorker(context: Context, params: WorkerParameters) : CoroutineWor
         }
         try {
             val input = container.repository.ledger.first()
-            LembretesEngine.avaliar(input, config, slot).forEach { Notificacoes.mostrar(applicationContext, it) }
+            Notificacoes.sincronizar(applicationContext, slot, LembretesEngine.avaliar(input, config, slot))
             // De graça: o widget acorda uma vez por dia mesmo com o processo morto o resto do tempo.
             SaldoWidget().updateAll(applicationContext)
         } catch (e: CancellationException) {

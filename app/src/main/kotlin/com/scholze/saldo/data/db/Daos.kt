@@ -31,8 +31,9 @@ interface MovimentacaoDao {
     @Query("DELETE FROM movimentacoes WHERE id = :id") suspend fun deleteById(id: Long)
 
     /**
-     * Edits the user-visible fields in place. Unlike [update], it leaves `recorrenciaId` and
-     * `criadaEm` untouched — `Movimentacao.toEntity()` cannot carry the original `criadaEm`.
+     * Touches only the user-visible fields, leaving `recorrenciaId` and `criadaEm` alone —
+     * unlike [update], which overwrites the whole row. Neither is user-editable through an
+     * instance edit.
      */
     @Query(
         "UPDATE movimentacoes SET descricao = :descricao, valorCentavos = :valorCentavos, " +

@@ -37,7 +37,7 @@
         <receiver
             android:name=".widget.SaldoWidgetReceiver"
             android:exported="true"
-            android:label="saldo">
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

@@ -12,6 +12,7 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
 import com.scholze.saldo.EstadoLimpo
 import com.scholze.saldo.SaldoApplication
+import com.scholze.saldo.domain.Lembrete
 import com.scholze.saldo.domain.LembretesConfig
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
@@ -21,6 +22,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -75,6 +77,14 @@ class LembretesWorkerTest {
         return emptyList()
     }
 
+    /** O espelho de [titulos] para o caso "sumiu": o cancelamento também pode levar um instante para refletir. */
+    private fun aguardarSemNotificacoes() {
+        repeat(20) {
+            if (nm.activeNotifications.isEmpty()) return
+            Thread.sleep(100)
+        }
+    }
+
     @Test
     fun nudgeAvisaQuandoNadaFoiLancadoHoje() {
         assertEquals(ListenableWorker.Result.success(), rodar(Slot.NUDGE))
@@ -91,5 +101,22 @@ class LembretesWorkerTest {
         }
         assertEquals(ListenableWorker.Result.success(), rodar(Slot.NUDGE))
         assertEquals(emptyList<String?>(), titulos())
+    }
+
+    /** O lembrete de ontem não pode sobreviver a uma rodada que não tem mais nada a dizer. */
+    @Test
+    fun nudgeDeOntemEApagadoQuandoHaLancamentoHoje() {
+        Notificacoes.mostrar(app, Lembrete.RegistrarGastos)
+        assertTrue(titulos().isNotEmpty())
+
+        runBlocking {
+            app.container.repository.criar(
+                Movimentacao(descricao = "café", valorCentavos = -8_50, data = LocalDate.now(), natureza = Natureza.DIARIO),
+                RepetirOpcao.Nao,
+            )
+        }
+        assertEquals(ListenableWorker.Result.success(), rodar(Slot.NUDGE))
+        aguardarSemNotificacoes()
+        assertTrue(nm.activeNotifications.isEmpty())
     }
 }

@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import com.scholze.saldo.MainActivity
 import com.scholze.saldo.R
 import com.scholze.saldo.domain.Lembrete
+import com.scholze.saldo.domain.Slot
 import com.scholze.saldo.ui.money.centavosAssinado
 import com.scholze.saldo.ui.money.centavosValor
 import com.scholze.saldo.ui.nav.Destino
@@ -52,6 +53,23 @@ object Notificacoes {
      */
     fun podeNotificar(context: Context): Boolean =
         NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    /** Os ids que [construir] pode gerar para o [slot] — a lista que [sincronizar] varre para decidir o que cancelar. */
+    fun idsDoSlot(slot: Slot): List<Int> = when (slot) {
+        Slot.INFORMATIVOS -> listOf(ID_FATURA, ID_RECORRENCIAS, ID_FECHAMENTO)
+        Slot.NUDGE -> listOf(ID_REGISTRAR)
+    }
+
+    /**
+     * Uma rodada completa do [slot]: cancela todo id do slot que NÃO está entre os [lembretes]
+     * desta vez — um lembrete que deixou de valer (a fatura foi paga, o gasto de hoje foi
+     * lançado) não pode continuar pendurado na barra — e então mostra os que sobraram.
+     */
+    fun sincronizar(context: Context, slot: Slot, lembretes: List<Lembrete>) {
+        val idsDaVez = lembretes.map { construir(context, it).first }.toSet()
+        idsDoSlot(slot).filterNot { it in idsDaVez }.forEach { NotificationManagerCompat.from(context).cancel(it) }
+        lembretes.forEach { mostrar(context, it) }
+    }
 
     fun mostrar(context: Context, lembrete: Lembrete) {
         // Checagem inline (não via podeNotificar) para o lint enxergar a guarda de MissingPermission.

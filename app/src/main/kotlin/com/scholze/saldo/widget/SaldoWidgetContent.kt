@@ -21,6 +21,7 @@ import androidx.glance.layout.Row
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
+import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import androidx.glance.semantics.testTag
 import androidx.glance.text.FontWeight
@@ -76,7 +77,7 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
             .fillMaxSize()
             .background(CoresWidget.fundo)
             .cornerRadius(16.dp)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = if (largo) 14.dp else 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(GlanceModifier.defaultWeight().clickable(abrir(destinoValor))) {
@@ -101,7 +102,7 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
                     Text(
                         if (estado.mostrarValores) estado.saldoProjetadoCentavos.centavosComSimbolo() else MASCARA_PRIVACIDADE,
                         modifier = GlanceModifier.semantics { testTag = TAG_WIDGET_SALDO },
-                        style = TextStyle(color = CoresWidget.label, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+                        style = TextStyle(color = CoresWidget.label, fontSize = if (largo) 22.sp else 18.sp, fontWeight = FontWeight.Bold),
                         maxLines = 1,
                     )
                     if (largo && estado.mostrarValores) {
@@ -119,15 +120,20 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
             }
         }
         if (estado != WidgetEstado.SemOnboarding) {
+            // COMPACTO aperta tudo: um valor de 22 sp + este botão de 36 dp + o padding de 14 dp
+            // não cabem juntos numa célula 2×1 (a moldura clipa o valor revelado) — em COMPACTO o
+            // botão encolhe junto com o valor e o padding da Row.
+            val tamanhoBotao = if (largo) 36.dp else 30.dp
             Box(
                 modifier = GlanceModifier
-                    .size(36.dp)
+                    .size(tamanhoBotao)
                     .background(CoresWidget.tint)
-                    .cornerRadius(18.dp)
-                    .clickable(abrir(Destino.NovaMovimentacao)),
+                    .cornerRadius(tamanhoBotao / 2)
+                    .clickable(abrir(Destino.NovaMovimentacao))
+                    .semantics { contentDescription = "nova movimentação" },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("+", style = TextStyle(color = CoresWidget.branco, fontSize = 22.sp, fontWeight = FontWeight.Bold))
+                Text("+", style = TextStyle(color = CoresWidget.branco, fontSize = if (largo) 22.sp else 18.sp, fontWeight = FontWeight.Bold))
             }
         }
     }

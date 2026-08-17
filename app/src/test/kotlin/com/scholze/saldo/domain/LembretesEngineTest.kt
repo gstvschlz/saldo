@@ -135,6 +135,17 @@ class LembretesEngineTest {
         assertEquals(listOf(Lembrete.RegistrarGastos), avaliar(i, Slot.NUDGE))
     }
 
+    /**
+     * 23:30 em São Paulo já é madrugada do dia seguinte em UTC — se o engine comparasse em UTC
+     * (em vez da [zona] recebida), isto contaria como "não criado hoje" e o nudge disparava errado.
+     */
+    @Test
+    fun nudgeUsaOFusoParaDecidirODia() {
+        val criadaAs2330 = LocalDate.parse("2026-07-20").atTime(23, 30).atZone(zona).toInstant().toEpochMilli()
+        val i = input(movs = listOf(mov("2026-07-20", -30_00, criadaEm = criadaAs2330)), hoje = "2026-07-20")
+        assertEquals(emptyList<Lembrete>(), avaliar(i, Slot.NUDGE))
+    }
+
     // ---- slots e toggles ----
 
     @Test
@@ -151,5 +162,32 @@ class LembretesEngineTest {
         val i = input(movs = listOf(mov("2026-07-10", -250_00, Natureza.CARTAO)), materializados = setOf(jul, ago), hoje = "2026-08-04")
         assertEquals(emptyList<Lembrete>(), avaliar(i, Slot.INFORMATIVOS, LembretesConfig()))
         assertEquals(emptyList<Lembrete>(), avaliar(i, Slot.NUDGE, LembretesConfig()))
+    }
+
+    /**
+     * Fatura amanhã + recorrência hoje no mesmo cenário: cada toggle liga só a própria regra, e
+     * com as duas ligadas a ordem é fatura antes de recorrência (a ordem do `buildList` do engine).
+     */
+    @Test
+    fun cadaToggleLigaSoASuaRegra() {
+        val aluguel = Recorrencia(id = 1, descricao = "aluguel", valorCentavos = -2_400_00, natureza = Natureza.DIARIO, diaDoMes = 4, inicio = YearMonth.of(2026, 1))
+        // ago já está materializado (abaixo), então a instância de hoje precisa ser uma linha real.
+        val i = input(
+            movs = listOf(mov("2026-07-10", -250_00, Natureza.CARTAO), mov("2026-08-04", -2_400_00, rec = 1L)),
+            recs = listOf(aluguel),
+            materializados = setOf(jul, ago),
+            hoje = "2026-08-04",
+        )
+
+        val soFatura = avaliar(i, Slot.INFORMATIVOS, LembretesConfig(faturaAmanha = true))
+        assertTrue(soFatura.single() is Lembrete.FaturaAmanha)
+
+        val soRecorrencia = avaliar(i, Slot.INFORMATIVOS, LembretesConfig(recorrenciaHoje = true))
+        assertTrue(soRecorrencia.single() is Lembrete.RecorrenciasHoje)
+
+        val ambos = avaliar(i, Slot.INFORMATIVOS, LembretesConfig(faturaAmanha = true, recorrenciaHoje = true))
+        assertEquals(2, ambos.size)
+        assertTrue(ambos[0] is Lembrete.FaturaAmanha)
+        assertTrue(ambos[1] is Lembrete.RecorrenciasHoje)
     }
 }

@@ -39,7 +39,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Só na criação de verdade: numa recriação (rotação, restauração) o destino do Intent
         // original já foi consumido, e reaplicá-lo abriria a sheet de novo no meio de uma edição.
-        if (savedInstanceState == null) destinos.value = Destino.deIntent(intent)
+        // Uma task relançada pelos recents também recria a activity do zero e reentrega o Intent
+        // raiz (com os extras originais) como se fosse uma criação nova; a flag marca esse caso,
+        // e o destino não pode disparar de novo.
+        val relancadaDosRecents = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !relancadaDosRecents) destinos.value = Destino.deIntent(intent)
         val container = (application as SaldoApplication).container
         setContent {
             val settings by container.settings.settings.collectAsState(initial = null)

@@ -15,6 +15,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 enum class Tema { SISTEMA, CLARO, ESCURO }
@@ -66,16 +67,28 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             // Tolerante a um valor gravado por uma versão futura/antiga do enum.
             tema = p[Keys.tema]?.let { v -> Tema.entries.find { it.name == v } } ?: Tema.SISTEMA,
             widgetMostrarValores = p[Keys.widgetMostrarValores] ?: false,
-            lembretes = LembretesConfig(
-                faturaAmanha = p[Keys.lembreteFaturaAmanha] ?: false,
-                recorrenciaHoje = p[Keys.lembreteRecorrenciaHoje] ?: false,
-                registrarGastos = p[Keys.lembreteRegistrarGastos] ?: false,
-                fechamentoMes = p[Keys.lembreteFechamentoMes] ?: false,
-                horaInformativos = p.hora(Keys.lembretesHoraInformativos, LembretesConfig().horaInformativos),
-                horaNudge = p.hora(Keys.lembretesHoraNudge, LembretesConfig().horaNudge),
-            ),
+            lembretes = p.lembretes(),
         )
     }
+
+    /**
+     * Igual à leitura de `lembretes` em [settings], mas SEM engolir `IOException` num disco
+     * ilegível. Usada só pelo `LembretesWorker`: ele precisa diferenciar "não deu pra ler"
+     * (infraestrutura — `retry`) de "o usuário desligou tudo de propósito" (produto — reagenda
+     * com tudo off, o que mataria o loop do slot se fosse confundido com o primeiro caso).
+     * [settings] cai nos defaults porque não pode travar a primeira composição; o worker não tem
+     * essa pressa e pode se dar ao luxo de tentar de novo.
+     */
+    suspend fun lerLembretes(): LembretesConfig = dataStore.data.first().lembretes()
+
+    private fun Preferences.lembretes(): LembretesConfig = LembretesConfig(
+        faturaAmanha = this[Keys.lembreteFaturaAmanha] ?: false,
+        recorrenciaHoje = this[Keys.lembreteRecorrenciaHoje] ?: false,
+        registrarGastos = this[Keys.lembreteRegistrarGastos] ?: false,
+        fechamentoMes = this[Keys.lembreteFechamentoMes] ?: false,
+        horaInformativos = hora(Keys.lembretesHoraInformativos, LembretesConfig().horaInformativos),
+        horaNudge = hora(Keys.lembretesHoraNudge, LembretesConfig().horaNudge),
+    )
 
     suspend fun definirSaldoInicial(centavos: Long, data: LocalDate) {
         dataStore.edit {

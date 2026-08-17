@@ -9,6 +9,7 @@ import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.Lembrete
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.Slot
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -73,5 +74,12 @@ class NotificacoesTest {
         assertEquals("julho fechou", titulo(sobrou.publicVersion))
         val faltou = Notificacoes.construir(ctx, Lembrete.FechamentoMes(YearMonth.of(2026, 7), -61_28, 0, 61_28)).second
         assertEquals("julho fechou: faltou R$ 61,28", titulo(faltou))
+    }
+
+    /** Os dois slots juntos cobrem exatamente os quatro ids fixos — nenhum sobra, nenhum falta. */
+    @Test
+    fun idsDoSlotCobremOsQuatroIds() {
+        assertEquals(listOf(Notificacoes.ID_FATURA, Notificacoes.ID_RECORRENCIAS, Notificacoes.ID_FECHAMENTO), Notificacoes.idsDoSlot(Slot.INFORMATIVOS))
+        assertEquals(listOf(Notificacoes.ID_REGISTRAR), Notificacoes.idsDoSlot(Slot.NUDGE))
     }
 }

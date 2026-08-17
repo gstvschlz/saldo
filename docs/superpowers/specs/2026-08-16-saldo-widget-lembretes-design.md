@@ -151,11 +151,18 @@ from `ui/money` (they are presentation). Every notification: `setVisibility
 - App start (`SaldoApplication.onCreate`): `agendar` with `KEEP` (only fills a
   missing work; WorkManager already survives reboots — this is a safety net for
   a cleared app data / first install after restore).
-- `LembretesWorker.doWork(slot)`: `ledger.first()` + `settings.first()` →
-  `LembretesEngine.avaliar` → post each → `Result.success()`. Any exception is
-  logged and still `success` (a missed reminder is not worth a retry storm).
-  In `finally`: re-enqueue this slot for the next day **iff** its toggles are
-  still on. It also calls `SaldoWidget().updateAll()` (free daily refresh).
+- `LembretesWorker.doWork(slot)`: `SettingsStore.lerLembretes()` (does not
+  swallow `IOException`, unlike `settings.first()`) → `ledger.first()` →
+  `LembretesEngine.avaliar` → `Notificacoes.sincronizar`, which cancels every
+  id of the slot this run did not re-emit before posting what's left (a
+  lembrete that stops applying does not linger in the shade). Unreadable
+  settings → `Result.retry()`; a failure past that point (ledger, engine,
+  notification) is logged and still `Result.success()` (a missed reminder is
+  not worth a retry storm). In `finally`: re-enqueue this slot for the next
+  day **iff** its toggles are still on, via
+  `ExistingWorkPolicy.APPEND_OR_REPLACE` — not `REPLACE`, since this runs
+  from inside the unique work it would otherwise cancel. It also calls
+  `SaldoWidget().updateAll()` (free daily refresh).
 - Inexact by design: under Doze a reminder may arrive minutes late.
 
 ## Widget (`widget/`)

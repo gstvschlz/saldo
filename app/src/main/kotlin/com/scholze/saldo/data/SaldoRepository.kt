@@ -135,8 +135,9 @@ class RoomSaldoRepository(
         when (escopo) {
             EscopoEdicao.SO_ESTE_MES -> {
                 require(mov.id != 0L) { "movimentação virtual — abra o mês antes de editar" }
-                // UPDATE campo a campo: `toEntity()` não carrega o `criadaEm` original e
-                // `recorrenciaId` não muda numa edição de instância.
+                // UPDATE campo a campo: `updateCampos` toca só os campos visíveis ao usuário,
+                // deixando `recorrenciaId` e `criadaEm` intocados — nenhum dos dois é editável
+                // numa edição de instância.
                 movDao.updateCampos(
                     id = mov.id,
                     descricao = mov.descricao,
