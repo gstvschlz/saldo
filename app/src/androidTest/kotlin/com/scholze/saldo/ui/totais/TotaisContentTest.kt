@@ -16,6 +16,7 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Padroes
 import com.scholze.saldo.domain.ParaOndeFoi
+import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.TotaisMes
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -76,16 +77,25 @@ class TotaisContentTest {
         ),
     )
 
+    private val tendencia = (5 downTo 0).map { k ->
+        val m = YearMonth.of(2026, 7).minusMonths(k.toLong())
+        PontoMes(
+            mes = m, entradas = 8_000_00, saidas = 7_000_00 + k * 100_00L, sobrou = 1_000_00 - k * 100_00L,
+            reservaAcumulada = 1_200_00 - k * 100_00L, taxaPoupanca = 12 - k,
+        )
+    }
+
     private fun montar(
         state: TotaisUiState,
         oculto: Boolean = false,
         onVerTag: (Tag) -> Unit = {},
         onAbrirMovimentacao: (Movimentacao) -> Unit = {},
+        onIrParaMes: (YearMonth) -> Unit = {},
     ) {
         rule.setContent {
             SaldoTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = oculto)) {
-                    TotaisContent(state, {}, {}, onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao)
+                    TotaisContent(state, {}, {}, onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, onIrParaMes = onIrParaMes)
                 }
             }
         }
@@ -176,5 +186,19 @@ class TotaisContentTest {
         // A fatia "comida" (700_00 centavos, ASSINADO) revelaria "−700,00" se a máscara vazasse.
         rule.onNodeWithText("−700,00").assertDoesNotExist()
         rule.onAllNodesWithText(MASCARA_PRIVACIDADE).onFirst().assertIsDisplayed()
+    }
+
+    @Test
+    fun tendenciaMostraGraficoPoupancaEVoltaAoMesTocado() {
+        var mesPedido: YearMonth? = null
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia), onIrParaMes = { mesPedido = it })
+        rule.onNodeWithText("tendência").performClick()
+        rule.onNodeWithText("6 MESES").assertIsDisplayed()
+        rule.onNodeWithText("POUPANÇA").assertIsDisplayed()
+        rule.onNodeWithText("12% este mês (jun 11%)").assertIsDisplayed()
+        rule.onNodeWithText("PARA ONDE FOI").assertDoesNotExist()
+        rule.onNodeWithText("mai").performClick()             // rótulo do mês no gráfico
+        assertEquals(YearMonth.of(2026, 5), mesPedido)
+        rule.onNodeWithText("PARA ONDE FOI").assertIsDisplayed() // voltou ao segmento mês
     }
 }

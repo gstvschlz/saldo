@@ -11,6 +11,7 @@ import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.InsightsEngine
 import com.scholze.saldo.domain.ParaOndeFoi
+import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.TotaisMes
 import java.time.YearMonth
@@ -32,6 +33,8 @@ data class TotaisUiState(
     val estimativaCentavos: Long = 0,
     /** "para onde foi" do mês visto; `null` junto com [totais]. */
     val insights: ParaOndeFoi? = null,
+    /** 6 meses até o mês visto. */
+    val tendencia: List<PontoMes>? = null,
 )
 
 class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
@@ -44,6 +47,7 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
             totais = ProjectionEngine.totais(input, mes),
             estimativaCentavos = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).estimativaCentavos,
             insights = InsightsEngine.paraOndeFoi(input, mes),
+            tendencia = InsightsEngine.tendencia(input, mes),
         )
     }
         // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma mais

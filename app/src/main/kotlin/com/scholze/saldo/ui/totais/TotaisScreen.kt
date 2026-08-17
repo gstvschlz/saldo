@@ -16,9 +16,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,6 +34,7 @@ import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon
+import com.scholze.saldo.ui.components.SegmentedControl
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
@@ -48,6 +53,11 @@ private val diaMes = DateTimeFormatter.ofPattern("d MMM", ptBr)
 private fun YearMonth.rotuloCurto(): String =
     format(mesCurto).removeSuffix(".") + "/" + (year % 100).toString().padStart(2, '0')
 
+/** Os segmentos da aba totais; a seleção é estado de tela (`rememberSaveable`), não de ViewModel. */
+enum class SegmentoTotais(val rotulo: String) { MES("mês"), TENDENCIA("tendência") }
+
+const val TAG_SEGMENTO_TOTAIS = "totais:segmento"
+
 @Composable
 fun TotaisScreen(
     vm: TotaisViewModel,
@@ -56,7 +66,11 @@ fun TotaisScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by vm.state.collectAsState()
-    TotaisContent(state, vm::mesAnterior, vm::proximoMes, onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, modifier = modifier)
+    TotaisContent(
+        state, vm::mesAnterior, vm::proximoMes,
+        onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, onIrParaMes = vm::irPara,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -67,6 +81,7 @@ fun TotaisContent(
     modifier: Modifier = Modifier,
     onVerTag: (Tag) -> Unit = {},
     onAbrirMovimentacao: (Movimentacao) -> Unit = {},
+    onIrParaMes: (YearMonth) -> Unit = {},
 ) {
     val colors = SaldoTheme.colors
     val t = state.totais
@@ -121,40 +136,59 @@ fun TotaisContent(
                 }
             }
 
-            InsetGroup {
-                LinhaValor("entradas", t.entradasCentavos, colors.positive)
-                HairlineDivider(startIndent = 16.dp)
-                // `saidasPorNatureza` guarda magnitudes positivas; a linha mostra saída.
-                LinhaValor("saídas diários", -(t.saidasPorNatureza[Natureza.DIARIO] ?: 0))
-                HairlineDivider(startIndent = 16.dp)
-                LinhaValor("saídas economia", -(t.saidasPorNatureza[Natureza.ECONOMIA] ?: 0))
-                HairlineDivider(startIndent = 16.dp)
-                LinhaValor("compras no cartão", -(t.saidasPorNatureza[Natureza.CARTAO] ?: 0))
-                if (state.estimativaCentavos > 0) {
-                    HairlineDivider(startIndent = 16.dp)
-                    LinhaValor("estimativa restante", -state.estimativaCentavos)
+            var segmento by rememberSaveable { mutableStateOf(SegmentoTotais.MES) }
+            SegmentedControl(
+                options = SegmentoTotais.entries.map { it.rotulo },
+                selectedIndex = segmento.ordinal,
+                onSelect = { segmento = SegmentoTotais.entries[it] },
+                modifier = Modifier.testTag(TAG_SEGMENTO_TOTAIS),
+            )
+
+            when (segmento) {
+                SegmentoTotais.MES -> {
+                    InsetGroup {
+                        LinhaValor("entradas", t.entradasCentavos, colors.positive)
+                        HairlineDivider(startIndent = 16.dp)
+                        // `saidasPorNatureza` guarda magnitudes positivas; a linha mostra saída.
+                        LinhaValor("saídas diários", -(t.saidasPorNatureza[Natureza.DIARIO] ?: 0))
+                        HairlineDivider(startIndent = 16.dp)
+                        LinhaValor("saídas economia", -(t.saidasPorNatureza[Natureza.ECONOMIA] ?: 0))
+                        HairlineDivider(startIndent = 16.dp)
+                        LinhaValor("compras no cartão", -(t.saidasPorNatureza[Natureza.CARTAO] ?: 0))
+                        if (state.estimativaCentavos > 0) {
+                            HairlineDivider(startIndent = 16.dp)
+                            LinhaValor("estimativa restante", -state.estimativaCentavos)
+                        }
+                    }
+
+                    InsetGroup {
+                        LinhaValor("reserva acumulada", t.economiaBucketCentavos, colors.balance)
+                    }
+
+                    InsetGroup {
+                        val fatura = t.faturaAtual
+                        if (fatura == null) {
+                            InsetRow(label = "fatura atual", value = "sem compras no ciclo")
+                        } else {
+                            LinhaValor("fatura atual", fatura.totalCentavos)
+                            HairlineDivider(startIndent = 16.dp)
+                            InsetRow(
+                                label = "fecha em",
+                                value = t.fechamentoFaturaAtual.format(diaMes).removeSuffix("."),
+                            )
+                        }
+                    }
+
+                    state.insights?.let { SegmentoMesInsights(it, onVerTag, onAbrirMovimentacao) }
+                }
+
+                SegmentoTotais.TENDENCIA -> state.tendencia?.let { pontos ->
+                    SegmentoTendencia(pontos, state.mesAtual) { mes ->
+                        onIrParaMes(mes)
+                        segmento = SegmentoTotais.MES
+                    }
                 }
             }
-
-            InsetGroup {
-                LinhaValor("reserva acumulada", t.economiaBucketCentavos, colors.balance)
-            }
-
-            InsetGroup {
-                val fatura = t.faturaAtual
-                if (fatura == null) {
-                    InsetRow(label = "fatura atual", value = "sem compras no ciclo")
-                } else {
-                    LinhaValor("fatura atual", fatura.totalCentavos)
-                    HairlineDivider(startIndent = 16.dp)
-                    InsetRow(
-                        label = "fecha em",
-                        value = t.fechamentoFaturaAtual.format(diaMes).removeSuffix("."),
-                    )
-                }
-            }
-
-            state.insights?.let { SegmentoMesInsights(it, onVerTag, onAbrirMovimentacao) }
         }
     }
 }
