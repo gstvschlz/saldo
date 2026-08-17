@@ -279,11 +279,10 @@ class InsightsEngineTest {
     fun taxaTruncaParaBaixo() {
         val movs = listOf(
             mov("2026-07-05", 1_000_00),
-            mov("2026-07-10", -333_33, Natureza.ECONOMIA),
+            mov("2026-07-10", -666_67, Natureza.ECONOMIA),
         )
-        // 333_33 * 100 / 1_000_00 = 33333 * 100 / 100000 = 33,333: divisão inteira trunca pra 33,
-        // não arredonda pra 33 (ok aqui, mas prende a regra contra um "vamos arredondar" futuro).
-        assertEquals(33, InsightsEngine.tendencia(input(movs), jul).last().taxaPoupanca)
+        // Uma divisão inteira 66,667 % trunca para 66; arredondar daria 67.
+        assertEquals(66, InsightsEngine.tendencia(input(movs), jul).last().taxaPoupanca)
     }
 
     @Test
