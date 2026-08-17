@@ -1,6 +1,7 @@
 package com.scholze.saldo.domain
 
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
@@ -48,6 +49,39 @@ data class ParaOndeFoi(
     val padroes: Padroes,
 )
 
+/** Um mês da tendência: totais fechados (ou projetados, para o mês corrente) e a reserva acumulada até ali. */
+data class PontoMes(
+    val mes: YearMonth,
+    val entradas: Long,
+    val saidas: Long,
+    val sobrou: Long,
+    val reservaAcumulada: Long,
+    /** ECONOMIA do mês ÷ entradas do mês, em %; `null` sem entradas. */
+    val taxaPoupanca: Int?,
+)
+
+data class ItemFuturo(val data: LocalDate, val item: ItemDia)
+
+/** O que ainda passa pela coluna de saldo depois de hoje até o fim do mês visto. */
+data class ACaminho(
+    val saemCentavos: Long,
+    val entramCentavos: Long,
+    val itens: List<ItemFuturo>,
+    /** O mês visto já terminou: nada a caminho, por definição. */
+    val mesEncerrado: Boolean,
+)
+
+/**
+ * [ativas]: templates ativos e não encerrados no mês visto (inclui os que só começam depois);
+ * [entramMes]/[saemMes] somam só os vigentes no mês (`inicio ≤ mês`).
+ */
+data class ResumoRecorrencias(
+    val ativas: List<Recorrencia>,
+    val encerradas: List<Recorrencia>,
+    val entramMes: Long,
+    val saemMes: Long,
+)
+
 /**
  * As leituras da aba totais que não são o saldo em si: para onde foi, tendência, a caminho e
  * recorrências. Puro e determinístico como o [ProjectionEngine], que ele reaproveita — nenhuma
@@ -90,6 +124,46 @@ object InsightsEngine {
             barra = barra,
             maioresGastos = saidas.sortedBy { it.valorCentavos }.take(5),
             padroes = padroes(input, mes),
+        )
+    }
+
+    /** Os [meses] meses até [ateMes], inclusive; cada ponto vem de [ProjectionEngine.totais]. */
+    fun tendencia(input: LedgerInput, ateMes: YearMonth, meses: Int = 6): List<PontoMes> =
+        (meses - 1 downTo 0).map { ateMes.minusMonths(it.toLong()) }.map { m ->
+            val t = ProjectionEngine.totais(input, m)
+            val economia = t.saidasPorNatureza[Natureza.ECONOMIA] ?: 0L
+            PontoMes(
+                mes = m,
+                entradas = t.entradasCentavos,
+                saidas = t.saidasPorNatureza.values.sum(),
+                sobrou = t.sobrouCentavos,
+                reservaAcumulada = t.economiaBucketCentavos,
+                taxaPoupanca = if (t.entradasCentavos > 0) (economia * 100 / t.entradasCentavos).toInt() else null,
+            )
+        }
+
+    /** Itens datados DEPOIS de hoje até o fim de [mes], tirados das linhas de dia do próprio ledger. */
+    fun aCaminho(input: LedgerInput, mes: YearMonth): ACaminho {
+        if (!mes.atEndOfMonth().isAfter(input.hoje)) return ACaminho(0L, 0L, emptyList(), mesEncerrado = true)
+        val itens = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).dias
+            .filter { it.data > input.hoje }
+            .flatMap { dia -> dia.itens.map { ItemFuturo(dia.data, it) } }
+        return ACaminho(
+            saemCentavos = -itens.filter { it.item.valorCentavos < 0 }.sumOf { it.item.valorCentavos },
+            entramCentavos = itens.filter { it.item.valorCentavos > 0 }.sumOf { it.item.valorCentavos },
+            itens = itens,
+            mesEncerrado = false,
+        )
+    }
+
+    fun recorrencias(input: LedgerInput, mes: YearMonth): ResumoRecorrencias {
+        val (ativas, encerradas) = input.recorrencias.partition { r -> r.ativa && (r.fim?.let { it >= mes } ?: true) }
+        val vigentes = ativas.filter { it.inicio <= mes }
+        return ResumoRecorrencias(
+            ativas = ativas.sortedBy { it.diaDoMes },
+            encerradas = encerradas.sortedBy { it.diaDoMes },
+            entramMes = vigentes.filter { it.valorCentavos > 0 }.sumOf { it.valorCentavos },
+            saemMes = -vigentes.filter { it.valorCentavos < 0 }.sumOf { it.valorCentavos },
         )
     }
 

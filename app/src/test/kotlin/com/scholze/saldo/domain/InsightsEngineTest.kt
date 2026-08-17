@@ -229,4 +229,102 @@ class InsightsEngineTest {
         // A recorrência tem recorrenciaId != null: não conta como avulsa, mesmo vindo de expansão virtual.
         assertEquals(66L, p.padroes.avulsasPorDiaMes)                                    // só os 20_00 avulsos / 30 dias de junho
     }
+
+    // ---- tendência ----
+
+    @Test
+    fun tendenciaTemSeisPontosTerminandoNoMes() {
+        val t = InsightsEngine.tendencia(input(), jul)
+        assertEquals(6, t.size)
+        assertEquals(YearMonth.of(2026, 2), t.first().mes)
+        assertEquals(jul, t.last().mes)
+        // Meses antes do saldo inicial (1/jul) são zero, sem taxa.
+        assertTrue(t.dropLast(1).all { it.entradas == 0L && it.saidas == 0L && it.sobrou == 0L && it.reservaAcumulada == 0L && it.taxaPoupanca == null })
+    }
+
+    @Test
+    fun tendenciaSobrouReservaETaxa() {
+        val mai = YearMonth.of(2026, 5)
+        val movs = listOf(
+            mov("2026-05-05", 1_000_00), mov("2026-05-10", -200_00, Natureza.ECONOMIA),
+            mov("2026-06-05", 1_000_00), mov("2026-06-10", -300_00, Natureza.ECONOMIA),
+            mov("2026-07-05", 1_000_00),
+        )
+        // hoje já em agosto: os três meses estão fechados, sobrou = saldoReal(fim) − saldoReal(fim anterior).
+        val i = input(movs, materializados = setOf(mai, jun, jul), hoje = "2026-08-01", saldoInicialData = "2026-05-01")
+        val t = InsightsEngine.tendencia(i, jul)
+        val pMai = t.first { it.mes == mai }
+        assertEquals(1_000_00L, pMai.entradas)
+        assertEquals(200_00L, pMai.saidas)
+        assertEquals(800_00L, pMai.sobrou)
+        assertEquals(200_00L, pMai.reservaAcumulada)
+        assertEquals(20, pMai.taxaPoupanca)
+        val pJun = t.first { it.mes == jun }
+        assertEquals(700_00L, pJun.sobrou)
+        assertEquals(500_00L, pJun.reservaAcumulada)
+        assertEquals(30, pJun.taxaPoupanca)
+        val pJul = t.last()
+        assertEquals(1_000_00L, pJul.sobrou)
+        assertEquals(500_00L, pJul.reservaAcumulada)
+        assertEquals(0, pJul.taxaPoupanca)
+    }
+
+    @Test
+    fun taxaNulaSemEntradas() {
+        val i = input(listOf(mov("2026-07-10", -100_00, Natureza.ECONOMIA)))
+        assertNull(InsightsEngine.tendencia(i, jul).last().taxaPoupanca)
+    }
+
+    // ---- a caminho ----
+
+    @Test
+    fun aCaminhoSoDepoisDeHojeAteOFimDoMes() {
+        val aluguel = Recorrencia(id = 1, descricao = "aluguel", valorCentavos = -2_400_00, natureza = Natureza.DIARIO, diaDoMes = 28, inicio = YearMonth.of(2026, 1))
+        val movs = listOf(
+            mov("2026-07-20", -100_00),                       // hoje: fora
+            mov("2026-07-25", -50_00),
+            mov("2026-07-31", 200_00),                        // último dia: dentro
+            mov("2026-08-01", -30_00),                        // mês seguinte: fora
+            mov("2026-07-10", -250_00, Natureza.CARTAO),      // vence 5/ago: fora de julho
+        )
+        // julho não materializado: o aluguel expande virtualmente no dia 28.
+        val a = InsightsEngine.aCaminho(input(movs, recs = listOf(aluguel), materializados = emptySet()), jul)
+        assertEquals(false, a.mesEncerrado)
+        assertEquals(listOf("2026-07-25", "2026-07-28", "2026-07-31"), a.itens.map { it.data.toString() })
+        assertEquals(2_450_00L, a.saemCentavos)
+        assertEquals(200_00L, a.entramCentavos)
+    }
+
+    @Test
+    fun mesPassadoEstaEncerrado() {
+        val a = InsightsEngine.aCaminho(input(listOf(mov("2026-07-25", -50_00)), hoje = "2026-08-10"), jul)
+        assertTrue(a.mesEncerrado)
+        assertTrue(a.itens.isEmpty())
+        assertEquals(0L, a.saemCentavos)
+    }
+
+    @Test
+    fun faturaEntraNoVencimento() {
+        val i = input(listOf(mov("2026-07-10", -250_00, Natureza.CARTAO)), materializados = setOf(jul, ago), hoje = "2026-08-01")
+        val a = InsightsEngine.aCaminho(i, ago)
+        assertEquals(listOf("2026-08-05"), a.itens.map { it.data.toString() })
+        assertTrue(a.itens.single().item is ItemDia.FaturaDia)
+        assertEquals(250_00L, a.saemCentavos)
+    }
+
+    // ---- recorrências ----
+
+    @Test
+    fun recorrenciasAtivasEncerradasETotais() {
+        val aluguel = Recorrencia(id = 1, descricao = "aluguel", valorCentavos = -2_400_00, natureza = Natureza.DIARIO, diaDoMes = 3, inicio = YearMonth.of(2026, 1))
+        val salario = Recorrencia(id = 2, descricao = "salário", valorCentavos = 8_240_00, natureza = Natureza.DIARIO, diaDoMes = 5, inicio = YearMonth.of(2026, 1))
+        val netflix = Recorrencia(id = 3, descricao = "netflix", valorCentavos = -50_00, natureza = Natureza.DIARIO, diaDoMes = 10, inicio = YearMonth.of(2026, 1), fim = jun)
+        val academia = Recorrencia(id = 4, descricao = "academia", valorCentavos = -120_00, natureza = Natureza.DIARIO, diaDoMes = 1, inicio = YearMonth.of(2026, 9))
+        val antiga = Recorrencia(id = 5, descricao = "antiga", valorCentavos = -10_00, natureza = Natureza.DIARIO, diaDoMes = 1, inicio = YearMonth.of(2026, 1), ativa = false)
+        val r = InsightsEngine.recorrencias(input(recs = listOf(aluguel, salario, netflix, academia, antiga)), jul)
+        assertEquals(listOf("academia", "aluguel", "salário"), r.ativas.map { it.descricao })      // por dia do mês: 1, 3, 5
+        assertEquals(listOf("antiga", "netflix"), r.encerradas.map { it.descricao })
+        assertEquals(8_240_00L, r.entramMes)
+        assertEquals(2_400_00L, r.saemMes)                                                           // academia só começa em setembro
+    }
 }
