@@ -20,7 +20,7 @@
 - A caminho: items dated **after** `hoje` through the end of the viewed month, from `ProjectionEngine.mes(...).dias` (so CARTAO purchases enter only via faturas); a month whose end ≤ `hoje` is `mesEncerrado`.
 - Recorrências: `ativas` = `ativa && (fim == null || fim >= mes)` (future-start templates included, but they do not count in the monthly totals until `inicio <= mes`); `encerradas` = `!ativa || fim < mes`.
 - Every task ends green: JVM `mise run test` (93 today), instrumented `mise run test-device` on `saldo_test` (62 today), `mise exec -- ./gradlew lintDebug` 0 errors. Files LF/UTF-8 (verify no CR bytes — `od -c file | grep -c '\\r'`... use a Python one-liner if unsure). Commit per task with the message given (add the usual Claude trailer lines).
-- Baseline: `main` at `0c35970`. Work on a branch `insights-1` created from it.
+- Baseline: `main` at the commit that carries this plan. Work on a branch `insights-1` created from it.
 
 ## File structure
 
@@ -1565,14 +1565,883 @@ git commit -m "feat: totais — segmentos mês | tendência, gráfico de 6 meses
 
 ---
 
-<!-- CONTINUA: Tasks 6-8 ainda não escritos (2026-08-17, sessão pausada) -->
+### Task 6: The *a caminho* segment
 
-### Task 6 (A ESCREVER): the *a caminho* segment
-Per spec §"a caminho": `TotaisUiState.aCaminho: ACaminho?` (from `InsightsEngine.aCaminho(input, mes)`), `SegmentoTotais.A_CAMINHO("a caminho")`, `SegmentoACaminho(a: ACaminho, mes, onIrParaDia: (YearMonth, Int) -> Unit, onAbrirRecorrencias: () -> Unit)`: header "ainda saem R$ X até <d/mmm>" (+ "entram R$ Y" when > 0), "mês encerrado" for past months, dated list (day, ↺ glyph via `SaldoGlyph(SaldoIcon.RECORRENTE)`, description, MoneyText ASSINADO; tap → `onIrParaDia`), empty "nada agendado até o fim do mês", last row "recorrências · N fixas · R$ X/mês ›" (N and X from `InsightsEngine.recorrencias(input, mes)` — add `recorrencias: ResumoRecorrencias?` to the state). `SaldoApp` wires `onIrParaDia = { mes, dia -> ledgerVm.irPara(mes, dia); tab = SALDOS }`. Test: TotaisContentTest — a caminho renders the header/list, tap fires the callback, past month shows "mês encerrado".
+**Files:**
+- Modify: `app/src/main/kotlin/com/scholze/saldo/ui/totais/TotaisViewModel.kt` (state gains `aCaminho`, `recorrencias`)
+- Create: `app/src/main/kotlin/com/scholze/saldo/ui/totais/SegmentoACaminho.kt`
+- Modify: `app/src/main/kotlin/com/scholze/saldo/ui/totais/TotaisScreen.kt` (`A_CAMINHO`, the branch, two callbacks)
+- Modify: `app/src/main/kotlin/com/scholze/saldo/ui/SaldoApp.kt` (wire `onIrParaDia`)
+- Test: `app/src/androidTest/kotlin/com/scholze/saldo/ui/totais/TotaisContentTest.kt` (extend)
 
-### Task 7 (A ESCREVER): `RecorrenciasScreen` + `RecorrenciasViewModel`
-Per spec §RecorrênciasScreen: takes over the tab from totais (`abrindoRecorrencias` rememberSaveable in TotaisScreen, BackHandler, nav "‹ totais"), header "N fixas · entram R$ A · saem R$ B por mês", list by diaDoMes (day, description, MoneyText, tag dots), collapsed "encerradas (n)". `RecorrenciasViewModel(repo)`: `verMes(mes)`, `state: StateFlow<ResumoRecorrencias?>` = combine(repo.ledger, mes) → `InsightsEngine.recorrencias`; `abrirOcorrencia(rec, mes, onPronta: (Movimentacao) -> Unit)`: `repo.abrirMes(mes)` then find the instance for (rec.id, mes) in `repo.ledger.first()` → `onPronta(mov)` (SaldoApp then `entryVm.iniciarEdicao(mov); sheetAberto = true`). Instrumented `RecorrenciasScreenTest` with the real container: templates listed, tap opens the sheet ("editar movimentação"). Factory via `AppContainer` like the other VMs.
+**Interfaces:**
+- Consumes: `InsightsEngine.aCaminho`/`recorrencias`, `ACaminho`/`ItemFuturo`/`ResumoRecorrencias` (Task 2), `ItemDia`, `LedgerViewModel.irPara(mes, dia)`.
+- Produces: `TotaisUiState.aCaminho: ACaminho?` + `TotaisUiState.recorrencias: ResumoRecorrencias?`; `SegmentoTotais.A_CAMINHO("a caminho")`; `TotaisContent(…, onIrParaDia: (YearMonth, Int) -> Unit = {}, onAbrirRecorrencias: () -> Unit = {}, …)`; `TotaisScreen(vm, onVerTag, onAbrirMovimentacao, onIrParaDia, modifier)`; composable `SegmentoACaminho(a, resumo, mes, onIrParaDia, onAbrirRecorrencias)`.
+- **The "recorrências ›" row is rendered here but inert until Task 7** (`onAbrirRecorrencias` keeps its default `{}` in `TotaisScreen`); this task's test drives it directly on `TotaisContent`. Do not add screen-level state for it now — Task 7 owns the takeover, and it lives in `SaldoApp`, where the ViewModel factories are.
 
-### Task 8 (A ESCREVER): emulator pass, README, spec check
-Screenshots of the three segments + recorrências (light/dark, masked/revealed) into `.superpowers/sdd/shots/29-...`; README paragraph for the new totais; spec deviations synced; final counts (JVM ≥114, instrumented ≥ 62 + new, lint 0) and commit.
+- [ ] **Step 1: Write the failing tests**
 
+In `TotaisContentTest.kt` add imports:
+
+```kotlin
+import com.scholze.saldo.domain.ACaminho
+import com.scholze.saldo.domain.ItemDia
+import com.scholze.saldo.domain.ItemFuturo
+import com.scholze.saldo.domain.Recorrencia
+import com.scholze.saldo.domain.ResumoRecorrencias
+import org.junit.Assert.assertTrue
+```
+
+and after the `tendencia` fixture:
+
+```kotlin
+    private val aluguelMov = Movimentacao(
+        id = 7, descricao = "aluguel", valorCentavos = -2_400_00, data = LocalDate.parse("2026-07-28"),
+        natureza = Natureza.DIARIO, recorrenciaId = 1,
+    )
+    private val aCaminho = ACaminho(
+        saemCentavos = 2_400_00,
+        entramCentavos = 8_240_00,
+        itens = listOf(
+            ItemFuturo(aluguelMov.data, ItemDia.Mov(aluguelMov)),
+            ItemFuturo(
+                LocalDate.parse("2026-07-31"),
+                ItemDia.Mov(
+                    Movimentacao(
+                        id = 8, descricao = "salário", valorCentavos = 8_240_00,
+                        data = LocalDate.parse("2026-07-31"), natureza = Natureza.DIARIO,
+                    ),
+                ),
+            ),
+        ),
+        mesEncerrado = false,
+    )
+    private val resumoRecorrencias = ResumoRecorrencias(
+        ativas = listOf(
+            Recorrencia(
+                id = 1, descricao = "aluguel", valorCentavos = -2_400_00, natureza = Natureza.DIARIO,
+                diaDoMes = 28, inicio = YearMonth.of(2026, 1),
+            ),
+        ),
+        encerradas = emptyList(),
+        entramMes = 8_240_00,
+        saemMes = 2_400_00,
+    )
+
+    private fun comACaminho(a: ACaminho) = TotaisUiState(
+        YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia,
+        aCaminho = a, recorrencias = resumoRecorrencias,
+    )
+
+    @Test
+    fun aCaminhoMostraCabecalhoListaEAtalhoDeRecorrencias() {
+        var dia: Pair<YearMonth, Int>? = null
+        var recorrenciasPedidas = false
+        montar(
+            comACaminho(aCaminho),
+            onIrParaDia = { m, d -> dia = m to d },
+            onAbrirRecorrencias = { recorrenciasPedidas = true },
+        )
+        rule.onNodeWithText("a caminho").performClick()
+
+        rule.onNodeWithText("ainda saem").assertIsDisplayed()
+        rule.onNodeWithText("até 31 jul").assertIsDisplayed()
+        rule.onNodeWithText("aluguel").assertIsDisplayed()
+        rule.onNodeWithText("salário").assertIsDisplayed()
+        rule.onNodeWithText("PARA ONDE FOI").assertDoesNotExist()
+
+        rule.onNodeWithText("aluguel").performClick()
+        assertEquals(YearMonth.of(2026, 7) to 28, dia)
+
+        rule.onNodeWithText("1 fixa ·", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("recorrências").performClick()
+        assertTrue(recorrenciasPedidas)
+    }
+
+    @Test
+    fun mesPassadoMostraEncerradoEAindaOAtalho() {
+        montar(comACaminho(ACaminho(0, 0, emptyList(), mesEncerrado = true)))
+        rule.onNodeWithText("a caminho").performClick()
+        rule.onNodeWithText("mês encerrado").assertIsDisplayed()
+        rule.onNodeWithText("ainda saem").assertDoesNotExist()
+        rule.onNodeWithText("recorrências").assertIsDisplayed()
+    }
+
+    @Test
+    fun semItensFuturosMostraNadaAgendado() {
+        montar(comACaminho(aCaminho.copy(saemCentavos = 0, entramCentavos = 0, itens = emptyList())))
+        rule.onNodeWithText("a caminho").performClick()
+        rule.onNodeWithText("nada agendado até o fim do mês").assertIsDisplayed()
+    }
+```
+
+and extend `montar` with the two callbacks:
+
+```kotlin
+    private fun montar(
+        state: TotaisUiState,
+        oculto: Boolean = false,
+        onVerTag: (Tag) -> Unit = {},
+        onAbrirMovimentacao: (Movimentacao) -> Unit = {},
+        onIrParaMes: (YearMonth) -> Unit = {},
+        onIrParaDia: (YearMonth, Int) -> Unit = { _, _ -> },
+        onAbrirRecorrencias: () -> Unit = {},
+    ) {
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = oculto)) {
+                    TotaisContent(
+                        state, {}, {},
+                        onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao,
+                        onIrParaMes = onIrParaMes, onIrParaDia = onIrParaDia,
+                        onAbrirRecorrencias = onAbrirRecorrencias,
+                    )
+                }
+            }
+        }
+    }
+```
+
+Run the class → compile errors on `aCaminho`/`recorrencias`/`onIrParaDia` (RED).
+
+- [ ] **Step 2: ViewModel state**
+
+In `TotaisViewModel.kt` the state gains two fields (imports `com.scholze.saldo.domain.ACaminho`, `com.scholze.saldo.domain.ResumoRecorrencias`):
+
+```kotlin
+data class TotaisUiState(
+    val mesAtual: YearMonth,
+    /** `null` enquanto o primeiro `LedgerInput` não chegou do banco. */
+    val totais: TotaisMes?,
+    val estimativaCentavos: Long = 0,
+    /** "para onde foi" do mês visto; `null` junto com [totais]. */
+    val insights: ParaOndeFoi? = null,
+    /** 6 meses até o mês visto. */
+    val tendencia: List<PontoMes>? = null,
+    /** O que ainda passa pelo saldo depois de hoje até o fim do mês visto. */
+    val aCaminho: ACaminho? = null,
+    /** Só o resumo, para a linha de atalho; a tela própria tem seu ViewModel. */
+    val recorrencias: ResumoRecorrencias? = null,
+)
+```
+
+and in the `combine`:
+
+```kotlin
+            aCaminho = InsightsEngine.aCaminho(input, mes),
+            recorrencias = InsightsEngine.recorrencias(input, mes),
+```
+
+- [ ] **Step 3: `SegmentoACaminho.kt`**
+
+Create `app/src/main/kotlin/com/scholze/saldo/ui/totais/SegmentoACaminho.kt`:
+
+```kotlin
+package com.scholze.saldo.ui.totais
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.scholze.saldo.domain.ACaminho
+import com.scholze.saldo.domain.ItemDia
+import com.scholze.saldo.domain.ItemFuturo
+import com.scholze.saldo.domain.ResumoRecorrencias
+import com.scholze.saldo.ui.components.HairlineDivider
+import com.scholze.saldo.ui.components.InsetGroup
+import com.scholze.saldo.ui.components.InsetRow
+import com.scholze.saldo.ui.components.SaldoGlyph
+import com.scholze.saldo.ui.components.SaldoIcon
+import com.scholze.saldo.ui.privacy.FormatoMoney
+import com.scholze.saldo.ui.privacy.MoneyText
+import com.scholze.saldo.ui.theme.SaldoTheme
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val ptBr = Locale.forLanguageTag("pt-BR")
+private val diaMesCurto = DateTimeFormatter.ofPattern("d MMM", ptBr)
+
+/** "1 fixa" / "3 fixas" — a contagem aparece aqui e na tela de recorrências. */
+internal fun fixas(n: Int): String = if (n == 1) "1 fixa" else "$n fixas"
+
+/**
+ * Segmento "a caminho": o que ainda passa pela coluna de saldo depois de hoje até o fim do mês
+ * visto, e o atalho para as recorrências. Tocar numa linha abre o dia dela no ledger.
+ *
+ * O atalho fica FORA do grupo da lista de propósito: ele vale também num mês encerrado, onde não
+ * existe nada a caminho para listar.
+ */
+@Composable
+fun SegmentoACaminho(
+    a: ACaminho,
+    resumo: ResumoRecorrencias?,
+    mes: YearMonth,
+    onIrParaDia: (YearMonth, Int) -> Unit,
+    onAbrirRecorrencias: () -> Unit,
+) {
+    val colors = SaldoTheme.colors
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("A CAMINHO", style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
+        InsetGroup {
+            if (a.mesEncerrado) {
+                InsetRow(label = "mês encerrado", value = "nada a caminho")
+            } else {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    // Duas linhas em vez de uma frase: com valor revelado de cinco dígitos a
+                    // frase "ainda saem R$ … até 31 jul" estoura a largura numa tela pequena.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("ainda saem", Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
+                        MoneyText(
+                            centavos = a.saemCentavos,
+                            style = SaldoTheme.type.body, color = colors.categoryVariable,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "até " + mes.atEndOfMonth().format(diaMesCurto).removeSuffix("."),
+                            style = SaldoTheme.type.caption, color = colors.secondaryLabel,
+                        )
+                        if (a.entramCentavos > 0) {
+                            Text(" · entram ", style = SaldoTheme.type.caption, color = colors.secondaryLabel)
+                            MoneyText(centavos = a.entramCentavos, style = SaldoTheme.type.caption, color = colors.positive)
+                        }
+                    }
+                }
+                if (a.itens.isEmpty()) {
+                    HairlineDivider(startIndent = 16.dp)
+                    InsetRow(label = "nada agendado até o fim do mês")
+                } else {
+                    a.itens.forEach { f ->
+                        HairlineDivider(startIndent = 16.dp)
+                        LinhaFuturo(f) { onIrParaDia(mes, f.data.dayOfMonth) }
+                    }
+                }
+            }
+        }
+    }
+
+    if (resumo != null) {
+        InsetGroup {
+            InsetRow(
+                label = "recorrências",
+                onClick = onAbrirRecorrencias,
+                trailing = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(fixas(resumo.ativas.size) + " ·", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                        MoneyText(centavos = resumo.saemMes, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                        Text("/mês", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                        SaldoGlyph(SaldoIcon.CHEVRON_RIGHT, colors.secondaryLabel, size = 14.dp, strokeWidth = 1.8.dp)
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun LinhaFuturo(f: ItemFuturo, onClick: () -> Unit) {
+    val colors = SaldoTheme.colors
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            f.data.dayOfMonth.toString().padStart(2, '0'),
+            Modifier.width(20.dp),
+            style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
+        )
+        Text(f.item.descricao, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
+        // Fixa (recorrência ou fatura): o mesmo glifo do ledger, mesma leitura.
+        if (f.item.recorrente) {
+            SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 12.dp, strokeWidth = 1.6.dp)
+        }
+        MoneyText(
+            centavos = f.item.valorCentavos,
+            style = SaldoTheme.type.body,
+            color = if (f.item is ItemDia.FaturaDia) colors.secondaryLabel else colors.label,
+            formato = FormatoMoney.ASSINADO,
+        )
+    }
+}
+```
+
+- [ ] **Step 4: `TotaisScreen` — the third segment**
+
+In `TotaisScreen.kt`:
+
+```kotlin
+enum class SegmentoTotais(val rotulo: String) { MES("mês"), TENDENCIA("tendência"), A_CAMINHO("a caminho") }
+```
+
+`TotaisScreen` gains `onIrParaDia: (YearMonth, Int) -> Unit` (after `onAbrirMovimentacao`) and passes it through; `TotaisContent` gains `onIrParaDia: (YearMonth, Int) -> Unit = {}` and `onAbrirRecorrencias: () -> Unit = {}` after `onIrParaMes`. Add the branch:
+
+```kotlin
+                SegmentoTotais.A_CAMINHO -> state.aCaminho?.let { a ->
+                    SegmentoACaminho(a, state.recorrencias, state.mesAtual, onIrParaDia, onAbrirRecorrencias)
+                }
+```
+
+- [ ] **Step 5: `SaldoApp` wiring**
+
+```kotlin
+                    SaldoTab.TOTAIS -> TotaisScreen(
+                        totaisVm,
+                        onVerTag = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
+                        onAbrirMovimentacao = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } },
+                        onIrParaDia = { mes, dia -> ledgerVm.irPara(mes, dia); tab = SaldoTab.SALDOS },
+                    )
+```
+
+- [ ] **Step 6: Run the tests**
+
+Run: `mise exec -- ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.scholze.saldo.ui.totais.TotaisContentTest --console=plain 2>&1 | grep -i "tests on\|FAILED\|BUILD"` → `Finished 11 tests`, BUILD SUCCESSFUL.
+Run: `mise exec -- ./gradlew test --console=plain -q 2>&1 | grep -c "^e:"` → `0` (JVM still 114).
+Run: `mise exec -- ./gradlew lintDebug --console=plain -q > /dev/null 2>&1; grep -o "[0-9]* errors\?, [0-9]* warnings\?" app/build/reports/lint-results-debug.txt | head -1` → 0 errors.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add app/src/main/kotlin/com/scholze/saldo/ui/totais app/src/main/kotlin/com/scholze/saldo/ui/SaldoApp.kt app/src/androidTest/kotlin/com/scholze/saldo/ui/totais/TotaisContentTest.kt
+git commit -m "feat: totais — segmento a caminho (o que ainda sai até o fim do mês)"
+```
+
+---
+
+### Task 7: `RecorrenciasScreen` + `RecorrenciasViewModel`
+
+**Files:**
+- Create: `app/src/main/kotlin/com/scholze/saldo/ui/totais/RecorrenciasViewModel.kt`
+- Create: `app/src/main/kotlin/com/scholze/saldo/ui/totais/RecorrenciasScreen.kt`
+- Modify: `app/src/main/kotlin/com/scholze/saldo/ui/SaldoApp.kt` (the takeover + wire `onAbrirRecorrencias`)
+- Modify: `app/src/main/kotlin/com/scholze/saldo/ui/totais/TotaisScreen.kt` (`onAbrirRecorrencias` param)
+- Test: `app/src/androidTest/kotlin/com/scholze/saldo/ui/totais/RecorrenciasScreenTest.kt` (create)
+
+**Interfaces:**
+- Consumes: `InsightsEngine.recorrencias`, `ResumoRecorrencias` (Task 2), `SaldoRepository.abrirMes/ledger`, `EntryViewModel.iniciarEdicao` (through `SaldoApp`'s existing `onAbrirMovimentacao`), `fixas(n)` from `SegmentoACaminho.kt` (Task 6).
+- Produces: `RecorrenciasViewModel(repo)` with `state: StateFlow<ResumoRecorrencias?>`, `verMes(mes)`, `abrirOcorrencia(rec, onPronta)` and `factory(container)`; composable `RecorrenciasScreen(vm, mes, onAbrirMovimentacao, onVoltar, modifier)`; `TotaisScreen(…, onAbrirRecorrencias: () -> Unit, …)`.
+- **Where the takeover lives:** `SaldoApp`, not `TotaisScreen` — the screen needs its own ViewModel and the factories live in `SaldoApp` (unlike mais › lembretes, where `LembretesScreen` is stateless and rides `MaisViewModel`). `TotaisScreen` only reports the tap.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `app/src/androidTest/kotlin/com/scholze/saldo/ui/totais/RecorrenciasScreenTest.kt`. It drives the real container (`DeepLinkTest`'s pattern: seed, then launch the activity on a `Destino`), because the point of the test is the *round trip* — template → materialized occurrence → editor:
+
+```kotlin
+package com.scholze.saldo.ui.totais
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.EstadoLimpo
+import com.scholze.saldo.MainActivity
+import com.scholze.saldo.SaldoApplication
+import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.RepetirOpcao
+import com.scholze.saldo.ui.nav.Destino
+import java.time.LocalDate
+import java.time.YearMonth
+import kotlinx.coroutines.runBlocking
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * totais › a caminho › recorrências, pelo container real: o template aparece e tocá-lo abre a
+ * ocorrência DO MÊS VISTO no editor (materializando o mês, se preciso).
+ */
+@RunWith(AndroidJUnit4::class)
+class RecorrenciasScreenTest {
+
+    @get:Rule(order = 0)
+    val estadoLimpo = EstadoLimpo()
+
+    @get:Rule(order = 1)
+    val rule = createEmptyComposeRule()
+
+    @Test
+    fun listaAsFixasEAbreAOcorrenciaDoMes() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        runBlocking {
+            app.container.settings.definirSaldoInicial(100_000_00, hoje)
+            // Dia 28 existe em todo mês — o teste roda em qualquer data.
+            app.container.repository.criar(
+                Movimentacao(
+                    descricao = "aluguel", valorCentavos = -2_400_00,
+                    data = hoje.withDayOfMonth(28), natureza = Natureza.DIARIO,
+                ),
+                RepetirOpcao.TodoMes(28),
+            )
+        }
+
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.from(hoje)))).use {
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("a caminho").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("a caminho").performClick()
+            rule.onNodeWithText("recorrências").performScrollTo().performClick()
+
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("dia 28").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("aluguel").assertIsDisplayed()
+            rule.onNodeWithText("1 fixa").assertIsDisplayed()
+
+            rule.onNodeWithText("aluguel").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("editar movimentação").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("editar movimentação").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun voltaParaTotais() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        runBlocking { app.container.settings.definirSaldoInicial(100_000_00, LocalDate.now()) }
+
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.now()))).use {
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("a caminho").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("a caminho").performClick()
+            rule.onNodeWithText("recorrências").performScrollTo().performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("nenhuma recorrência").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("‹ totais").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("A CAMINHO").fetchSemanticsNodes().isNotEmpty() }
+        }
+    }
+}
+```
+
+Run: `mise exec -- ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.scholze.saldo.ui.totais.RecorrenciasScreenTest --console=plain 2>&1 | grep "^e:" | head -3` → red (no `RecorrenciasScreen`; the "recorrências" row goes nowhere).
+
+- [ ] **Step 2: `RecorrenciasViewModel.kt`**
+
+```kotlin
+package com.scholze.saldo.ui.totais
+
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.scholze.saldo.AppContainer
+import com.scholze.saldo.data.SaldoRepository
+import com.scholze.saldo.domain.InsightsEngine
+import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Recorrencia
+import com.scholze.saldo.domain.ResumoRecorrencias
+import java.time.YearMonth
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+/** A tela de recorrências: um resumo do mês visto na aba totais, mais a ponte para o editor. */
+class RecorrenciasViewModel(private val repo: SaldoRepository) : ViewModel() {
+
+    private val mes = MutableStateFlow(YearMonth.now())
+
+    val state: StateFlow<ResumoRecorrencias?> = combine(repo.ledger, mes) { input, m ->
+        InsightsEngine.recorrencias(input, m)
+    }
+        .flowOn(Dispatchers.Default)
+        // Mesma razão do TotaisViewModel: uma exceção do banco não pode congelar a tela em silêncio.
+        .catch { Log.e(TAG, "fluxo de recorrências falhou", it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** O mês visto é o da aba totais; esta tela é só uma leitura dele. */
+    fun verMes(m: YearMonth) {
+        mes.value = m
+    }
+
+    /**
+     * Abre no editor a ocorrência de [rec] **no mês visto**.
+     *
+     * A ocorrência pode ainda ser virtual (`id == 0`) num mês não materializado: [SaldoRepository.abrirMes]
+     * materializa e a releitura do ledger traz a linha com id — que é o que `iniciarEdicao` precisa
+     * para gravar com `SO_ESTE_MES`. Um template que só começa depois do mês visto não tem
+     * ocorrência nenhuma: nada abre (a tela também não deixa tocar nessas linhas).
+     */
+    fun abrirOcorrencia(rec: Recorrencia, onPronta: (Movimentacao) -> Unit) {
+        val m = mes.value
+        viewModelScope.launch {
+            try {
+                repo.abrirMes(m)
+                val ocorrencia = repo.ledger.first().movimentacoes.firstOrNull {
+                    it.recorrenciaId == rec.id && YearMonth.from(it.data) == m
+                }
+                if (ocorrencia != null && ocorrencia.id != 0L) {
+                    onPronta(ocorrencia)
+                } else {
+                    Log.w(TAG, "sem ocorrência da recorrência ${rec.id} em $m")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "abrirOcorrencia(${rec.id}, $m) falhou", e)
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "saldo"
+
+        fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+            initializer { RecorrenciasViewModel(container.repository) }
+        }
+    }
+}
+```
+
+- [ ] **Step 3: `RecorrenciasScreen.kt`**
+
+```kotlin
+package com.scholze.saldo.ui.totais
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Recorrencia
+import com.scholze.saldo.ui.components.HairlineDivider
+import com.scholze.saldo.ui.components.InsetGroup
+import com.scholze.saldo.ui.components.InsetRow
+import com.scholze.saldo.ui.privacy.FormatoMoney
+import com.scholze.saldo.ui.privacy.MoneyText
+import com.scholze.saldo.ui.theme.SaldoTheme
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val ptBr = Locale.forLanguageTag("pt-BR")
+private val mesAbrev = DateTimeFormatter.ofPattern("MMM", ptBr)
+
+/** "set/26" — mesmo rótulo curto da aba totais (o ponto de "set." colidiria com a barra). */
+private fun YearMonth.rotuloCurto(): String =
+    format(mesAbrev).removeSuffix(".") + "/" + (year % 100).toString().padStart(2, '0')
+
+/**
+ * totais › recorrências: toma a aba, lista os templates do mês visto por dia do mês e abre a
+ * ocorrência daquele mês no editor — é lá que "daqui em diante" e "excluir recorrência" já
+ * existem, então esta tela não repete nenhuma ação de escrita.
+ */
+@Composable
+fun RecorrenciasScreen(
+    vm: RecorrenciasViewModel,
+    mes: YearMonth,
+    onAbrirMovimentacao: (Movimentacao) -> Unit,
+    onVoltar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = SaldoTheme.colors
+    BackHandler(onBack = onVoltar)
+    // O mês vem da aba: navegar o mês em totais e voltar aqui mostra o mês certo.
+    LaunchedEffect(mes) { vm.verMes(mes) }
+    val resumo by vm.state.collectAsState()
+
+    Column(modifier.fillMaxSize().background(colors.background)) {
+        Box(Modifier.fillMaxWidth().background(colors.navBar).padding(vertical = 12.dp)) {
+            Text(
+                "‹ totais",
+                Modifier.align(Alignment.CenterStart)
+                    .clickable(role = Role.Button, onClick = onVoltar)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                style = SaldoTheme.type.body, color = colors.tint,
+            )
+            Text(
+                "recorrências · " + mes.rotuloCurto(), Modifier.fillMaxWidth(),
+                style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
+            )
+        }
+        HairlineDivider()
+
+        // `null` só até o primeiro LedgerInput chegar — mesma escolha do resto do app.
+        val r = resumo ?: run {
+            Box(Modifier.fillMaxSize())
+            return@Column
+        }
+
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(fixas(r.ativas.size), style = SaldoTheme.type.body, color = colors.label)
+                InsetGroup {
+                    LinhaMes("entram por mês", r.entramMes, colors.positive)
+                    HairlineDivider(startIndent = 16.dp)
+                    LinhaMes("saem por mês", -r.saemMes)
+                }
+            }
+
+            InsetGroup {
+                if (r.ativas.isEmpty()) {
+                    InsetRow(label = "nenhuma recorrência")
+                } else {
+                    r.ativas.forEachIndexed { i, rec ->
+                        if (i > 0) HairlineDivider(startIndent = 16.dp)
+                        // Um template que só começa depois do mês visto não tem ocorrência para
+                        // editar: a linha existe (é uma fixa ativa), mas não abre nada.
+                        LinhaRecorrencia(
+                            rec, mes,
+                            onClick = if (rec.inicio <= mes) {
+                                { vm.abrirOcorrencia(rec, onAbrirMovimentacao) }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+            }
+
+            if (r.encerradas.isNotEmpty()) {
+                var abertas by rememberSaveable { mutableStateOf(false) }
+                InsetGroup {
+                    InsetRow(
+                        label = "encerradas (${r.encerradas.size})",
+                        value = if (abertas) "esconder" else "ver",
+                        valueColor = colors.tint,
+                        onClick = { abertas = !abertas },
+                    )
+                    if (abertas) {
+                        r.encerradas.forEach { rec ->
+                            HairlineDivider(startIndent = 16.dp)
+                            LinhaRecorrencia(rec, mes, onClick = null)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LinhaMes(rotulo: String, centavos: Long, cor: Color? = null) {
+    val colors = SaldoTheme.colors
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(rotulo, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
+        MoneyText(
+            centavos = centavos,
+            style = SaldoTheme.type.body, color = cor ?: colors.label,
+            formato = FormatoMoney.ASSINADO,
+        )
+    }
+}
+
+@Composable
+private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> Unit)?) {
+    val colors = SaldoTheme.colors
+    val base = Modifier.fillMaxWidth()
+    Row(
+        (if (onClick != null) base.clickable(onClick = onClick) else base).padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("dia ${rec.diaDoMes}", Modifier.width(50.dp), style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+        Column(Modifier.weight(1f)) {
+            Text(rec.descricao, style = SaldoTheme.type.body, color = colors.label)
+            val nota = when {
+                rec.inicio > mes -> "começa em " + rec.inicio.rotuloCurto()
+                !rec.ativa -> "encerrada"
+                rec.fim != null -> "até " + rec.fim.rotuloCurto()
+                else -> null
+            }
+            if (nota != null) {
+                Text(nota, style = SaldoTheme.type.caption, color = colors.secondaryLabel)
+            }
+        }
+        if (rec.tags.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                rec.tags.take(3).forEach { Box(Modifier.size(6.dp).background(Color(it.cor), CircleShape)) }
+            }
+        }
+        MoneyText(
+            centavos = rec.valorCentavos,
+            style = SaldoTheme.type.body, color = colors.label, formato = FormatoMoney.ASSINADO,
+        )
+    }
+}
+```
+
+- [ ] **Step 4: `TotaisScreen` reports the tap**
+
+`TotaisScreen` gains `onAbrirRecorrencias: () -> Unit` (after `onIrParaDia`) and forwards it to `TotaisContent`.
+
+- [ ] **Step 5: `SaldoApp` — the takeover**
+
+Add the factory next to the others, the flag, and the `Destino`/tab hygiene:
+
+```kotlin
+    val recorrenciasFactory = remember(container) { RecorrenciasViewModel.factory(container) }
+    val totaisState by totaisVm.state.collectAsState()
+    // A tela de recorrências toma a aba totais; sair da aba fecha (voltar depois em "totais"
+    // deve mostrar totais, não a subtela onde o usuário estava dez minutos antes).
+    var abrindoRecorrencias by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(tab) { if (tab != SaldoTab.TOTAIS) abrindoRecorrencias = false }
+```
+
+The edit route is now used from two places, so hoist it (it keeps the same `id != 0` guard):
+
+```kotlin
+    val abrirMovimentacao: (Movimentacao) -> Unit = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } }
+```
+
+`Destino.Totais` also closes it (a deep link means "show me the totais of that month"):
+
+```kotlin
+            is Destino.Totais -> { totaisVm.irPara(destino.mes); abrindoRecorrencias = false; tab = SaldoTab.TOTAIS }
+```
+
+and the branch:
+
+```kotlin
+                    SaldoTab.TOTAIS -> if (abrindoRecorrencias) {
+                        RecorrenciasScreen(
+                            vm = viewModel(factory = recorrenciasFactory),
+                            mes = totaisState.mesAtual,
+                            onAbrirMovimentacao = abrirMovimentacao,
+                            onVoltar = { abrindoRecorrencias = false },
+                        )
+                    } else {
+                        TotaisScreen(
+                            totaisVm,
+                            onVerTag = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
+                            onAbrirMovimentacao = abrirMovimentacao,
+                            onIrParaDia = { mes, dia -> ledgerVm.irPara(mes, dia); tab = SaldoTab.SALDOS },
+                            onAbrirRecorrencias = { abrindoRecorrencias = true },
+                        )
+                    }
+```
+
+Use `abrirMovimentacao` for the ledger's `onItemClick` too (same lambda, one behaviour), keeping its comment about `id == 0`. Imports: `com.scholze.saldo.domain.Movimentacao`, `com.scholze.saldo.ui.totais.RecorrenciasScreen`, `com.scholze.saldo.ui.totais.RecorrenciasViewModel`.
+
+- [ ] **Step 6: Run the tests**
+
+Run: `mise exec -- ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.scholze.saldo.ui.totais.RecorrenciasScreenTest --console=plain 2>&1 | grep -i "tests on\|FAILED\|BUILD"` → `Finished 2 tests`, BUILD SUCCESSFUL.
+Then the whole suites: `mise run test-device` → 71 instrumented (62 + 3 + 1 + 3 + 2), `mise run test` → 114 JVM, `mise exec -- ./gradlew lintDebug` → 0 errors.
+
+If `RecorrenciasScreenTest` is flaky on the first tap, the cause is almost certainly the seed: `criar` with `RepetirOpcao.TodoMes` writes the template *and* the current month's instance, so the tap needs no materialization — but a month opened later (`Destino.Totais` of another month) does. Keep `waitUntil` around the editor assertion, never a fixed sleep.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add app/src/main/kotlin/com/scholze/saldo/ui app/src/androidTest/kotlin/com/scholze/saldo/ui/totais/RecorrenciasScreenTest.kt
+git commit -m "feat: tela de recorrências — fixas do mês, abre a ocorrência no editor"
+```
+
+---
+
+### Task 8: Emulator pass, README, spec sync
+
+**Files:**
+- Modify: `README.md`
+- Modify: `docs/superpowers/specs/2026-08-17-saldo-insights-1-design.md` (only if the build deviated)
+- Evidence: `.superpowers/sdd/shots/29-*.png` … (gitignored)
+
+- [ ] **Step 1: Emulator pass**
+
+Boot `saldo_test` (`mise exec -- emulator -avd saldo_test -no-window -no-audio -no-snapshot &`), install (`mise exec -- ./gradlew installDebug`), and drive it by hand (`adb shell input tap/swipe`, `adb exec-out screencap -p > shot.png`). Note that `connectedDebugAndroidTest` **uninstalls** the app, so run this pass after the test runs, not before.
+
+Seed something worth looking at first — a couple of months of movimentações with tags, one recorrência, one cartão purchase — via the app or `adb shell am start` + taps; then capture:
+
+- [ ] `29-mes.png` — segmento *mês*: segmented bar, fatias with deltas, maiores gastos, padrões.
+- [ ] `30-mes-oculto.png` — the same with the privacy mask on (every number `R$ •••••`, shapes intact).
+- [ ] `31-tendencia.png` — 6-month chart + legend, reserva line, taxa row.
+- [ ] `32-a-caminho.png` — header, dated list with the ↺ glyph, recorrências row.
+- [ ] `33-recorrencias.png` — the overview screen (with an *encerradas* group if the seed has one).
+- [ ] `34-tendencia-escuro.png`, `35-a-caminho-escuro.png` — dark theme (mais › tema › escuro).
+
+Check while driving: tapping a month bar lands on that month's *mês* segment; tapping a tag row opens the ledger filtered; tapping a future item lands on its day; the segmented control keeps its selection across a rotation (`adb shell settings put system user_rotation 1`) and across a tab round trip; the recorrências screen returns with both `‹ totais` and the system back gesture.
+
+- [ ] **Step 2: README**
+
+In the totais section (search for "totais" in `README.md`), replace the "tags do mês" sentence with the three segments:
+
+```markdown
+- **totais** — três segmentos sobre o mês navegado: **mês** (para onde foi o dinheiro, com
+  barra por tag, maiores gastos e padrões), **tendência** (6 meses de entradas/saídas/sobrou,
+  reserva acumulada e taxa de poupança) e **a caminho** (o que ainda sai e entra até o fim do
+  mês, com atalho para a tela de recorrências). Todo número respeita a máscara de privacidade.
+```
+
+- [ ] **Step 3: Spec sync**
+
+Read the spec's "Testing" and "a caminho"/"RecorrênciasScreen" sections against what was built and fix the spec where the build deviated deliberately (e.g. the a-caminho header split into two lines; the recorrências shortcut rendered outside the list group so it survives a closed month; templates starting after the viewed month listed but not tappable). Note each deviation in `.superpowers/sdd/progress.md` as well.
+
+- [ ] **Step 4: Final counts**
+
+Run all three and paste the real numbers into the ledger:
+
+```bash
+mise run test                                  # esperado: 114 JVM
+mise run test-device                           # esperado: 71 instrumentados
+mise exec -- ./gradlew lintDebug --console=plain -q; grep -o "[0-9]* errors\?, [0-9]* warnings\?" app/build/reports/lint-results-debug.txt | head -1
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add README.md docs/superpowers/specs/2026-08-17-saldo-insights-1-design.md
+git commit -m "docs: README + spec sync para os insights de totais"
+```
+
+Then: final whole-branch review (most capable model, whole diff `main..insights-1`), fix wave if needed, and `superpowers:finishing-a-development-branch` — the merge/PR call is the user's.
