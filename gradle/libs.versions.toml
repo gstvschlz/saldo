@@ -16,6 +16,8 @@ lifecycleViewmodelCompose = "2.11.0"
 jsonJvm = "20260814"
 kotlinxCoroutines = "1.9.0"
 kotlinxSerialization = "1.8.1"
+work = "2.11.2"
+androidxTestRules = "1.7.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -48,6 +50,9 @@ json-jvm = { group = "org.json", name = "json", version.ref = "jsonJvm" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 # Só como constraint de versão (ver app/build.gradle.kts): o app não usa serialization diretamente.
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+androidx-work-testing = { group = "androidx.work", name = "work-testing", version.ref = "work" }
+androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "androidxTestRules" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

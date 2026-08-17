@@ -8,6 +8,9 @@
         os dois blocos vazios — ou seja, liberados. Os três atributos juntos negam a saída
         de dados em toda a faixa de minSdk 26..37.
     -->
+    <!-- Único pedido novo: os lembretes são notificações locais. Nada de alarme exato nem boot. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".SaldoApplication"
         android:allowBackup="false"

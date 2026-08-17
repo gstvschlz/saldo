@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone pequeno de notificação: só o alfa conta, o sistema tinge. É a carteira do launcher
+     recortada da zona segura (18dp de cada lado do canvas de 108). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+    <group android:translateX="-18" android:translateY="-18">
+        <path
+            android:pathData="M30,38 h48 a6,6 0 0 1 6,6 v20 a6,6 0 0 1 -6,6 h-48 a6,6 0 0 1 -6,-6 v-20 a6,6 0 0 1 6,-6 z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M30,38 v-4 a4,4 0 0 1 4,-4 h34 a4,4 0 0 1 4,4 v4 z"
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.75" />
+        <path
+            android:pathData="M68,49 h18 a4,4 0 0 1 4,4 v2 a4,4 0 0 1 -4,4 h-18 a5,5 0 0 1 0,-10 z"
+            android:fillColor="#FFFFFF" />
+    </group>
+</vector>

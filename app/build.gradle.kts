@@ -98,6 +98,10 @@ dependencies {
     androidTestImplementation(libs.androidx.datastore.preferences.core)
     androidTestImplementation(libs.androidx.room.testing)
 
+    implementation(libs.androidx.work.runtime.ktx)
+    androidTestImplementation(libs.androidx.work.testing)
+    androidTestImplementation(libs.androidx.test.rules)
+
     testImplementation(libs.junit)
     testImplementation(libs.json.jvm)
     testImplementation(libs.kotlinx.coroutines.test)

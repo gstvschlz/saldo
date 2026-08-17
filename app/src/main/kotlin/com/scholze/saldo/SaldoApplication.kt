@@ -4,15 +4,20 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.work.ExistingWorkPolicy
 import com.scholze.saldo.data.RoomSaldoRepository
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.data.SettingsStore
 import com.scholze.saldo.data.db.SaldoDatabase
+import com.scholze.saldo.lembretes.LembretesScheduler
+import com.scholze.saldo.lembretes.Notificacoes
 import com.scholze.saldo.widget.WidgetRefresher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 
@@ -33,6 +38,7 @@ class AppContainer(context: Context) {
     val settings: SettingsStore = SettingsStore(context.settingsDataStore)
     val repository: SaldoRepository = RoomSaldoRepository(database, settings)
     val widgetRefresher: WidgetRefresher = WidgetRefresher(context.applicationContext, repository, settings, scope)
+    val lembretesScheduler: LembretesScheduler = LembretesScheduler(context.applicationContext)
 }
 
 class SaldoApplication : Application() {
@@ -42,5 +48,11 @@ class SaldoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        Notificacoes.criarCanal(this)
+        // Rede de segurança (KEEP): normalmente os trabalhos já existem — o WorkManager sobrevive
+        // ao reboot — mas depois de "limpar dados" ou de um restore eles precisam voltar.
+        container.scope.launch {
+            container.lembretesScheduler.agendar(container.settings.settings.first().lembretes, ExistingWorkPolicy.KEEP)
+        }
     }
 }
