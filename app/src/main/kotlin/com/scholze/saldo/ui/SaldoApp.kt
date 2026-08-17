@@ -49,6 +49,7 @@ import com.scholze.saldo.ui.ledger.LedgerScreen
 import com.scholze.saldo.ui.ledger.LedgerViewModel
 import com.scholze.saldo.ui.mais.MaisScreen
 import com.scholze.saldo.ui.mais.MaisViewModel
+import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -72,13 +73,21 @@ import kotlinx.coroutines.withContext
  * tema e a privacidade — em vez de este composable abrir um segundo coletor do mesmo fluxo.
  */
 @Composable
-fun SaldoApp(container: AppContainer, settings: Settings, modifier: Modifier = Modifier) {
+fun SaldoApp(
+    container: AppContainer,
+    settings: Settings,
+    destino: Destino? = null,
+    onDestinoConsumido: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     val colors = SaldoTheme.colors
     val s = settings
 
     if (s.saldoInicialCentavos == null) {
         // Onboarding: semear o saldo inicial com o teclado 1g.
         val scope = rememberCoroutineScope()
+        // Sem saldo inicial não há para onde ir: o destino é descartado, não guardado.
+        LaunchedEffect(destino) { if (destino != null) onDestinoConsumido() }
         AmountKeypadScreen(
             onContinue = { centavos ->
                 scope.launch { container.settings.definirSaldoInicial(centavos, LocalDate.now()) }
@@ -94,7 +103,7 @@ fun SaldoApp(container: AppContainer, settings: Settings, modifier: Modifier = M
     // primeira criação, então alocar uma nova a cada recomposição é lixo puro.
     val ledgerVm: LedgerViewModel = viewModel(factory = remember(container) { LedgerViewModel.factory(container) })
     val entryVm: EntryViewModel = viewModel(factory = remember(container) { EntryViewModel.factory(container) })
-    val totaisFactory = remember(container) { TotaisViewModel.factory(container) }
+    val totaisVm: TotaisViewModel = viewModel(factory = remember(container) { TotaisViewModel.factory(container) })
     val tagsFactory = remember(container) { TagsViewModel.factory(container) }
     val maisFactory = remember(container) { MaisViewModel.factory(container) }
     val ledgerState by ledgerVm.state.collectAsState()
@@ -105,6 +114,20 @@ fun SaldoApp(container: AppContainer, settings: Settings, modifier: Modifier = M
     // Só o "a sheet está aberta" é saveable; o formulário em si vive no [EntryViewModel]
     // e por isso sobrevive à rotação sem precisar ser serializado.
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
+
+    val alvoLedger by ledgerVm.alvo.collectAsState()
+
+    // Deep link (widget, lembrete): aplicado uma vez e devolvido como consumido, para que uma
+    // recomposição — ou o mesmo Intent reentregue — não o reaplique.
+    LaunchedEffect(destino) {
+        when (destino) {
+            null -> return@LaunchedEffect
+            is Destino.Saldos -> { ledgerVm.irPara(destino.mes, destino.dia); tab = SaldoTab.SALDOS }
+            Destino.NovaMovimentacao -> { entryVm.iniciarNova(LocalDate.now()); sheetAberto = true }
+            is Destino.Totais -> { totaisVm.irPara(destino.mes); tab = SaldoTab.TOTAIS }
+        }
+        onDestinoConsumido()
+    }
 
     // Um só "desfazer" para as duas portas de exclusão: o swipe na linha (LedgerViewModel)
     // e o "excluir" dentro da sheet (EntryViewModel), que antes apagava sem volta.
@@ -184,9 +207,11 @@ fun SaldoApp(container: AppContainer, settings: Settings, modifier: Modifier = M
                         onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
                         onTogglePrivacidade = privacidade::alternar,
                         onLimparTag = { ledgerVm.definirTagFiltro(null) },
+                        alvo = alvoLedger,
+                        onAlvoConsumido = ledgerVm::limparAlvo,
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
-                    SaldoTab.TOTAIS -> TotaisScreen(viewModel(factory = totaisFactory))
+                    SaldoTab.TOTAIS -> TotaisScreen(totaisVm)
                     SaldoTab.TAGS -> TagsScreen(
                         vm = viewModel(factory = tagsFactory),
                         onTagClick = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },

@@ -98,6 +98,8 @@ fun LedgerScreen(
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
     onLimparTag: () -> Unit,
+    alvo: AlvoLedger? = null,
+    onAlvoConsumido: () -> Unit = {},
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -123,6 +125,17 @@ fun LedgerScreen(
                 (listState.firstVisibleItemIndex > indiceHoje ||
                     listState.firstVisibleItemIndex + listState.layoutInfo.visibleItemsInfo.size <= indiceHoje)
         }
+    }
+
+    // Chegada por deep link (widget/lembrete) pedindo um dia: rola até ele assim que o mês
+    // pedido está na tela — `mes` pode ainda ser o mês anterior por um quadro — e devolve o
+    // alvo como consumido. Num mês sem movimentação os dias nem viram itens: só consome.
+    LaunchedEffect(alvo, mes) {
+        val a = alvo ?: return@LaunchedEffect
+        val m = mes ?: return@LaunchedEffect
+        if (m.mes != a.mes) return@LaunchedEffect
+        if (m.dias.any { it.itens.isNotEmpty() }) listState.scrollToItem(cabecalhos + a.dia - 1)
+        onAlvoConsumido()
     }
 
     Box(

@@ -55,7 +55,7 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
     fun mesAnterior() = irPara(mesAtual.value.minusMonths(1))
     fun proximoMes() = irPara(mesAtual.value.plusMonths(1))
 
-    private fun irPara(mes: YearMonth) {
+    fun irPara(mes: YearMonth) {
         mesAtual.value = mes
         abrir(mes)
     }

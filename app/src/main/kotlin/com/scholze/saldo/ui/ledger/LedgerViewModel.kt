@@ -38,6 +38,9 @@ data class LedgerUiState(
     val tagFiltro: Tag? = null,
 )
 
+/** Dia para o qual o ledger deve rolar assim que [mes] estiver na tela — pedido por um deep link. */
+data class AlvoLedger(val mes: YearMonth, val dia: Int)
+
 class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     private val mesAtual = MutableStateFlow(YearMonth.now())
@@ -50,6 +53,11 @@ class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     /** Snapshot da linha apagada, para o "desfazer" do snackbar. */
     val eventoExclusao: SharedFlow<Movimentacao> = _eventoExclusao
+
+    private val _alvo = MutableStateFlow<AlvoLedger?>(null)
+
+    /** Consumido pela tela (`limparAlvo`) depois de rolar; separado de [state] para não engordar o combine. */
+    val alvo: StateFlow<AlvoLedger?> = _alvo
 
     val state: StateFlow<LedgerUiState> =
         combine(repo.ledger, repo.tags, mesAtual, filtro, tagFiltroId) { input, tags, mes, f, tagId ->
@@ -81,10 +89,14 @@ class LedgerViewModel(private val repo: SaldoRepository) : ViewModel() {
     fun mesAnterior() = irPara(mesAtual.value.minusMonths(1))
     fun proximoMes() = irPara(mesAtual.value.plusMonths(1))
 
-    private fun irPara(mes: YearMonth) {
+    /** Navega para [mes]; com [dia], o ledger rola até ele quando o mês chegar (deep link). */
+    fun irPara(mes: YearMonth, dia: Int? = null) {
         mesAtual.value = mes
+        _alvo.value = dia?.let { AlvoLedger(mes, it) }
         abrir(mes)
     }
+
+    fun limparAlvo() { _alvo.value = null }
 
     private fun abrir(mes: YearMonth) {
         viewModelScope.launch {
