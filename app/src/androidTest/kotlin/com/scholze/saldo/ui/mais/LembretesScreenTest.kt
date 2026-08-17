@@ -3,12 +3,14 @@ package com.scholze.saldo.ui.mais
 import android.Manifest
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.isOn
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -47,7 +49,16 @@ class LembretesScreenTest {
             }
         }
         rule.onNodeWithText("fatura vence amanhã").assertIsDisplayed()
-        rule.onAllNodes(isToggleable()).onFirst().performClick()   // o primeiro switch é "fatura vence amanhã"
+
+        // "fatura vence amanhã", "recorrência hoje" e "fechamento do mês" dividem o mesmo
+        // InsetGroup (mesmo pai semântico, por causa do clip do card) — isToggleable() sozinho
+        // pega os três switches do card. O switch de cada InsetRow é o irmão logo após o rótulo.
+        val rotulo = rule.onNodeWithText("fatura vence amanhã")
+        val idRotulo = rotulo.fetchSemanticsNode().id
+        val irmaos = rotulo.onParent().onChildren()
+        val indiceRotulo = irmaos.fetchSemanticsNodes().indexOfFirst { it.id == idRotulo }
+        irmaos[indiceRotulo + 1].assert(isToggleable()).performClick()
+
         rule.waitUntil(5_000) { rule.onAllNodes(isOn()).fetchSemanticsNodes().size == 1 }
     }
 }

@@ -18,4 +18,5 @@ data class LembretesConfig(
 ) {
     val algumInformativo: Boolean get() = faturaAmanha || recorrenciaHoje || fechamentoMes
     val algum: Boolean get() = algumInformativo || registrarGastos
+    val ativos: Int get() = listOf(faturaAmanha, recorrenciaHoje, registrarGastos, fechamentoMes).count { it }
 }

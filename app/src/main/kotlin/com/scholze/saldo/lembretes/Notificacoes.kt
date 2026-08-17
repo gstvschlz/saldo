@@ -45,11 +45,13 @@ object Notificacoes {
         )
     }
 
-    /** Antes do Android 13 não há permissão de runtime; a partir dele, só com ela concedida. */
+    /**
+     * Reflete tanto a permissão de runtime (13+) quanto o interruptor de notificações do app nas
+     * configurações do sistema — falso em qualquer API se o usuário desligou as notificações do
+     * app, e falso no 13+ sem a permissão concedida.
+     */
     fun podeNotificar(context: Context): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     fun mostrar(context: Context, lembrete: Lembrete) {
         // Checagem inline (não via podeNotificar) para o lint enxergar a guarda de MissingPermission.

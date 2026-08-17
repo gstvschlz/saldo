@@ -43,13 +43,10 @@ private fun rotulo(t: Tema) = when (t) {
     Tema.ESCURO -> "escuro"
 }
 
-private fun resumo(l: LembretesConfig): String {
-    val n = listOf(l.faturaAmanha, l.recorrenciaHoje, l.registrarGastos, l.fechamentoMes).count { it }
-    return when (n) {
-        0 -> "desligados"
-        1 -> "1 ativo"
-        else -> "$n ativos"
-    }
+private fun resumo(l: LembretesConfig): String = when (l.ativos) {
+    0 -> "desligados"
+    1 -> "1 ativo"
+    else -> "${l.ativos} ativos"
 }
 
 @Composable

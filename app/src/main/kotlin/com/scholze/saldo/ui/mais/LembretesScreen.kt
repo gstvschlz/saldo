@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -31,10 +31,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -74,8 +76,13 @@ fun LembretesScreen(
         onPauseOrDispose { }
     }
     var pendente by remember { mutableStateOf<LembretesConfig?>(null) }
+    // Negada uma vez (ou duas — aí o sistema nem mostra mais o diálogo): a linha de "abrir
+    // ajustes" precisa aparecer mesmo sem nenhum lembrete ligado, senão o switch só volta
+    // sozinho sem explicação nenhuma.
+    var negado by rememberSaveable { mutableStateOf(false) }
     val pedirPermissao = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { concedida ->
         permitido = concedida
+        negado = !concedida
         val p = pendente
         pendente = null
         if (concedida && p != null) onDefinir(p)
@@ -95,12 +102,13 @@ fun LembretesScreen(
 
     Column(modifier.fillMaxSize().background(colors.background)) {
         Box(Modifier.fillMaxWidth().background(colors.navBar).padding(vertical = 12.dp)) {
-            Row(
-                Modifier.align(Alignment.CenterStart).padding(start = 8.dp).clickable(onClick = onVoltar).padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("‹ mais", style = SaldoTheme.type.body, color = colors.tint)
-            }
+            // A área clicável precisa de 48dp de altura, não só o texto: um alvo de toque real,
+            // não a caixa justa do glifo "‹ mais".
+            Text(
+                "‹ mais",
+                Modifier.align(Alignment.CenterStart).clickable(role = Role.Button, onClick = onVoltar).padding(horizontal = 16.dp, vertical = 12.dp),
+                style = SaldoTheme.type.body, color = colors.tint,
+            )
             Text(
                 "lembretes", Modifier.fillMaxWidth(),
                 style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
@@ -114,17 +122,19 @@ fun LembretesScreen(
                 .padding(PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            if (config.algum && !permitido) {
+            if (!permitido && (config.algum || negado)) {
                 InsetGroup {
                     InsetRow(
                         label = "notificações desativadas no sistema",
                         value = "abrir ajustes",
                         valueColor = colors.tint,
                         onClick = {
-                            context.startActivity(
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
-                            )
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                                )
+                            }.onFailure { Log.w("saldo", "ajustes de notificação indisponíveis", it) }
                         },
                     )
                 }
