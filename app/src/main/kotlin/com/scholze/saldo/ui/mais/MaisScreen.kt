@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
+import com.scholze.saldo.domain.LembretesConfig
 import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
@@ -42,6 +43,15 @@ private fun rotulo(t: Tema) = when (t) {
     Tema.ESCURO -> "escuro"
 }
 
+private fun resumo(l: LembretesConfig): String {
+    val n = listOf(l.faturaAmanha, l.recorrenciaHoje, l.registrarGastos, l.fechamentoMes).count { it }
+    return when (n) {
+        0 -> "desligados"
+        1 -> "1 ativo"
+        else -> "$n ativos"
+    }
+}
+
 @Composable
 fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
@@ -51,6 +61,17 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
     var editandoSaldo by rememberSaveable { mutableStateOf(false) }
     var editandoCartao by remember { mutableStateOf(false) }
     var escolhendoTema by remember { mutableStateOf(false) }
+    var abrindoLembretes by rememberSaveable { mutableStateOf(false) }
+
+    if (abrindoLembretes) {
+        LembretesScreen(
+            config = s.lembretes,
+            onDefinir = vm::definirLembretes,
+            onVoltar = { abrindoLembretes = false },
+            modifier = modifier,
+        )
+        return
+    }
 
     if (editandoSaldo) {
         // O teclado ocupa a aba inteira e não tem "cancelar" próprio: sem isto, voltar
@@ -106,7 +127,21 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
                     trailing = { Switch(checked = s.comecarOculto, onCheckedChange = { vm.definirComecarOculto(it) }) },
                 )
                 HairlineDivider(startIndent = 16.dp)
+                InsetRow(
+                    label = "mostrar valores no widget",
+                    trailing = { Switch(checked = s.widgetMostrarValores, onCheckedChange = { vm.definirWidgetMostrarValores(it) }) },
+                )
+                Text(
+                    "o widget mostra o saldo projetado na tela inicial; desligado, mostra R$ •••••",
+                    Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                    style = SaldoTheme.type.caption, color = colors.secondaryLabel,
+                )
+                HairlineDivider(startIndent = 16.dp)
                 InsetRow(label = "tema", value = rotulo(s.tema), onClick = { escolhendoTema = true })
+            }
+
+            InsetGroup {
+                InsetRow(label = "lembretes", value = resumo(s.lembretes), onClick = { abrindoLembretes = true })
             }
 
             InsetGroup {

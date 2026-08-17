@@ -11,6 +11,8 @@ import com.scholze.saldo.data.Settings
 import com.scholze.saldo.data.SettingsStore
 import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
+import com.scholze.saldo.domain.LembretesConfig
+import com.scholze.saldo.lembretes.LembretesScheduler
 import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,7 +20,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class MaisViewModel(private val settingsStore: SettingsStore) : ViewModel() {
+class MaisViewModel(
+    private val settingsStore: SettingsStore,
+    private val scheduler: LembretesScheduler,
+) : ViewModel() {
 
     val settings: StateFlow<Settings?> =
         settingsStore.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -34,6 +39,15 @@ class MaisViewModel(private val settingsStore: SettingsStore) : ViewModel() {
     fun definirCartao(config: CartaoConfig) = escrever("definirCartao") { settingsStore.definirCartao(config) }
     fun definirComecarOculto(v: Boolean) = escrever("definirComecarOculto") { settingsStore.definirComecarOculto(v) }
     fun definirTema(t: Tema) = escrever("definirTema") { settingsStore.definirTema(t) }
+
+    fun definirWidgetMostrarValores(v: Boolean) =
+        escrever("definirWidgetMostrarValores") { settingsStore.definirWidgetMostrarValores(v) }
+
+    /** Grava e (re)agenda: os toggles e as horas só valem quando o WorkManager sabe deles. */
+    fun definirLembretes(config: LembretesConfig) = escrever("definirLembretes") {
+        settingsStore.definirLembretes(config)
+        scheduler.agendar(config)
+    }
 
     private fun escrever(qual: String, bloco: suspend () -> Unit) {
         viewModelScope.launch {
@@ -51,7 +65,7 @@ class MaisViewModel(private val settingsStore: SettingsStore) : ViewModel() {
         private const val TAG = "saldo"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { MaisViewModel(container.settings) }
+            initializer { MaisViewModel(container.settings, container.lembretesScheduler) }
         }
     }
 }
