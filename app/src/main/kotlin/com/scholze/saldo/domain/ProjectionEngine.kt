@@ -173,6 +173,14 @@ object ProjectionEngine {
     fun faturasAte(input: LedgerInput, ateMes: YearMonth): List<Fatura> =
         FaturaCalculator.faturas(efetivas(input, ateMes), input.cartao)
 
+    /**
+     * As movimentações efetivas de [mes] — linhas materializadas e expansões virtuais, sem
+     * faturas. É a lista sobre a qual "para onde foi o dinheiro" conta: uma compra no cartão
+     * conta no dia em que foi feita, não no vencimento da fatura.
+     */
+    fun movimentacoesDoMes(input: LedgerInput, mes: YearMonth): List<Movimentacao> =
+        efetivas(input, mes).filter { YearMonth.from(it.data) == mes }
+
     // ---- internals ----
 
     /** Materialized rows + virtual expansions, from saldoInicialData through end of [ateMes]. */
@@ -235,7 +243,7 @@ object ProjectionEngine {
     }
 
     /** Σ|one-off DIARIO saídas| in the 30 days ending today (never before saldoInicialData), ÷ 30. */
-    private fun mediaDiaria(input: LedgerInput): Long {
+    fun mediaDiaria(input: LedgerInput): Long {
         val inicioJanela = input.hoje.minusDays(29)
         val total = input.movimentacoes
             .filter {
