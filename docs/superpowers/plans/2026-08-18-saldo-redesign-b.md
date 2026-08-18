@@ -1875,15 +1875,15 @@ git commit -m "feat: recorrências — visão geral de ativas e encerradas"
 - Modify: `ui/theme/Color.kt` (delete `separator`, `segmentedTrack`, `segmentedThumb`)
 - Test: `app/src/androidTest/kotlin/com/scholze/saldo/ui/mais/LembretesScreenTest.kt` (fix the sibling walk)
 
-- [ ] **Step 1: Strip `HairlineDivider` from `tags` and `mais`**
+- [x] **Step 1: Strip `HairlineDivider` from `tags` and `mais`**
 
 Both screens are built almost entirely from `InsetGroup`/`InsetRow`, which Task 2 already re-skinned. Delete every `HairlineDivider(...)` call and the import from both files. Nothing else in either screen changes.
 
-- [ ] **Step 2: Migrate the entry sheet and the keypad**
+- [x] **Step 2: Migrate the entry sheet and the keypad**
 
 `NewEntrySheet`: corner radius to 28dp, `FilledActionButton` already re-skinned. `AmountKeypadScreen`: keys become 72dp circles on `surface` with `label` digits; the confirm button is already the shared one.
 
-- [ ] **Step 3: Fix `LembretesScreenTest`'s sibling walk**
+- [x] **Step 3: Fix `LembretesScreenTest`'s sibling walk**
 
 `LembretesScreenTest.kt:54-55` finds each switch as "the sibling right after the label" because `InsetGroup`'s clip made the three switches share a semantic parent. The re-skinned group has the same shape, so this **should** still hold — run it first and only rewrite it if it fails:
 
@@ -1893,7 +1893,7 @@ mise exec -- ./gradlew connectedDebugAndroidTest --tests '*LembretesScreenTest*'
 
 If it fails, replace the sibling walk with `onNodeWithText(<rótulo>).onParent().onChildren().filter(isToggleable())`.
 
-- [ ] **Step 4: Delete the two dead components**
+- [x] **Step 4: Delete the two dead components**
 
 ```bash
 grep -rn "HairlineDivider\|SegmentedControl" app/src/main app/src/androidTest app/src/test
@@ -1901,7 +1901,7 @@ grep -rn "HairlineDivider\|SegmentedControl" app/src/main app/src/androidTest ap
 
 Expected: no hits outside `Components.kt` itself. Then delete both composables from `Components.kt`, along with the now-unused imports (`animateDpAsState`, `spring`, `Spring`, `BoxWithConstraints`, `offset`, `shadow`, `LocalDensity`, `TextAlign`).
 
-- [ ] **Step 5: Delete the three retired colour fields**
+- [x] **Step 5: Delete the three retired colour fields**
 
 ```bash
 grep -rn "\.separator\|segmentedTrack\|segmentedThumb" app/src/main
@@ -1909,7 +1909,31 @@ grep -rn "\.separator\|segmentedTrack\|segmentedThumb" app/src/main
 
 Expected: only `Theme.kt`'s `outlineVariant = colors.separator`. Keep `separator` (it has a real M3 job as the chip border and `outlineVariant`) and delete only `segmentedTrack` and `segmentedThumb` from `SaldoColors` and both schemes. Update `SaldoColorsTest` if it named them.
 
-- [ ] **Step 6: Run everything green and commit**
+> **Desvios da Task 8 (registrados na execucao, 2026-08-18):**
+>
+> 1. **`LembretesScreen.kt` tambem usava `HairlineDivider`** (6 chamadas) e nao esta na lista
+>    de arquivos desta task, que so cita `tags` e `mais`. Sem ele o Step 4 nunca daria "no hits".
+>
+> 2. **O sibling walk do `LembretesScreenTest` sobreviveu**, como o Step 3 esperava — rodado
+>    antes de qualquer edicao, passou. Nada foi reescrito.
+>
+> 3. **`NewEntrySheet` precisou de mais do que "corner radius to 28dp":** ele era o ultimo
+>    usuario do `SegmentedControl` (entrada|saida -> `FiltroChips`) e um dos dois ultimos do
+>    `segmentedTrack` (o disco da tag e o `TagPill` -> `secondaryContainer`). Sem isso os
+>    Steps 4 e 5 nao compilariam. O chip de natureza tambem trocou branco fixo por
+>    `onPrimary` — era o quarto item da tabela de contraste da Task 2.
+>
+> 4. **O `+` do widget foi corrigido aqui**, apesar de nenhuma task do plano abrir esse arquivo.
+>    Era o ultimo item da tabela de contraste e a unica regressao desta branch que ficaria
+>    visivel ao usuario final: `CoresWidget.branco` sobre `CoresWidget.tint` da 1,68:1 no
+>    escuro. Virou `CoresWidget.sobreTint` (branco no dia, `#003919` na noite) — o mesmo papel
+>    que o app chama de `onPrimary`, repetido porque o Glance nao enxerga o
+>    `MaterialTheme.colorScheme`. **Continua sem teste**: nada cobre o widget.
+>
+> Lint caiu de 14 para 13 avisos: o `UseOfNonLambdaOffsetOverload` morreu junto com o
+> `SegmentedControl`. Nova linha de base para a Task 9: **0 erros / 13 avisos / 1 hint**.
+
+- [x] **Step 6: Run everything green and commit**
 
 ```bash
 mise run test

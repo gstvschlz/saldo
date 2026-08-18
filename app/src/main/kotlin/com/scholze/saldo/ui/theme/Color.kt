@@ -8,9 +8,9 @@ import androidx.compose.ui.graphics.Color
  * pinned green seed — no dynamic color. The field names are the ones the app
  * already used under the HIG dress; most kept their name and changed value.
  *
- * `segmentedTrack`, `segmentedThumb` and `separator` are on the way out — the
- * segmented control became filter chips and M3 separates by tone and space, not
- * by hairlines. They stay until their last readers are gone.
+ * `segmentedTrack` e `segmentedThumb` já morreram com o segmented control. `separator`
+ * ficou: tem emprego de verdade no M3 como borda do chip não selecionado e como
+ * `outlineVariant` do esquema — o que morreu foi o traço de 1px entre linhas.
  */
 @Immutable
 data class SaldoColors(
@@ -29,8 +29,6 @@ data class SaldoColors(
     val balanceTint2: Color,
     val balanceTint3: Color,
     val navBar: Color,
-    val segmentedTrack: Color,
-    val segmentedThumb: Color,
     /** The hero card, and the text on it. */
     val primaryContainer: Color,
     val onPrimaryContainer: Color,
@@ -58,8 +56,6 @@ val LightSaldoColors = SaldoColors(
     balanceTint2 = Color(0xFFCBE7D2),
     balanceTint3 = Color(0xFFB4F1C7),
     navBar = Color(0xFFECEFE8),
-    segmentedTrack = Color(0x1F767680),
-    segmentedThumb = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFB4F1C7),
     onPrimaryContainer = Color(0xFF00210F),
     secondaryContainer = Color(0xFFD6E8D8),
@@ -83,8 +79,6 @@ val DarkSaldoColors = SaldoColors(
     balanceTint2 = Color(0xFF243A2B),
     balanceTint3 = Color(0xFF2E4C37),
     navBar = Color(0xFF1D231E),
-    segmentedTrack = Color(0x3D767680),
-    segmentedThumb = Color(0xFF636366),
     primaryContainer = Color(0xFF1E5133),
     onPrimaryContainer = Color(0xFFB4F1C7),
     secondaryContainer = Color(0xFF33463A),

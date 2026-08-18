@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.LembretesConfig
-import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
@@ -91,7 +90,6 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
                 style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
             )
         }
-        HairlineDivider()
 
         Column(
             Modifier
@@ -110,7 +108,6 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
                         )
                     },
                 )
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "cartão",
                     value = "${s.cartao.nome} · fecha ${s.cartao.fechamentoDia} · vence ${s.cartao.vencimentoDia}",
@@ -123,7 +120,6 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
                     label = "começar oculto",
                     trailing = { Switch(checked = s.comecarOculto, onCheckedChange = { vm.definirComecarOculto(it) }) },
                 )
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "mostrar valores no widget",
                     trailing = { Switch(checked = s.widgetMostrarValores, onCheckedChange = { vm.definirWidgetMostrarValores(it) }) },
@@ -133,7 +129,6 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
                     Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                     style = SaldoTheme.type.caption, color = colors.secondaryLabel,
                 )
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(label = "tema", value = rotulo(s.tema), onClick = { escolhendoTema = true })
             }
 

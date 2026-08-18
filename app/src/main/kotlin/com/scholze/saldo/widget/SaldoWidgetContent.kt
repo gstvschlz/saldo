@@ -53,8 +53,11 @@ private object CoresWidget {
     val positivo = ColorProvider(day = LightSaldoColors.positive, night = DarkSaldoColors.positive)
     val negativo = ColorProvider(day = LightSaldoColors.categoryVariable, night = DarkSaldoColors.categoryVariable)
     val tint = ColorProvider(day = LightSaldoColors.tint, night = DarkSaldoColors.tint)
-    // Só a fábrica dia/noite é importada (evita o choque de nome com a interface `androidx.glance.unit.ColorProvider`).
-    val branco = ColorProvider(day = Color.White, night = Color.White)
+    // A tinta que se lê SOBRE o `tint`. NÃO é branco fixo: com a semente verde do M3 o tint
+    // é escuro no claro mas CLARO no escuro (#99D5AC), e branco em cima dele dá 1,68:1 —
+    // contra o mínimo de 4,5:1. É o mesmo papel que o app chama de `onPrimary`, repetido
+    // aqui porque o Glance não enxerga o `MaterialTheme.colorScheme`.
+    val sobreTint = ColorProvider(day = Color.White, night = Color(0xFF003919))
 }
 
 /**
@@ -133,7 +136,14 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
                     .semantics { contentDescription = "nova movimentação" },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("+", style = TextStyle(color = CoresWidget.branco, fontSize = if (largo) 22.sp else 18.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    "+",
+                    style = TextStyle(
+                        color = CoresWidget.sobreTint,
+                        fontSize = if (largo) 22.sp else 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
             }
         }
     }

@@ -20,6 +20,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -44,12 +45,11 @@ import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.ui.money.formatarCentavos
 import com.scholze.saldo.ui.components.FilledActionButton
-import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
+import com.scholze.saldo.ui.components.FiltroChips
 import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon
-import com.scholze.saldo.ui.components.SegmentedControl
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.theme.tabular
@@ -104,7 +104,13 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
         else vm.salvar(EscopoEdicao.SO_ESTE_MES) { onFechar() }
     }
 
-    Column(modifier.fillMaxSize().background(colors.background)) {
+    Column(
+        modifier
+            .fillMaxSize()
+            // Cantos de sheet do M3: a folha desliza de baixo, então só o topo arredonda.
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(colors.background),
+    ) {
         // Nav bar da sheet.
         Column {
             Row(
@@ -134,7 +140,6 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                     color = if (state.podeSalvar) colors.tint else colors.secondaryLabel,
                 )
             }
-            HairlineDivider()
         }
 
         Column(
@@ -144,9 +149,9 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            SegmentedControl(
-                options = listOf("entrada", "saída"),
-                selectedIndex = if (state.saida) 1 else 0,
+            FiltroChips(
+                opcoes = listOf("entrada", "saída"),
+                selecionado = if (state.saida) 1 else 0,
                 onSelect = { vm.definirSaida(it == 1) },
                 modifier = Modifier.padding(top = 16.dp),
             )
@@ -156,7 +161,7 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                     val selecionada = state.natureza == n
                     Box(
                         Modifier
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(percent = 50))
                             .background(if (selecionada) colors.tint else colors.surface)
                             .clickable { vm.definirNatureza(n) }
                             .padding(horizontal = 14.dp, vertical = 7.dp),
@@ -166,7 +171,8 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                             style = SaldoTheme.type.footnote.copy(
                                 fontWeight = if (selecionada) FontWeight.SemiBold else FontWeight.Normal,
                             ),
-                            color = if (selecionada) Color.White else colors.label,
+                            // Branco fixo aqui dava 1,68:1 no escuro, onde o tint é verde claro.
+                            color = if (selecionada) MaterialTheme.colorScheme.onPrimary else colors.label,
                         )
                     }
                 }
@@ -216,9 +222,7 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                         onClick = { editandoDescricao = true },
                     )
                 }
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(label = "data", value = rotuloData(state.data), onClick = { escolhendoData = true })
-                HairlineDivider(startIndent = 16.dp)
                 // Numa edição a recorrência não se liga nem desliga por aqui: `criar` é quem lê
                 // `repetir`, e `editar` só conhece SO_ESTE_MES / DAQUI_EM_DIANTE. A linha vira
                 // rótulo — um controle que não faz nada é pior do que nenhum controle.
@@ -231,7 +235,6 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                 } else {
                     InsetRow(label = "repetir", value = rotuloRepetir(state.repetir))
                 }
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "tags",
                     onClick = { escolhendoTags = true },
@@ -242,7 +245,7 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                         ) {
                             state.tagsSelecionadas.take(3).forEach { TagPill(it.nome) }
                             Box(
-                                Modifier.size(24.dp).clip(CircleShape).background(colors.segmentedTrack),
+                                Modifier.size(24.dp).clip(CircleShape).background(colors.secondaryContainer),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 SaldoGlyph(SaldoIcon.PLUS, colors.tint, size = 16.dp, strokeWidth = 1.6.dp)
@@ -463,8 +466,8 @@ private fun TagPill(text: String) {
     val colors = SaldoTheme.colors
     Box(
         Modifier
-            .clip(RoundedCornerShape(11.dp))
-            .background(colors.segmentedTrack)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(colors.secondaryContainer)
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Text(text, style = SaldoTheme.type.footnote, color = colors.label)

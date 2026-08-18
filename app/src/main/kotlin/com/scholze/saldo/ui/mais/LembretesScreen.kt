@@ -43,7 +43,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.scholze.saldo.domain.LembretesConfig
 import com.scholze.saldo.domain.Slot
 import com.scholze.saldo.lembretes.Notificacoes
-import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.theme.SaldoTheme
@@ -114,7 +113,6 @@ fun LembretesScreen(
                 style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
             )
         }
-        HairlineDivider()
 
         Column(
             Modifier
@@ -145,17 +143,14 @@ fun LembretesScreen(
                     label = "fatura vence amanhã",
                     trailing = { Switch(checked = config.faturaAmanha, onCheckedChange = { mudar(config.copy(faturaAmanha = it), ligando = it) }) },
                 )
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "recorrência hoje",
                     trailing = { Switch(checked = config.recorrenciaHoje, onCheckedChange = { mudar(config.copy(recorrenciaHoje = it), ligando = it) }) },
                 )
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "fechamento do mês",
                     trailing = { Switch(checked = config.fechamentoMes, onCheckedChange = { mudar(config.copy(fechamentoMes = it), ligando = it) }) },
                 )
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "hora dos lembretes",
                     value = config.horaInformativos.format(hhmm),
@@ -168,7 +163,6 @@ fun LembretesScreen(
                     label = "registrar gastos",
                     trailing = { Switch(checked = config.registrarGastos, onCheckedChange = { mudar(config.copy(registrarGastos = it), ligando = it) }) },
                 )
-                HairlineDivider(startIndent = 16.dp)
                 InsetRow(
                     label = "hora do lembrete de registrar",
                     value = config.horaNudge.format(hhmm),

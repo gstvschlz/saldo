@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.Tag
-import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
@@ -53,7 +52,6 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
                 style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
             )
         }
-        HairlineDivider()
 
         Column(
             Modifier
@@ -63,7 +61,6 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
         ) {
             InsetGroup {
                 state.tags.forEachIndexed { i, (tag, total) ->
-                    if (i > 0) HairlineDivider(startIndent = 16.dp)
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -91,7 +88,6 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
                         )
                     }
                 }
-                if (state.tags.isNotEmpty()) HairlineDivider(startIndent = 16.dp)
                 Text(
                     "nova tag",
                     Modifier.fillMaxWidth().clickable { criando = true }.padding(horizontal = 16.dp, vertical = 12.dp),

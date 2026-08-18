@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -134,24 +137,30 @@ private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifi
     // não sobra retorno nenhum de que a tecla foi lida.
     val haptics = LocalHapticFeedback.current
 
-    Box(
-        modifier
-            .height(62.dp)
-            .clickable(interactionSource = interaction, indication = null) {
-                haptics.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                onClick()
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        when (key) {
-            is Key.Digit -> KeyLabel(key.value.toString())
-            Key.Comma -> KeyLabel(",")
-            Key.Backspace -> SaldoGlyph(
-                SaldoIcon.BACKSPACE,
-                colors.label,
-                size = 28.dp,
-                strokeWidth = 1.7.dp,
-            )
+    // Tecla do M3: um disco de 72dp sobre `surface`, em vez do alvo invisível do HIG. O
+    // Box externo mantém o peso da grade; o interno é o disco, centrado na célula.
+    Box(modifier.height(72.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(colors.surface)
+                .clickable(interactionSource = interaction, indication = null) {
+                    haptics.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                    onClick()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            when (key) {
+                is Key.Digit -> KeyLabel(key.value.toString())
+                Key.Comma -> KeyLabel(",")
+                Key.Backspace -> SaldoGlyph(
+                    SaldoIcon.BACKSPACE,
+                    colors.label,
+                    size = 28.dp,
+                    strokeWidth = 1.7.dp,
+                )
+            }
         }
     }
 }
