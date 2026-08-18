@@ -120,7 +120,7 @@ class TotaisContentTest {
 
         rule.onNodeWithText("totais · jul/26").assertIsDisplayed()
         rule.onNodeWithText("sobrou dinheiro").assertIsDisplayed()
-        rule.onNodeWithText("+5.440,00").assertIsDisplayed()
+        rule.onNodeWithText("+R$ 5.440,00").assertIsDisplayed()
         rule.onNodeWithText("+8.240,00").assertIsDisplayed()
         // As saídas chegam positivas do engine e têm de sair com sinal na tela.
         rule.onNodeWithText("−1.000,00").assertIsDisplayed()
@@ -133,7 +133,7 @@ class TotaisContentTest {
     @Test
     fun paraOndeFoiListaFatiasDeltasMaioresGastosEPadroes() {
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights))
-        rule.onNodeWithText("PARA ONDE FOI").assertIsDisplayed()
+        rule.onNodeWithText("para onde foi").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("+30%").assertIsDisplayed()
         rule.onNodeWithText("=").assertIsDisplayed()
         // U+2212 (mesmo caractere de InsightsEngine.delta), não hífen — pega duplo-menos e ASCII.
@@ -142,10 +142,10 @@ class TotaisContentTest {
         rule.onNodeWithText("sem tag").assertIsDisplayed()
         // O controle segmentado (Task 5) empurrou estas linhas ~50dp mais para baixo — abaixo da
         // dobra em telas/fontes menores. performScrollTo() é um no-op quando já visível.
-        rule.onNodeWithText("MAIORES GASTOS").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("maiores gastos").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("mercado").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("−489,90").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("PADRÕES").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("padrões").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("sábado é o dia mais caro").performScrollTo().assertIsDisplayed()
         // A fatia extra do delta negativo empurra estas duas linhas para fora da viewport inicial;
         // performScrollTo() rola o Column da tela até elas antes de checar.
@@ -162,7 +162,7 @@ class TotaisContentTest {
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights), onVerTag = { tagVista = it }, onAbrirMovimentacao = { aberta = it })
         rule.onNodeWithText("comida").performClick()
         assertEquals(comida, tagVista)
-        // "mercado" (em MAIORES GASTOS) fica fora da viewport inicial — performClick() num nó fora
+        // "mercado" (em "maiores gastos") fica fora da viewport inicial — performClick() num nó fora
         // da tela estoura por falta de bounds; performScrollTo() primeiro é um no-op se já visível.
         rule.onNodeWithText("mercado").performScrollTo().performClick()
         assertEquals(mercado, aberta)
@@ -199,6 +199,7 @@ class TotaisContentTest {
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights), oculto = true)
         // Os rótulos ficam; todo número passa por MoneyText e vira máscara.
         rule.onNodeWithText("reserva acumulada").assertIsDisplayed()
+        rule.onNodeWithText("+R$ 5.440,00").assertDoesNotExist()
         rule.onNodeWithText("+5.440,00").assertDoesNotExist()
         // A fatia "comida" (700_00 centavos, ASSINADO) revelaria "−700,00" se a máscara vazasse.
         rule.onNodeWithText("−700,00").assertDoesNotExist()
@@ -220,12 +221,12 @@ class TotaisContentTest {
         rule.onAllNodesWithText("reserva acumulada").assertCountEquals(1)
         // O controle segmentado empurrou esta linha ~480dp para baixo, fora da viewport inicial.
         rule.onNodeWithText("12% este mês (jun 11%)").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("PARA ONDE FOI").assertDoesNotExist()
+        rule.onNodeWithText("para onde foi").assertDoesNotExist()
         rule.onNodeWithText("mai").performClick()             // rótulo do mês no gráfico
         assertEquals(YearMonth.of(2026, 5), mesPedido)
         // Volta ao segmento "mês", mas com o offset de rolagem que a tendência deixou no scroll
         // state compartilhado — sem performScrollTo() aqui o teste depende de sorte de viewport.
-        rule.onNodeWithText("PARA ONDE FOI").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("para onde foi").performScrollTo().assertIsDisplayed()
     }
 
     @Test

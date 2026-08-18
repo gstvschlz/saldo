@@ -25,7 +25,6 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Padroes
 import com.scholze.saldo.domain.ParaOndeFoi
 import com.scholze.saldo.domain.Tag
-import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
@@ -53,7 +52,7 @@ fun SegmentoMesInsights(
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("PARA ONDE FOI", Modifier.weight(1f), style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
+            Text("para onde foi", Modifier.weight(1f), style = SaldoTheme.type.sectionHeader, color = colors.label)
             if (p.saidasCentavos > 0) {
                 Text("saídas", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
                 MoneyText(centavos = p.saidasCentavos, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
@@ -69,7 +68,6 @@ fun SegmentoMesInsights(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
                 p.fatias.forEach { f ->
-                    HairlineDivider(startIndent = 16.dp)
                     LinhaFatia(f, onClick = (f.grupo as? GrupoGasto.DeTag)?.let { g -> { onVerTag(g.tag) } })
                 }
             }
@@ -78,10 +76,9 @@ fun SegmentoMesInsights(
 
     if (p.maioresGastos.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("MAIORES GASTOS", style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
+            Text("maiores gastos", style = SaldoTheme.type.sectionHeader, color = colors.label)
             InsetGroup {
                 p.maioresGastos.forEachIndexed { i, mov ->
-                    if (i > 0) HairlineDivider(startIndent = 16.dp)
                     LinhaMaiorGasto(mov, onClick = { onAbrirMovimentacao(mov) })
                 }
             }
@@ -89,7 +86,7 @@ fun SegmentoMesInsights(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("PADRÕES", style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
+        Text("padrões", style = SaldoTheme.type.sectionHeader, color = colors.label)
         InsetGroup {
             PadroesRows(p.padroes)
         }
@@ -166,7 +163,6 @@ private fun PadroesRows(pd: Padroes) {
         }
         WeekdayBars(pd.porDiaDaSemana, dia)
     }
-    HairlineDivider(startIndent = 16.dp)
     InsetRow(
         label = "avulsas por dia este mês",
         trailing = {
@@ -175,7 +171,6 @@ private fun PadroesRows(pd: Padroes) {
             else MoneyText(centavos = v, style = SaldoTheme.type.body, color = colors.secondaryLabel)
         },
     )
-    HairlineDivider(startIndent = 16.dp)
     InsetRow(
         label = "média 30 dias (a da projeção)",
         trailing = { MoneyText(centavos = pd.mediaDiaria30, style = SaldoTheme.type.body, color = colors.secondaryLabel) },

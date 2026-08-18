@@ -1602,7 +1602,7 @@ git commit -m "feat: ledger — linhas do M3 com badge do dia e pill de saldo no
 - Consumes: `SaldoTopBar`, `FiltroChips`, `InsetGroup`/`InsetRow` (re-skinned in Task 2), the four chart composables from insights-1 Task 3 — `SegmentedBar(shares, cores, modifier, altura)`, `TrendChart(pontos, mesDestacado, onMes, modifier, altura)`, `WeekdayBars(porDia, destaque, modifier, altura)`, `ReservaLine(valores, modifier, altura)` — all unchanged.
 - Produces: `TAG_SEGMENTO_TOTAIS` keeps its value and moves onto the chip row. `SegmentoTotais` is unchanged (Task 6 adds `A_CAMINHO`).
 
-- [ ] **Step 1: Swap the top bar and the segmented control**
+- [x] **Step 1: Swap the top bar and the segmented control**
 
 In `TotaisScreen.kt`, replace the nav `Row` and the `HairlineDivider()` after it (lines 80–99) with:
 
@@ -1625,7 +1625,7 @@ and replace the `SegmentedControl(...)` call (lines 132–137) with:
             )
 ```
 
-- [ ] **Step 2: Promote the performance line into a hero card**
+- [x] **Step 2: Promote the performance line into a hero card**
 
 Replace the `Column` holding `"performance"` (lines 115–130) with:
 
@@ -1651,11 +1651,11 @@ Replace the `Column` holding `"performance"` (lines 115–130) with:
             }
 ```
 
-- [ ] **Step 3: Drop every `HairlineDivider` from the totais package**
+- [x] **Step 3: Drop every `HairlineDivider` from the totais package**
 
 In `TotaisScreen.kt`, `SegmentoMes.kt` and `SegmentoTendencia.kt`, delete every `HairlineDivider(...)` call and the `HairlineDivider` import. The re-skinned `InsetGroup` already spaces its rows.
 
-- [ ] **Step 4: Lowercase the three section headers**
+- [x] **Step 4: Lowercase the three section headers**
 
 In `SegmentoMes.kt`, change the three header strings:
 
@@ -1673,7 +1673,7 @@ In `SegmentoMes.kt`, change the three header strings:
 
 Note the color also moves from `secondaryLabel` to `label`: at 15sp bold in sentence case these are card titles, and a muted card title reads as disabled.
 
-- [ ] **Step 5: Update the three assertions that named them**
+- [x] **Step 5: Update the three assertions that named them**
 
 In `TotaisContentTest.kt`, replace every occurrence of the old strings:
 
@@ -1682,7 +1682,7 @@ sed -i 's/"PARA ONDE FOI"/"para onde foi"/g; s/"MAIORES GASTOS"/"maiores gastos"
   app/src/androidTest/kotlin/com/scholze/saldo/ui/totais/TotaisContentTest.kt
 ```
 
-- [ ] **Step 6: Chain `performScrollTo()` on the mid-fold assertions**
+- [x] **Step 6: Chain `performScrollTo()` on the mid-fold assertions**
 
 The rows moved down — `InsetGroup` grew from 10dp corners to 28dp with 6dp of internal padding, and the hero card is taller than the old two-line performance block. The scroll fragility already flagged in insights-1 Tasks 4 and 5 now bites for real.
 
@@ -1694,7 +1694,7 @@ rule.onNodeWithText("maiores gastos").performScrollTo().assertIsDisplayed()
 
 Apply the same to `mercado`, `−489,90`, `padrões` and `"sábado é o dia mais caro"`.
 
-- [ ] **Step 7: Run the totais tests**
+- [x] **Step 7: Run the totais tests**
 
 ```bash
 mise exec -- ./gradlew connectedDebugAndroidTest --tests '*TotaisContentTest*'
@@ -1702,7 +1702,7 @@ mise exec -- ./gradlew connectedDebugAndroidTest --tests '*TotaisContentTest*'
 
 Expected: PASS. If a node is still not found, it is genuinely off-screen — scroll it, do not delete the assertion.
 
-- [ ] **Step 8: Run everything green**
+- [x] **Step 8: Run everything green**
 
 ```bash
 mise run test
@@ -1711,6 +1711,26 @@ mise exec -- ./gradlew lintDebug
 ```
 
 Expected: JVM 144, instrumented 76, lint 0 errors.
+
+> **Desvio da Task 5 (registrado na execucao, 2026-08-18):**
+>
+> **O Step 2 muda uma string visivel que as restricoes globais diziam nao mudar.** O card
+> heroi passou o `sobrouCentavos` de `FormatoMoney.ASSINADO` para `ASSINADO_COM_SIMBOLO`,
+> ou seja `+5.440,00` virou `+R$ 5.440,00`. As restricoes globais deste plano dizem que a
+> UNICA excecao seriam os tres cabecalhos em caixa alta. O `mostraPerformanceEBlocos`
+> quebrou nisso.
+>
+> Mantido o formato do plano — um numero heroi com simbolo casa com o hero do ledger, e a
+> insights-1 ja tinha levantado um Important justamente sobre a mesma metrica aparecer em
+> dois formatos em segmentos vizinhos. Foi a asserçao que se ajustou. No teste de
+> privacidade ficaram as DUAS formas (`+R$ 5.440,00` e `+5.440,00`): a mascara nao pode
+> deixar passar nenhuma das duas.
+>
+> O Step 6 ja estava quase todo feito — a rodada de correcao da insights-1 Task 5 tinha
+> encadeado `performScrollTo()` em quase tudo. Faltava so o `"para onde foi"`, que o card
+> heroi mais alto empurrou para baixo da primeira dobra.
+>
+> Conferido por captura: `.superpowers/sdd/shots/rb-task5-totais*.png`.
 
 - [ ] **Step 9: Commit**
 

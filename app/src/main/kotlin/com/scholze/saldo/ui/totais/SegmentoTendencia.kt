@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.PontoMes
-import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
@@ -83,7 +82,6 @@ fun SegmentoTendencia(
                 },
             )
             ReservaLine(pontos.map { it.reservaAcumulada }, Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp))
-            HairlineDivider(startIndent = 16.dp)
             val anterior = pontos.getOrNull(pontos.size - 2)
             InsetRow(
                 label = "taxa de poupança",
