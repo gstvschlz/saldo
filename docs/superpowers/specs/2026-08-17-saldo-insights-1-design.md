@@ -8,14 +8,22 @@ widget + lembretes (done) → **insights 1 (views, this spec)** → insights 2
 (orçamentos por tag + meta de reserva — new data, own spec) → import/restore →
 Play release pipeline.
 
+> **Sync do redesign B (2026-08-18).** Este spec foi escrito quando o app vestia HIG.
+> A branch `redesign-b` trocou o vocabulário: o *segmented control* virou chips de
+> filtro, a *coluna de saldo* do ledger virou uma pill dentro da linha do dia, e os
+> três cabeçalhos em caixa alta ("PARA ONDE FOI", "MAIORES GASTOS", "PADRÕES")
+> perderam as maiúsculas. **Nenhum número, regra ou cópia de negócio mudou** — só a
+> superfície. Onde este documento ainda descrever o controle segmentado ou a coluna,
+> leia "chips" e "pill". Ver `docs/superpowers/plans/2026-08-18-saldo-redesign-b.md`.
+
 ## Overview
 
-The *totais* tab becomes the insights home, split by a segmented control into
+The *totais* tab becomes the insights home, split by filter chips into
 **mês | tendência | a caminho**, plus a **recorrências** overview screen. Everything
 is a read-only view over data the app already has (no schema change, no new
 settings, no new dependency); all numbers come from a new pure-Kotlin
 `InsightsEngine` that reuses `ProjectionEngine`. Charts are drawn with Compose
-`Canvas` in the app's HIG language: a segmented 100 % bar for the month's saídas
+`Canvas` in the app's own language: a segmented 100 % bar for the month's saídas
 by tag, and per-month bars with a "sobrou" line for the trend (option C of the
 chart mockups, with the trend content kept as entradas/saídas/sobrou).
 
@@ -24,7 +32,7 @@ chart mockups, with the trend content kept as entradas/saídas/sobrou).
 | Topic | Decision |
 |---|---|
 | Scope split | Views first (this spec). Budgets/goals ("am I on track" with new data) are insights 2. |
-| Location | Evolve *totais*; no new tab. Layout **3**: segmented control `mês | tendência | a caminho` under the month nav (the nav applies to all three). |
+| Location | Evolve *totais*; no new tab. Layout **3**: `mês | tendência | a caminho` under the month nav (the nav applies to all three). |
 | Chart language | **C**: segmented 100 % bar + list for tags; monthly bars for the trend. |
 | "Where the money goes" | By tag (with *sem tag*), biggest expenses (top 5), patterns (weekday, avulsas/dia vs média 30 d). Not by natureza. |
 | Trend | 6 months ending at the viewed month: entradas, saídas, sobrou (not per-tag composition). |
@@ -37,7 +45,7 @@ chart mockups, with the trend content kept as entradas/saídas/sobrou).
 ## Behavior
 
 Common: hero (performance sobrou/faltou) and the month nav stay as they are; the
-segmented control sits right under the hero; the selected segment is
+chip row sits right under the hero; the selected segment is
 `rememberSaveable` UI state (survives rotation, resets on process death to
 *mês*). All money renders through `MoneyText` (privacy mask applies to every
 number and chart label — masked charts keep their shapes, labels become
@@ -94,7 +102,7 @@ number and chart label — masked charts keep their shapes, labels become
 ### a caminho
 
 - Header "ainda saem R$ 3.412,90 até 31/ago" — the sum of everything dated after
-  `hoje` through the end of the viewed month that touches the saldo column:
+  `hoje` through the end of the viewed month that touches the running balance:
   non-CARTAO movimentações (materialized or virtual), faturas on their
   vencimento; entradas are listed too and shown separately: "entram R$ 8.240,00"
   when > 0. A past month: "mês encerrado" and no list. The current or a future
@@ -123,7 +131,7 @@ number and chart label — masked charts keep their shapes, labels become
 domain/InsightsEngine.kt      pure: paraOndeFoi, tendencia, aCaminho, recorrencias
 domain/ProjectionEngine.kt    expose mediaDiaria(input) (public, unchanged math)
 ui/totais/TotaisViewModel.kt  state gains insights/tendencia/aCaminho
-ui/totais/TotaisScreen.kt     segmented control + three segment composables
+ui/totais/TotaisScreen.kt     chip row + three segment composables
 ui/totais/charts/             SegmentedBar, TrendChart, WeekdayBars, ReservaLine (Canvas)
 ui/totais/RecorrenciasScreen.kt + RecorrenciasViewModel.kt
 ui/theme/Color.kt             insightOutras / insightSemTag tokens (light + dark)

@@ -1949,7 +1949,29 @@ git commit -m "feat: tags, mais e lançamento no M3; segmented control e hairlin
 
 This supersedes insights-1's `i1-task-8-brief.md`.
 
-- [ ] **Step 1: Full instrumented run on a clean install**
+> **Estado da Task 9 (2026-08-18) — PARCIAL, e de proposito:**
+>
+> - **Step 1: feito.** `uninstallDebug` + `install` + suite inteira numa corrida so:
+>   85/85, nao acumulado por filtro de `--tests`.
+> - **Step 2: parcial.** Oito capturas em `docs/superpowers/screenshots/2026-08-18-redesign-b/`,
+>   com um README listando exatamente o que falta. Falta tudo em escala de fonte 1.5, o
+>   tema escuro de tudo que nao e o ledger, e as telas de tags/mais/lembretes/sheet/
+>   teclado/onboarding. Os tres pontos de vigilancia do plano (chip de variacao a 1.5,
+>   pill com valor mascarado, FAB contra a barra de tres botoes) **nao foram conferidos**.
+>   Isto e uma caminhada a olho, e o olho e do usuario.
+> - **Step 3: feito** para o spec da insights-1 (nota de sync no topo + as mencoes ao
+>   controle segmentado e a coluna de saldo). O README do projeto nao fala de direcao
+>   visual, entao segue sem mudanca, como o proprio plano previa.
+> - **Step 4: aberto.** A entrega da branch e decisao do usuario.
+>
+> **Pergunta de design em aberto:** `tags` e `mais` continuam com titulo CENTRADO no
+> estilo HIG. A Task 8 so mandava tirar o hairline delas ("nothing else in either screen
+> changes"), entao foi so isso que se fez — mas a Task 1 subiu o `navTitle` de 17sp
+> SemiBold para 30sp Bold, e duas das quatro abas agora tem titulo grande a ESQUERDA
+> (saldos, totais) enquanto duas tem titulo grande CENTRADO. Titulo centrado e a
+> assinatura mais reconhecivel do HIG, que e de onde esta branch queria sair.
+
+- [x] **Step 1: Full instrumented run on a clean install**
 
 ```bash
 mise exec -- ./gradlew uninstallDebug
@@ -1965,7 +1987,7 @@ Every tab, in light and dark, at font scale 1.0 and 1.5: ledger (with and withou
 
 Watch specifically for: the delta chip at font scale 1.5 (it was fixed-width once and regressed), the balance pill with a masked value (`R$ •••••` is wider than most figures), and the FAB's docked overlap against the three-button navigation bar.
 
-- [ ] **Step 3: Update the README and the memory of the old canvas**
+- [x] **Step 3: Update the README and the memory of the old canvas**
 
 The README says nothing about the visual direction, so it needs no change unless Step 2 found a behaviour difference. Update `docs/superpowers/specs/2026-08-17-saldo-insights-1-design.md` only where it describes the segmented control or the saldo column.
 
