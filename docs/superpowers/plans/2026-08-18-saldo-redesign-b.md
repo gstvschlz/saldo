@@ -434,7 +434,7 @@ git commit -m "feat: tema — semente verde M3 fixa no lugar das cores do HIG"
   - `InsetGroup` and `InsetRow` keep their exact signatures; only their internals change.
 - Retires nothing yet: `HairlineDivider` and `SegmentedControl` still compile and still have callers until Task 8.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/androidTest/kotlin/com/scholze/saldo/ui/components/M3Test.kt`:
 
@@ -523,7 +523,7 @@ Add these imports at the top of the file, with the others:
 import androidx.compose.ui.test.onNodeWithContentDescription
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 mise exec -- ./gradlew connectedDebugAndroidTest --tests '*M3Test*'
@@ -531,7 +531,7 @@ mise exec -- ./gradlew connectedDebugAndroidTest --tests '*M3Test*'
 
 Expected: FAIL to compile — `Unresolved reference: FiltroChips`.
 
-- [ ] **Step 3: Create `M3.kt`**
+- [x] **Step 3: Create `M3.kt`**
 
 Create `app/src/main/kotlin/com/scholze/saldo/ui/components/M3.kt`:
 
@@ -722,7 +722,7 @@ Add the missing `sp` import to that file, with the other `unit` imports:
 import androidx.compose.ui.unit.sp
 ```
 
-- [ ] **Step 4: Add the `CHECK` glyph**
+- [x] **Step 4: Add the `CHECK` glyph**
 
 In `app/src/main/kotlin/com/scholze/saldo/ui/components/Icons.kt`, add `CHECK` to the enum (line 20-22):
 
@@ -743,7 +743,7 @@ and add this branch to the `when (icon)` inside `SaldoGlyph`, next to the other 
             }
 ```
 
-- [ ] **Step 5: Re-skin `InsetGroup`, `InsetRow` and `FilledActionButton`**
+- [x] **Step 5: Re-skin `InsetGroup`, `InsetRow` and `FilledActionButton`**
 
 In `app/src/main/kotlin/com/scholze/saldo/ui/components/Components.kt`, replace the three composables (leaving `HairlineDivider` and `SegmentedControl` untouched for now) with:
 
@@ -825,7 +825,7 @@ fun FilledActionButton(
 }
 ```
 
-- [ ] **Step 6: Run the new test to verify it passes**
+- [x] **Step 6: Run the new test to verify it passes**
 
 ```bash
 mise exec -- ./gradlew connectedDebugAndroidTest --tests '*M3Test*'
@@ -833,7 +833,7 @@ mise exec -- ./gradlew connectedDebugAndroidTest --tests '*M3Test*'
 
 Expected: PASS, 4 tests.
 
-- [ ] **Step 7: Run everything green**
+- [x] **Step 7: Run everything green**
 
 ```bash
 mise run test
@@ -842,6 +842,35 @@ mise exec -- ./gradlew lintDebug
 ```
 
 Expected: JVM 144, instrumented 70 (66 + 4 new), lint 0 errors. `LembretesScreenTest` walks `InsetRow`'s sibling structure — if it fails here, that is Task 8's problem arriving early; note it and fix it in this task rather than leaving the suite red.
+
+> **Desvio da Task 2 — e um ACHADO que sobra para as Tasks 3, 4, 8 e para o widget
+> (registrado na execução, 2026-08-18):**
+>
+> Retokenizar o tema (Task 1) quebrou **todo `Color.White` pintado sobre `colors.tint`**.
+> Sob o HIG o tint era escuro nos dois esquemas (`007AFF` / `0A84FF`), então branco em
+> cima funcionava sempre. O tint do M3 é um verde **claro** no escuro (`99D5AC`): branco
+> sobre ele dá **1,68:1**, contra o mínimo de 4,5:1. O papel certo é `onPrimary`, que a
+> Task 1 já definiu (branco no claro, `003919` no escuro) e que dá **7,8:1**.
+>
+> Corrigidos nesta task: `FilledActionButton` (Components.kt) e `DiaBadge` (M3.kt) — os
+> dois trocaram `Color.White` por `MaterialTheme.colorScheme.onPrimary`. O código destes
+> dois no plano trazia o branco fixo; foi por isso que o desvio existe.
+>
+> **Ainda quebrados, cada um na task que reescreve o arquivo:**
+>
+> | onde | o que | task |
+> |---|---|---|
+> | `SaldoTabBar.kt:123` | glifo `PLUS` do FAB, branco sobre `tint` | Task 3 |
+> | `LedgerScreen.kt:258` | pilula "hoje", branco sobre `tint` | Task 4 |
+> | `LedgerScreen.kt:505` | "excluir" do swipe, branco sobre `categoryVariable` — **2,46:1** no escuro; aqui `onPrimary` nao serve, o fundo nao e o primary | Task 4 |
+> | `NewEntrySheet.kt:169` | chip de natureza selecionado, branco sobre `tint` | Task 8 |
+> | `SaldoWidgetContent.kt:136` | "+" do widget, branco sobre `CoresWidget.tint` | **nenhuma** |
+>
+> A ultima linha corrige uma afirmacao das restricoes globais e da memoria do projeto: o
+> widget **nao** sai de graca. `SaldoWidgetContent` monta seus `ColorProvider` a partir de
+> `Light/DarkSaldoColors`, entao retokenizar carrega as cores — e carrega junto esta
+> regressao. Nenhuma task do plano abre esse arquivo. Precisa de um `onPrimary` proprio
+> (o Glance nao enxerga o `MaterialTheme.colorScheme`), e nenhum teste cobre isso.
 
 - [ ] **Step 8: Commit**
 
