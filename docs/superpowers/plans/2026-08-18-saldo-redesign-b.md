@@ -1185,7 +1185,7 @@ The screen the whole redesign was decided on. The three-column grid (`DIA | MOVI
 - Consumes: `SaldoTopBar`, `FiltroChips`, `SaldoPill`, `DiaBadge` (Task 2); `LedgerUiState`, `MesLedger`, `DiaRow`, `ItemDia` unchanged.
 - Produces: `TAG_SALDO_PROJETADO` and `tagSaldoDoDia(dia)` keep their exact values — they move onto the hero and the pill. `heatTint` changes return type from `Color` to `Int` and is renamed `nivelDeCalor`.
 
-- [ ] **Step 1: Replace `heatTint` with `nivelDeCalor`**
+- [x] **Step 1: Replace `heatTint` with `nivelDeCalor`**
 
 In `app/src/main/kotlin/com/scholze/saldo/ui/ledger/LedgerScreen.kt`, replace the `heatTint` function (currently the last function in the file, lines 596–605) with:
 
@@ -1208,7 +1208,7 @@ private fun nivelDeCalor(saldo: Long, faixa: ClosedRange<Long>): Int {
 }
 ```
 
-- [ ] **Step 2: Replace the nav bar and hero**
+- [x] **Step 2: Replace the nav bar and hero**
 
 Replace `MonthNavBar` (lines 292–348, up to and including its trailing `HairlineDivider()`) with a call-through to the shared bar. Delete the whole `MonthNavBar` function and change its call site inside `LedgerScreen` from:
 
@@ -1297,7 +1297,7 @@ private fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
 }
 ```
 
-- [ ] **Step 3: Delete the column header and swap the filter control**
+- [x] **Step 3: Delete the column header and swap the filter control**
 
 Delete the whole `ColumnHeader` composable (lines 402–411) and its `item(key = "header") { ColumnHeader(); HairlineDivider() }` entry in the `LazyColumn`.
 
@@ -1322,7 +1322,7 @@ Replace the `item(key = "filtro")` block with:
                     }
 ```
 
-- [ ] **Step 4: Rewrite `DayRow` as an M3 list item**
+- [x] **Step 4: Rewrite `DayRow` as an M3 list item**
 
 Replace `DayRow` (lines 433–594) with:
 
@@ -1473,7 +1473,7 @@ private fun LinhaMov(
 }
 ```
 
-- [ ] **Step 5: Fix the imports, add the weekday formatter, drop the dead constants**
+- [x] **Step 5: Fix the imports, add the weekday formatter, drop the dead constants**
 
 Add these imports to `LedgerScreen.kt`:
 
@@ -1501,7 +1501,7 @@ private val SALDO_COLUMN = 118.dp
 
 Remove the `HairlineDivider` import and every remaining `HairlineDivider()` call in this file (the one after each `DayRow` in the `itemsIndexed` block, and the one in `MonthNavBar` which is gone with it) — the M3 rows separate by their own 4dp vertical padding.
 
-- [ ] **Step 6: Extend the grid test**
+- [x] **Step 6: Extend the grid test**
 
 In `app/src/androidTest/kotlin/com/scholze/saldo/ui/ledger/LedgerDayGridTest.kt`, add these two tests inside the class:
 
@@ -1533,7 +1533,7 @@ Add this import with the others:
 import androidx.compose.ui.test.assertExists
 ```
 
-- [ ] **Step 7: Run the ledger tests**
+- [x] **Step 7: Run the ledger tests**
 
 ```bash
 mise exec -- ./gradlew connectedDebugAndroidTest --tests '*LedgerDayGridTest*' --tests '*LedgerScreenTest*' --tests '*SwipeDeleteTest*'
@@ -1541,7 +1541,7 @@ mise exec -- ./gradlew connectedDebugAndroidTest --tests '*LedgerDayGridTest*' -
 
 Expected: PASS. The pre-existing `diaMostraDescricaoDoItemESaldoNaColuna` and `colunaDeSaldoDoDiaMascaraQuandoOculto` must pass **unchanged** — that is the point of moving `tagSaldoDoDia` onto the pill.
 
-- [ ] **Step 8: Run everything green**
+- [x] **Step 8: Run everything green**
 
 ```bash
 mise run test
@@ -1550,6 +1550,36 @@ mise exec -- ./gradlew lintDebug
 ```
 
 Expected: JVM 144, instrumented 76, lint 0 errors.
+
+> **Desvios da Task 4 (registrados na execucao, 2026-08-18):**
+>
+> 1. **`SaldoPill` nao carregava texto no no do testTag.** O `modifier` (com a tag) fica no
+>    `Box`, e o `MoneyText` e filho — `assertTextEquals` batia num no vazio e QUATRO testes
+>    ja existentes quebraram junto. Resolvido com `semantics(mergeDescendants = true)` na
+>    pill, que tambem e o certo para leitor de tela: a pill e um elemento, nao uma moldura
+>    mais um numero soltos. **Isto e da Task 2** — o `SaldoPill` do plano nasceu assim.
+>
+> 2. **O dia da semana vinha com ponto.** `DateTimeFormatter.ofPattern("EEE", ptBr)` rende
+>    `"qua."`, `"seg."` — CLDR pt-BR poe o ponto. O `oBadgeDoDiaMostraODiaDaSemana` do plano
+>    procura `"seg"` exato e falhava. O arquivo ja usa `.removeSuffix(".")` em toda data
+>    formatada (`diaCurto`), entao o badge passou a fazer o mesmo: corrige a aparencia
+>    (`"qua."` num badge de 44dp fica errado) e o teste passa como escrito.
+>
+> 3. **O "excluir" do swipe usa `inverseOnSurface`, nao `Color.White`.** Era o quinto item
+>    da tabela de contraste da Task 2 — 2,46:1 no escuro. `categoryVariable` inverte de
+>    claridade entre os esquemas igual ao tint, e `inverseOnSurface` tem exatamente a
+>    polaridade certa: 5,44:1 no claro, 5,32:1 no escuro. (E um uso dos papeis `inverse*`
+>    que a Task 1 salvou de serem apagados.) A pilula "hoje" tambem trocou branco por
+>    `onPrimary`.
+>
+> 4. **O chip de tag saiu do `segmentedTrack`.** Ficava colado nos `FiltroChips` novos
+>    pintado com o cinza translucido do HIG, em outra lingua visual. Virou
+>    `secondaryContainer` com cantos de pilula. A Task 8 ia ter de fazer isso de qualquer
+>    forma, ao apagar os tres campos aposentados.
+>
+> Verificado por captura real (o `captureToImage` de um teste temporario, ja removido): as
+> linhas, o badge com dia-da-semana, a rampa de calor na pill e a linha de hoje com borda
+> `tint` e badge preenchido. Screenshots em `.superpowers/sdd/shots/rb-task4-*.png`.
 
 - [ ] **Step 9: Commit**
 

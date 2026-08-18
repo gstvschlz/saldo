@@ -4,23 +4,19 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -28,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -46,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.testTag
@@ -60,27 +56,27 @@ import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
-import com.scholze.saldo.ui.components.HairlineDivider
+import com.scholze.saldo.ui.components.DiaBadge
+import com.scholze.saldo.ui.components.FiltroChips
+import com.scholze.saldo.ui.components.IconeRedondo
 import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon
-import com.scholze.saldo.ui.components.SegmentedControl
+import com.scholze.saldo.ui.components.SaldoPill
+import com.scholze.saldo.ui.components.SaldoTopBar
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
-import com.scholze.saldo.ui.theme.tabular
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
-private val DAY_COLUMN = 34.dp
-private val SALDO_COLUMN = 118.dp
 private val ptBr = Locale.forLanguageTag("pt-BR")
 private val tituloMes = DateTimeFormatter.ofPattern("MMMM yyyy", ptBr)
-private val mesCurto = DateTimeFormatter.ofPattern("MMM", ptBr)
 private val diaCurto = DateTimeFormatter.ofPattern("d MMM", ptBr)
+private val diaSemanaCurto = DateTimeFormatter.ofPattern("EEE", ptBr)
 
 /** O hero, para os testes: há vários nós de dinheiro mascarados na tela. */
 const val TAG_SALDO_PROJETADO = "ledger:saldoProjetado"
@@ -111,10 +107,10 @@ fun LedgerScreen(
     // é só uma leitura, não muda dado nenhum.
     var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
 
-    // Índice do item de hoje na LazyColumn: 3 headers antes dos dias, 4 quando o chip de
-    // tag entra entre o segmented control e o cabeçalho de colunas. Num mês sem
+    // Índice do item de hoje na LazyColumn: 2 headers antes dos dias (hero, chips), 3
+    // quando o chip de tag entra. O cabeçalho de colunas sumiu com a grade. Num mês sem
     // movimentação alguma os dias nem viram itens — a pill não teria destino.
-    val cabecalhos = if (state.tagFiltro != null) 4 else 3
+    val cabecalhos = if (state.tagFiltro != null) 3 else 2
     val indiceHoje = remember(mes, state.hoje, cabecalhos) {
         mes?.takeIf { m -> m.dias.any { it.itens.isNotEmpty() } }
             ?.dias?.indexOfFirst { it.data == state.hoje }?.takeIf { it >= 0 }?.plus(cabecalhos)
@@ -188,7 +184,18 @@ fun LedgerScreen(
             },
     ) {
         Column(Modifier.fillMaxSize()) {
-            MonthNavBar(state, onMesAnterior, onProximoMes, onTogglePrivacidade)
+            SaldoTopBar(
+                titulo = state.mesAtual.format(tituloMes),
+                onAnterior = onMesAnterior,
+                onProximo = onProximoMes,
+                acao = {
+                    IconeRedondo(
+                        if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
+                        "alternar privacidade",
+                        onTogglePrivacidade,
+                    )
+                },
+            )
 
             if (mes == null) {
                 Box(Modifier.fillMaxSize())
@@ -196,21 +203,20 @@ fun LedgerScreen(
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
                     item(key = "hero") { BalanceHero(mes, onTogglePrivacidade) }
                     item(key = "filtro") {
-                        Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp)) {
-                            SegmentedControl(
-                                options = FiltroLedger.entries.map { it.rotulo },
-                                selectedIndex = state.filtro.ordinal,
-                                onSelect = { onFiltro(FiltroLedger.entries[it]) },
-                            )
-                        }
+                        FiltroChips(
+                            opcoes = FiltroLedger.entries.map { it.rotulo },
+                            selecionado = state.filtro.ordinal,
+                            onSelect = { onFiltro(FiltroLedger.entries[it]) },
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp),
+                        )
                     }
                     state.tagFiltro?.let { tag ->
                         item(key = "tagchip") {
                             Row(
                                 Modifier
                                     .padding(start = 16.dp, bottom = 6.dp)
-                                    .clip(RoundedCornerShape(13.dp))
-                                    .background(colors.segmentedTrack)
+                                    .clip(RoundedCornerShape(percent = 50))
+                                    .background(colors.secondaryContainer)
                                     .clickable { onLimparTag() }
                                     .padding(horizontal = 12.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -221,8 +227,6 @@ fun LedgerScreen(
                             }
                         }
                     }
-                    item(key = "header") { ColumnHeader(); HairlineDivider() }
-
                     if (mes.dias.all { it.itens.isEmpty() }) {
                         item(key = "vazio") { EmptyMonth(comTagFiltro = state.tagFiltro != null) }
                     } else {
@@ -235,7 +239,6 @@ fun LedgerScreen(
                                 onExcluir = onExcluir,
                                 onFaturaClick = { faturaAberta = it },
                             )
-                            HairlineDivider()
                         }
                     }
                 }
@@ -255,7 +258,11 @@ fun LedgerScreen(
                     .clickable { indiceHoje?.let { scope.launch { listState.animateScrollToItem(it) } } }
                     .padding(horizontal = 16.dp, vertical = 7.dp),
             ) {
-                Text("hoje", style = SaldoTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
+                Text(
+                    "hoje",
+                    style = SaldoTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
             }
         }
 
@@ -289,80 +296,25 @@ private fun MesLedger.faixaSaldos(): ClosedRange<Long> {
 }
 
 @Composable
-private fun MonthNavBar(
-    state: LedgerUiState,
-    onMesAnterior: () -> Unit,
-    onProximoMes: () -> Unit,
-    onTogglePrivacidade: () -> Unit,
-) {
-    val colors = SaldoTheme.colors
-    val privacidade = LocalPrivacy.current
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(colors.navBar)
-            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            Modifier.clickable(onClick = onMesAnterior),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SaldoGlyph(SaldoIcon.CHEVRON_LEFT, colors.tint, size = 18.dp, strokeWidth = 2.2.dp)
-            Text(
-                state.mesAtual.minusMonths(1).format(mesCurto).removeSuffix("."),
-                style = SaldoTheme.type.body, color = colors.tint,
-            )
-        }
-        Text(
-            state.mesAtual.format(tituloMes),
-            Modifier.weight(1f),
-            style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Olho da privacidade: alternar máscara em todas as telas.
-            Box(
-                Modifier
-                    .clip(CircleShape)
-                    .clickable(onClick = onTogglePrivacidade)
-                    .padding(6.dp),
-            ) {
-                SaldoGlyph(
-                    if (privacidade.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
-                    colors.tint, size = 20.dp,
-                )
-            }
-            Row(
-                Modifier.clickable(onClick = onProximoMes),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    state.mesAtual.plusMonths(1).format(mesCurto).removeSuffix("."),
-                    style = SaldoTheme.type.body, color = colors.tint,
-                )
-                SaldoGlyph(SaldoIcon.CHEVRON_RIGHT, colors.tint, size = 18.dp, strokeWidth = 2.2.dp)
-            }
-        }
-    }
-    HairlineDivider()
-}
-
-@Composable
 private fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
     val colors = SaldoTheme.colors
     Column(
         Modifier
-            .clickable(onClick = onTogglePrivacidade)   // tocar no hero também alterna
-            .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 14.dp)
-            .fillMaxWidth(),
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(colors.primaryContainer)
+            .clickable(onClick = onTogglePrivacidade)   // tocar no hero tambem alterna
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             "saldo projetado · " + mes.projetadoEm.format(diaCurto).removeSuffix("."),
-            style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
+            style = SaldoTheme.type.footnote, color = colors.onPrimaryContainer.copy(alpha = 0.72f),
         )
-        // Contagem até o valor novo em vez de troca seca — de mês para mês, e quando uma
-        // movimentação entra ou sai. Mascarado o número nem aparece, então a animação
-        // simplesmente não se vê; o alvo continua sendo o valor real.
+        // Contagem ate o valor novo em vez de troca seca - de mes para mes, e quando uma
+        // movimentacao entra ou sai. Mascarado o numero nem aparece, entao a animacao
+        // simplesmente nao se ve; o alvo continua sendo o valor real.
         val animado by animateFloatAsState(
             targetValue = mes.saldoProjetadoCentavos.toFloat(),
             animationSpec = tween(durationMillis = 450),
@@ -370,42 +322,36 @@ private fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
         )
         MoneyText(
             centavos = animado.toLong(),
-            modifier = Modifier.padding(top = 2.dp).testTag(TAG_SALDO_PROJETADO),
-            style = SaldoTheme.type.largeTitle, color = colors.label,
+            modifier = Modifier.testTag(TAG_SALDO_PROJETADO),
+            style = SaldoTheme.type.largeTitle, color = colors.onPrimaryContainer,
         )
         Row(
-            Modifier.padding(top = 6.dp),
+            Modifier
+                .padding(top = 6.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
+                .padding(horizontal = 11.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             MoneyText(
                 centavos = mes.deltaNoMesCentavos,
                 style = SaldoTheme.type.subhead,
-                color = if (mes.deltaNoMesCentavos >= 0) colors.positive else colors.categoryVariable,
+                color = colors.onPrimaryContainer,
                 formato = FormatoMoney.ASSINADO_COM_SIMBOLO,
             )
-            Text("no mês", style = SaldoTheme.type.subhead, color = colors.secondaryLabel)
+            Text("no mês", style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer)
         }
         if (mes.estimativaCentavos > 0) {
-            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("inclui estimativa de", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("inclui estimativa de", style = SaldoTheme.type.caption, color = colors.onPrimaryContainer.copy(alpha = 0.7f))
                 MoneyText(
                     centavos = mes.estimativaCentavos,
-                    style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
+                    style = SaldoTheme.type.caption, color = colors.onPrimaryContainer.copy(alpha = 0.7f),
                 )
-                Text("em diários", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                Text("em diários", style = SaldoTheme.type.caption, color = colors.onPrimaryContainer.copy(alpha = 0.7f))
             }
         }
-    }
-}
-
-@Composable
-private fun ColumnHeader() {
-    val colors = SaldoTheme.colors
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
-        Text("DIA", Modifier.width(DAY_COLUMN), style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
-        Text("MOVIMENTAÇÕES", Modifier.weight(1f), style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
-        Text("SALDO", style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel, textAlign = TextAlign.End)
     }
 }
 
@@ -441,52 +387,49 @@ private fun DayRow(
 ) {
     val colors = SaldoTheme.colors
     val ehHoje = dia.data == hoje
-    // `surface` opaca primeiro, `segmentedTrack` (translúcida) por cima — a mesma pilha que
-    // cada linha de movimentação pinta lá dentro. Compor a tinta sobre bases diferentes
-    // (aqui sobre `background`, lá sobre `surface`) deixaria a linha de hoje com um bloco
-    // mais claro atrás de cada item do que nas colunas de dia e de saldo que a ladeiam.
+    val fundo = if (ehHoje) colors.secondaryContainer else colors.surface
+
     Row(
         Modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
             .fillMaxWidth()
-            .background(colors.surface)
-            .then(if (ehHoje) Modifier.background(colors.segmentedTrack) else Modifier)
-            .defaultMinSize(minHeight = 52.dp)
-            .height(IntrinsicSize.Min),
+            .clip(RoundedCornerShape(20.dp))
+            .background(fundo)
+            .then(if (ehHoje) Modifier.border(2.dp, colors.tint, RoundedCornerShape(20.dp)) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(
-            dia.data.dayOfMonth.toString().padStart(2, '0'),
-            Modifier.width(DAY_COLUMN).padding(start = 16.dp, top = 10.dp),
-            // Tabular: a coluna de dias é uma coluna de números e tem de alinhar.
-            style = SaldoTheme.type.row.tabular.let { if (ehHoje) it.copy(fontWeight = FontWeight.SemiBold) else it },
-            color = if (ehHoje) colors.tint else colors.secondaryLabel,
+        DiaBadge(
+            dia = dia.data.dayOfMonth,
+            diaSemana = dia.data.format(diaSemanaCurto).removeSuffix("."),
+            destacado = ehHoje,
         )
 
-        Column(Modifier.weight(1f).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             if (dia.itens.isEmpty()) {
                 Text("sem movimentações", style = SaldoTheme.type.row, color = colors.secondaryLabel)
             } else {
                 dia.itens.forEach { item ->
                     // Exaustivo na interface selada: cada ramo sabe exatamente com que tipo
-                    // de item está lidando, sem cast nenhum (nem seguro nem inseguro).
+                    // de item esta lidando, sem cast nenhum (nem seguro nem inseguro).
                     when (item) {
                         is ItemDia.Mov -> key(item.mov.id, item.descricao) {
-                            // A chave prende o `rememberSwipeToDismissBoxState` ao item, não à
-                            // posição: sem ela, apagar o primeiro de dois itens do mesmo dia faria
-                            // o segundo herdar o slot do primeiro — e aparecer arrastado para a
-                            // esquerda, com o painel vermelho atrás, enquanto a animação volta.
+                            // A chave prende o `rememberSwipeToDismissBoxState` ao item, nao a
+                            // posicao: sem ela, apagar o primeiro de dois itens do mesmo dia faria
+                            // o segundo herdar o slot do primeiro - e aparecer arrastado para a
+                            // esquerda, com o painel vermelho atras, enquanto a animacao volta.
                             val mov = item.mov
                             val dismissState = rememberSwipeToDismissBoxState()
-                            // Reagir à TRANSIÇÃO de currentValue, não a um confirmValueChange.
+                            // Reagir a TRANSICAO de currentValue, nao a um confirmValueChange.
                             // O anchoredDraggable chama aquele callback mais de uma vez no mesmo
                             // gesto: um swipe produzia DOIS snackbars, e o "desfazer" do segundo
-                            // reinseria a linha de novo, agora duplicada. Um LaunchedEffect com
-                            // chave no valor dispara uma vez por transição — e ainda deixa de
-                            // usar uma API que a material3 já marcou como deprecada.
+                            // reinseria a linha de novo, agora duplicada.
                             LaunchedEffect(dismissState.currentValue) {
                                 if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
                                     onExcluir(mov)
-                                    // A linha some porque o dado sumiu; se a exclusão for recusada
-                                    // (ocorrência virtual), o reset devolve a linha ao lugar.
+                                    // A linha some porque o dado sumiu; se a exclusao for recusada
+                                    // (ocorrencia virtual), o reset devolve a linha ao lugar.
                                     dismissState.reset()
                                 }
                             }
@@ -495,111 +438,116 @@ private fun DayRow(
                                 enableDismissFromStartToEnd = false,
                                 backgroundContent = {
                                     Box(
-                                        Modifier.fillMaxSize().background(colors.categoryVariable),
+                                        Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(colors.categoryVariable),
                                         contentAlignment = Alignment.CenterEnd,
                                     ) {
                                         Text(
                                             "excluir",
-                                            Modifier.padding(end = 16.dp),
-                                            style = SaldoTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold),
-                                            color = Color.White,
+                                            Modifier.padding(end = 12.dp),
+                                            style = SaldoTheme.type.footnote,
+                                            // `categoryVariable` inverte de claridade entre os
+                                            // esquemas igual ao tint: branco fixo dava 2,46:1 no
+                                            // escuro. `inverseOnSurface` tem exatamente a
+                                            // polaridade certa - tinta clara no tema claro,
+                                            // escura no escuro - e da 5,4:1 nos dois.
+                                            color = MaterialTheme.colorScheme.inverseOnSurface,
                                         )
                                     }
                                 },
                             ) {
-                                // `segmentedTrack` é translúcida (é uma tinta, não uma cor
-                                // sólida) — pintar `surface` opaca por baixo primeiro é
-                                // obrigatório aqui: o SwipeToDismissBox mantém o
-                                // `backgroundContent` ("excluir", vermelho) sempre desenhado
-                                // atrás do conteúdo em primeiro plano, então sem a base opaca
-                                // o vermelho vazaria através da linha de hoje mesmo parada.
-                                Box(
-                                    Modifier
-                                        .background(colors.surface)
-                                        .then(if (ehHoje) Modifier.background(colors.segmentedTrack) else Modifier),
-                                ) {
-                                    Row(
-                                        Modifier.clickable { onItemClick(mov) },
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                    ) {
-                                        if (item.recorrente) {
-                                            SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 11.dp, strokeWidth = 1.3.dp)
-                                        } else {
-                                            Box(
-                                                Modifier.size(7.dp).background(
-                                                    when (mov.natureza) {
-                                                        Natureza.ECONOMIA -> colors.categoryFixed
-                                                        else -> colors.categoryVariable
-                                                    },
-                                                    CircleShape,
-                                                ),
-                                            )
-                                        }
-                                        Text(item.descricao, style = SaldoTheme.type.row, color = colors.label)
-                                        MoneyText(
-                                            centavos = item.valorCentavos,
-                                            modifier = Modifier.weight(1f),
-                                            style = SaldoTheme.type.row, color = colors.label,
-                                            formato = FormatoMoney.ASSINADO, textAlign = TextAlign.End,
-                                        )
-                                    }
+                                // Base opaca: o SwipeToDismissBox mantem o backgroundContent
+                                // ("excluir", vermelho) sempre desenhado atras do conteudo, entao
+                                // sem ela o vermelho vazaria atraves da linha mesmo parada.
+                                Box(Modifier.background(fundo)) {
+                                    LinhaMov(
+                                        descricao = item.descricao,
+                                        centavos = item.valorCentavos,
+                                        recorrente = item.recorrente,
+                                        natureza = mov.natureza,
+                                        onClick = { onItemClick(mov) },
+                                    )
                                 }
                             }
                         }
 
-                        is ItemDia.FaturaDia -> {
-                            // A fatura é um total calculado, não uma movimentação de verdade:
-                            // toca para abrir a lista de compras (Step 1b), mas não passa por
-                            // onItemClick — não há editor para uma linha que não existe no banco.
-                            Row(
-                                Modifier.clickable { onFaturaClick(item.fatura) },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                            ) {
-                                // FaturaDia.recorrente é sempre true, então este ramo nunca cai
-                                // no branch da bolinha colorida — só o glifo de recorrência.
-                                SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 11.dp, strokeWidth = 1.3.dp)
-                                Text(item.descricao, style = SaldoTheme.type.row, color = colors.label)
-                                MoneyText(
-                                    centavos = item.valorCentavos,
-                                    modifier = Modifier.weight(1f),
-                                    style = SaldoTheme.type.row, color = colors.label,
-                                    formato = FormatoMoney.ASSINADO, textAlign = TextAlign.End,
-                                )
-                            }
-                        }
+                        // A fatura e um total calculado, nao uma movimentacao de verdade: toca
+                        // para abrir a lista de compras, mas nao passa por onItemClick - nao ha
+                        // editor para uma linha que nao existe no banco. FaturaDia.recorrente e
+                        // sempre true, entao nunca cai no branch da bolinha colorida.
+                        is ItemDia.FaturaDia -> LinhaMov(
+                            descricao = item.descricao,
+                            centavos = item.valorCentavos,
+                            recorrente = true,
+                            natureza = Natureza.CARTAO,
+                            onClick = { onFaturaClick(item.fatura) },
+                        )
                     }
                 }
             }
         }
 
-        Box(
-            Modifier
-                .padding(start = 14.dp)
-                .width(SALDO_COLUMN)
-                .fillMaxHeight()
-                .background(heatTint(dia.saldoCentavos, faixa)),
-            contentAlignment = Alignment.CenterEnd,
-        ) {
-            MoneyText(
-                centavos = dia.saldoCentavos,
-                modifier = Modifier.padding(end = 16.dp).testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
-                style = SaldoTheme.type.row, color = colors.balance,
-                formato = FormatoMoney.VALOR, fontWeight = FontWeight.Medium,
-            )
-        }
+        SaldoPill(
+            centavos = dia.saldoCentavos,
+            nivel = nivelDeCalor(dia.saldoCentavos, faixa),
+            modifier = Modifier.testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
+        )
     }
 }
 
+/** Uma movimentação dentro da linha do dia: marcador, descrição, valor. */
 @Composable
-private fun heatTint(saldo: Long, faixa: ClosedRange<Long>): Color {
+private fun LinhaMov(
+    descricao: String,
+    centavos: Long,
+    recorrente: Boolean,
+    natureza: Natureza,
+    onClick: () -> Unit,
+) {
     val colors = SaldoTheme.colors
-    if (faixa.endInclusive <= faixa.start) return colors.balanceTint2
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (recorrente) {
+            SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 11.dp, strokeWidth = 1.3.dp)
+        } else {
+            Box(
+                Modifier.size(6.dp).background(
+                    when (natureza) {
+                        Natureza.ECONOMIA -> colors.categoryFixed
+                        else -> colors.categoryVariable
+                    },
+                    CircleShape,
+                ),
+            )
+        }
+        Text(descricao, style = SaldoTheme.type.row, color = colors.label)
+        MoneyText(
+            centavos = centavos,
+            modifier = Modifier.weight(1f),
+            style = SaldoTheme.type.row, color = colors.secondaryLabel,
+            formato = FormatoMoney.ASSINADO, textAlign = TextAlign.End,
+        )
+    }
+}
+
+/**
+ * Which of the three heat buckets a day's balance falls in - 0, 1 or 2.
+ *
+ * The thresholds are the ones the heat-tinted column used; only what consumes them
+ * changed (a pill background instead of a column fill), so a month that read as
+ * "thin at the end" still does.
+ */
+private fun nivelDeCalor(saldo: Long, faixa: ClosedRange<Long>): Int {
+    if (faixa.endInclusive <= faixa.start) return 1
     val ratio = (saldo - faixa.start).toDouble() / (faixa.endInclusive - faixa.start).toDouble()
     return when {
-        ratio < 0.34 -> colors.balanceTint1
-        ratio < 0.67 -> colors.balanceTint2
-        else -> colors.balanceTint3
+        ratio < 0.34 -> 0
+        ratio < 0.67 -> 1
+        else -> 2
     }
 }

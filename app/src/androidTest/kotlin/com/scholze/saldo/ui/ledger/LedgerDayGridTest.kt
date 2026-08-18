@@ -167,4 +167,23 @@ class LedgerDayGridTest {
         rule.onNodeWithText("nenhuma movimentação com essa tag").assertIsDisplayed()
         rule.onNodeWithText("toque no × acima para ver o mês inteiro").assertIsDisplayed()
     }
+
+    /**
+     * A coluna morreu, a escala de calor nao: os dois valores continuam legiveis e
+     * distintos na pill. O teste bate no que da para observar — a cor de fundo de um
+     * Box nao e exposta na arvore de semantica.
+     */
+    @Test
+    fun aPillCarregaOSaldoDeCadaDia() {
+        montar()
+        rule.onNodeWithTag(tagSaldoDoDia(3)).assertTextEquals("2.600,00")
+        rule.onNodeWithTag(tagSaldoDoDia(6)).assertTextEquals("2.110,10")
+    }
+
+    /** O dia da semana entrou junto com o badge — 06/07/2026 e uma segunda. */
+    @Test
+    fun oBadgeDoDiaMostraODiaDaSemana() {
+        montar()
+        rule.onNodeWithText("seg").assertExists()
+    }
 }

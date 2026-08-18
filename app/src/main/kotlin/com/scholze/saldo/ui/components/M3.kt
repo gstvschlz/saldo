@@ -88,6 +88,10 @@ fun SaldoPill(centavos: Long, nivel: Int, modifier: Modifier = Modifier) {
     }
     Box(
         modifier
+            // A pill e UM elemento, nao um Box com um texto solto dentro: sem merge o no
+            // que carrega o testTag fica sem texto nenhum e assertTextEquals falha — e um
+            // leitor de tela anunciaria a moldura e o valor separados.
+            .semantics(mergeDescendants = true) {}
             .clip(PILL)
             .background(fundo)
             .padding(horizontal = 12.dp, vertical = 5.dp),
