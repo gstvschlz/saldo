@@ -33,11 +33,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.scholze.saldo.domain.LembretesConfig
@@ -100,17 +98,19 @@ fun LembretesScreen(
     var editandoHora by remember { mutableStateOf<Slot?>(null) }
 
     Column(modifier.fillMaxSize().background(colors.background)) {
-        Box(Modifier.fillMaxWidth().background(colors.navBar).padding(vertical = 12.dp)) {
-            // A área clicável precisa de 48dp de altura, não só o texto: um alvo de toque real,
-            // não a caixa justa do glifo "‹ mais".
+        // Mesma estrutura da tela de recorrencias: a volta em cima, o titulo grande e a
+        // esquerda embaixo. A area clicavel precisa de 48dp de altura, nao so o texto: um
+        // alvo de toque real, nao a caixa justa do glifo "‹ mais".
+        Column(Modifier.fillMaxWidth()) {
             Text(
                 "‹ mais",
-                Modifier.align(Alignment.CenterStart).clickable(role = Role.Button, onClick = onVoltar).padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.clickable(role = Role.Button, onClick = onVoltar).padding(horizontal = 16.dp, vertical = 12.dp),
                 style = SaldoTheme.type.body, color = colors.tint,
             )
             Text(
-                "lembretes", Modifier.fillMaxWidth(),
-                style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
+                "lembretes",
+                Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 14.dp),
+                style = SaldoTheme.type.navTitle, color = colors.label,
             )
         }
 

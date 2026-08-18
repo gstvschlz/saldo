@@ -25,7 +25,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
@@ -84,12 +83,13 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
     }
 
     Column(modifier.fillMaxSize().background(colors.background)) {
-        Box(Modifier.fillMaxWidth().background(colors.navBar).padding(vertical = 12.dp)) {
-            Text(
-                "mais", Modifier.fillMaxWidth(),
-                style = SaldoTheme.type.navTitle, color = colors.label, textAlign = TextAlign.Center,
-            )
-        }
+        // Titulo grande e a ESQUERDA, como no ledger, em totais e em recorrencias: centrado
+        // era a assinatura do HIG, e a 30sp do ramo novo ela ficava ainda mais evidente.
+        Text(
+            "mais",
+            Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
+            style = SaldoTheme.type.navTitle, color = colors.label,
+        )
 
         Column(
             Modifier
