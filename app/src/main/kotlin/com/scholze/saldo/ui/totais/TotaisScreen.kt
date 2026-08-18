@@ -57,13 +57,14 @@ fun TotaisScreen(
     onVerTag: (Tag) -> Unit,
     onAbrirMovimentacao: (Movimentacao) -> Unit,
     onIrParaDia: (YearMonth, Int) -> Unit,
+    onAbrirRecorrencias: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by vm.state.collectAsState()
     TotaisContent(
         state, vm::mesAnterior, vm::proximoMes,
         onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, onIrParaMes = vm::irPara,
-        onIrParaDia = onIrParaDia,
+        onIrParaDia = onIrParaDia, onAbrirRecorrencias = onAbrirRecorrencias,
         modifier = modifier,
     )
 }
@@ -78,7 +79,6 @@ fun TotaisContent(
     onAbrirMovimentacao: (Movimentacao) -> Unit = {},
     onIrParaMes: (YearMonth) -> Unit = {},
     onIrParaDia: (YearMonth, Int) -> Unit = { _, _ -> },
-    // Inerte até a Task 7 ligar a tela de recorrências em SaldoApp, onde vivem as factories.
     onAbrirRecorrencias: () -> Unit = {},
 ) {
     val colors = SaldoTheme.colors

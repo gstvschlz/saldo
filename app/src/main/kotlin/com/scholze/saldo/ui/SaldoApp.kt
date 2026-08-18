@@ -50,6 +50,7 @@ import com.scholze.saldo.ui.ledger.LedgerScreen
 import com.scholze.saldo.ui.ledger.LedgerViewModel
 import com.scholze.saldo.ui.mais.MaisScreen
 import com.scholze.saldo.ui.mais.MaisViewModel
+import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.nav.ALTURA_BARRA
 import com.scholze.saldo.ui.nav.ALTURA_FAIXA_FAB
@@ -59,6 +60,8 @@ import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.tags.TagsScreen
 import com.scholze.saldo.ui.tags.TagsViewModel
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.totais.RecorrenciasScreen
+import com.scholze.saldo.ui.totais.RecorrenciasViewModel
 import com.scholze.saldo.ui.totais.TotaisScreen
 import com.scholze.saldo.ui.totais.TotaisViewModel
 import java.time.LocalDate
@@ -109,7 +112,9 @@ fun SaldoApp(
     val totaisVm: TotaisViewModel = viewModel(factory = remember(container) { TotaisViewModel.factory(container) })
     val tagsFactory = remember(container) { TagsViewModel.factory(container) }
     val maisFactory = remember(container) { MaisViewModel.factory(container) }
+    val recorrenciasFactory = remember(container) { RecorrenciasViewModel.factory(container) }
     val ledgerState by ledgerVm.state.collectAsState()
+    val totaisState by totaisVm.state.collectAsState()
     val privacidade = LocalPrivacy.current
     val snackbar = remember { SnackbarHostState() }
 
@@ -117,6 +122,19 @@ fun SaldoApp(
     // Só o "a sheet está aberta" é saveable; o formulário em si vive no [EntryViewModel]
     // e por isso sobrevive à rotação sem precisar ser serializado.
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
+    // A tela de recorrências toma a aba totais; sair da aba fecha (voltar depois em "totais"
+    // deve mostrar totais, não a subtela onde o usuário estava dez minutos antes).
+    var abrindoRecorrencias by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(tab) { if (tab != SaldoTab.TOTAIS) abrindoRecorrencias = false }
+
+    // A rota de edição é usada de dois lugares (o ledger e a tela de recorrências), então mora
+    // aqui: mesma guarda de sempre, ocorrência virtual (id 0) não abre o editor.
+    val abrirMovimentacao: (Movimentacao) -> Unit = {
+        if (it.id != 0L) {
+            entryVm.iniciarEdicao(it)
+            sheetAberto = true
+        }
+    }
 
     val alvoLedger by ledgerVm.alvo.collectAsState()
 
@@ -127,7 +145,7 @@ fun SaldoApp(
             null -> return@LaunchedEffect
             is Destino.Saldos -> { ledgerVm.irPara(destino.mes, destino.dia); tab = SaldoTab.SALDOS }
             Destino.NovaMovimentacao -> { entryVm.iniciarNova(LocalDate.now()); sheetAberto = true }
-            is Destino.Totais -> { totaisVm.irPara(destino.mes); tab = SaldoTab.TOTAIS }
+            is Destino.Totais -> { totaisVm.irPara(destino.mes); abrindoRecorrencias = false; tab = SaldoTab.TOTAIS }
         }
         onDestinoConsumido()
     }
@@ -203,7 +221,7 @@ fun SaldoApp(
                         // id 0 = ocorrência virtual: o mês ainda não foi materializado (a
                         // `abrirMes` do ViewModel é assíncrona). Editá-la explodiria no save
                         // com SO_ESTE_MES, então a linha simplesmente não abre o editor.
-                        onItemClick = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } },
+                        onItemClick = abrirMovimentacao,
                         // Mesma razão: `repo.excluir` recusa id 0 (o delete seria no-op e o
                         // "desfazer" duplicaria a linha). Sem a guarda o swipe só produziria
                         // uma IllegalArgumentException engolida pelo ViewModel.
@@ -214,13 +232,22 @@ fun SaldoApp(
                         onAlvoConsumido = ledgerVm::limparAlvo,
                         contentPadding = PaddingValues(bottom = 24.dp),
                     )
-                    SaldoTab.TOTAIS -> TotaisScreen(
-                        totaisVm,
-                        onVerTag = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
-                        // Mesma guarda do ledger: ocorrência virtual (id 0) não abre o editor.
-                        onAbrirMovimentacao = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } },
-                        onIrParaDia = { mes, dia -> ledgerVm.irPara(mes, dia); tab = SaldoTab.SALDOS },
-                    )
+                    SaldoTab.TOTAIS -> if (abrindoRecorrencias) {
+                        RecorrenciasScreen(
+                            vm = viewModel(factory = recorrenciasFactory),
+                            mes = totaisState.mesAtual,
+                            onAbrirMovimentacao = abrirMovimentacao,
+                            onVoltar = { abrindoRecorrencias = false },
+                        )
+                    } else {
+                        TotaisScreen(
+                            totaisVm,
+                            onVerTag = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
+                            onAbrirMovimentacao = abrirMovimentacao,
+                            onIrParaDia = { mes, dia -> ledgerVm.irPara(mes, dia); tab = SaldoTab.SALDOS },
+                            onAbrirRecorrencias = { abrindoRecorrencias = true },
+                        )
+                    }
                     SaldoTab.TAGS -> TagsScreen(
                         vm = viewModel(factory = tagsFactory),
                         onTagClick = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },

@@ -1830,13 +1830,36 @@ git commit -m "feat: totais — segmento a caminho"
 
 This supersedes insights-1's `i1-task-7-brief.md` — same behaviour, this plan's components. Follow that brief for the `ativas` / `encerradas` split and the copy; build the lists from `InsetGroup`/`InsetRow` and the header from `SaldoTopBar`.
 
-- [ ] **Step 1: Read the superseded brief for behaviour**
+- [x] **Step 1: Read the superseded brief for behaviour**
 
 ```bash
 sed -n '1,80p' .superpowers/sdd/i1-task-7-brief.md
 ```
 
-- [ ] **Step 2–5:** implement, test, run green, commit as:
+- [x] **Step 2–5:** implement, test, run green, commit as:
+
+
+> **Desvios da Task 7 (registrados na execucao, 2026-08-18):**
+>
+> 1. **O cabecalho NAO usa `SaldoTopBar`,** apesar da instrucao desta task. Aquele componente
+>    existe para navegar meses: sao duas setas com `contentDescription` "mes anterior"/"proximo
+>    mes", e esta tela nao navega mes nenhum — so volta. Ficou a MESMA estrutura (linha de acao
+>    em cima, titulo grande e a esquerda embaixo), com "‹ totais" no lugar das setas, que e o
+>    texto que o teste do brief clica.
+>
+> 2. **O `voltaParaTotais` do brief esperava `"A CAMINHO"` de volta em totais** — cabecalho que
+>    a Task 6 removeu. Passou a esperar o chip `"a caminho"`, que sempre existe na aba.
+>
+> 3. **`ptBr`/`mesAbrev`/`rotuloCurto()` do brief nao foram redeclarados:** `Formatos.kt` (do
+>    mesmo pacote, criado na insights-1 Task 5) ja expoe `rotuloCurto()` como `internal`, e
+>    redeclarar daria erro de redeclaracao. Mesma razao pela qual `fixas(n)` vem da Task 6.
+>
+> 4. Os `HairlineDivider` do brief sairam (a Task 5 ja os tinha tirado do pacote) e os
+>    cabecalhos seguem a regra da Task 5: `sectionHeader` na cor `label`.
+>
+> A rota de edicao virou um `abrirMovimentacao` unico em `SaldoApp`, usado pelo ledger e pela
+> tela nova — mesma guarda de `id != 0`, uma implementacao so.
+> Captura: `.superpowers/sdd/shots/rb-task7-recorrencias*.png`.
 
 ```bash
 git commit -m "feat: recorrências — visão geral de ativas e encerradas"
