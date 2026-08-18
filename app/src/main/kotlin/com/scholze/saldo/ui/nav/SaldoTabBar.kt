@@ -81,13 +81,16 @@ fun SaldoTabBar(
                 TabItem(SaldoTab.MAIS, selected, onSelect, Modifier.weight(1f))
             }
         }
-        // O FAB avança para dentro da barra. `offset` em vez de padding negativo porque
-        // só o desenho desce: o alvo de toque acompanha o deslocamento.
+        // O FAB desce até ficar CENTRADO na borda de cima da barra: 32dp para dentro, 32dp
+        // para fora. Centrado na faixa de 44dp ele nasce com o centro em 22dp, então os
+        // 22dp de offset levam esse centro exatamente até 44dp, que é onde a barra começa.
+        // `offset` em vez de padding negativo porque só o desenho desce: o alvo de toque
+        // acompanha o deslocamento.
         Box(
             Modifier.fillMaxWidth().height(ALTURA_FAIXA_FAB).align(Alignment.TopCenter),
             contentAlignment = Alignment.Center,
         ) {
-            AddButton(onAdd, Modifier.offset(y = 4.dp))
+            AddButton(onAdd, Modifier.offset(y = ALTURA_FAIXA_FAB / 2))
         }
     }
 }
@@ -138,8 +141,14 @@ private fun TabItem(
 /** O `+` central, para os testes: é um glifo desenhado, sem nó de texto para procurar. */
 const val TAG_ADD = "tab-add"
 
-/** A faixa que o FAB ocupa acima da barra. */
-val ALTURA_FAIXA_FAB = 36.dp
+/**
+ * A faixa que o FAB ocupa acima da barra.
+ *
+ * 44dp e nao 36: o FAB tem 64dp e fica ANCORADO na borda de cima da barra, metade dentro e
+ * metade fora. Metade de 64 = 32dp acima da borda, mais 12dp de respiro entre ele e o
+ * conteudo da tela. Com os 36dp antigos ele so entrava 18dp na barra e boiava por cima.
+ */
+val ALTURA_FAIXA_FAB = 44.dp
 
 /** A barra em si, do topo até o inset de navegação. */
 val ALTURA_BARRA = 84.dp

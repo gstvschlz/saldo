@@ -24,6 +24,9 @@ Capturas feitas durante a execução das Tasks 1–9 do plano
 | `16-a-caminho-escuro.png` | totais › a caminho (estado vazio) | escuro |
 | `17-tags-escuro.png` | tags | escuro |
 | `18-mais-escuro.png` | mais (repare no Switch: verde do esquema, sem domar) | escuro |
+| `19-fab-ancorado-escuro.png` | FAB depois do ajuste: 50/50 na borda da barra | escuro |
+| `20-botao-desabilitado-escuro.png` | `FilledActionButton` desabilitado, agora visível | escuro |
+| `21-botao-ativo-escuro.png` | o mesmo botão ativo | escuro |
 
 ## O que ainda NÃO foi conferido
 

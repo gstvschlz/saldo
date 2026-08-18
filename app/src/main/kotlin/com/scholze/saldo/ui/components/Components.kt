@@ -1,6 +1,7 @@
 package com.scholze.saldo.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -82,12 +83,18 @@ fun FilledActionButton(
     enabled: Boolean = true,
 ) {
     val colors = SaldoTheme.colors
+    val forma = RoundedCornerShape(percent = 50)
+    // Desabilitado NÃO é `surface`: depois da retokenização `surface` e `background` estão a
+    // 1,05:1 um do outro, então o botão sumia — dava um retângulo invisível que o usuário
+    // toca e nada acontece. O padrão do M3 é container a 12% e rótulo a 38% do `onSurface`;
+    // a borda em `separator` entra por cima disso para o alvo nunca ficar sem contorno.
     Box(
         modifier
             .fillMaxWidth()
             .height(56.dp)
-            .clip(RoundedCornerShape(percent = 50))
-            .background(if (enabled) colors.tint else colors.surface)
+            .clip(forma)
+            .background(if (enabled) colors.tint else colors.label.copy(alpha = 0.12f))
+            .then(if (enabled) Modifier else Modifier.border(1.dp, colors.separator, forma))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -98,7 +105,7 @@ fun FilledActionButton(
             // branco sobre ele dá 1,68:1. `onPrimary` é o papel feito para isto — branco
             // no claro, #003919 no escuro, 7,8:1. Sob o HIG o tint era escuro nos dois
             // esquemas, e foi por isso que o branco fixo passou despercebido até aqui.
-            color = if (enabled) MaterialTheme.colorScheme.onPrimary else colors.secondaryLabel,
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else colors.label.copy(alpha = 0.38f),
         )
     }
 }
