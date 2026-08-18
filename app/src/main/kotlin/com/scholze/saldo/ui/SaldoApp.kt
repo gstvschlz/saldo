@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
@@ -50,6 +51,8 @@ import com.scholze.saldo.ui.ledger.LedgerViewModel
 import com.scholze.saldo.ui.mais.MaisScreen
 import com.scholze.saldo.ui.mais.MaisViewModel
 import com.scholze.saldo.ui.nav.Destino
+import com.scholze.saldo.ui.nav.ALTURA_BARRA
+import com.scholze.saldo.ui.nav.ALTURA_FAIXA_FAB
 import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -259,7 +262,16 @@ fun SaldoApp(
 
         // Por último no Box, portanto por cima da sheet: um erro de gravação tem de ser
         // visível justamente quando a sheet continua aberta.
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp))
+        // 70.dp era a altura da barra do HIG. A barra do M3 mede ALTURA_FAIXA_FAB +
+        // ALTURA_BARRA acima do inset, e com o valor antigo o snackbar aparecia POR
+        // DENTRO dela. Derivado das constantes para não desencontrar de novo.
+        SnackbarHost(
+            snackbar,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = ALTURA_FAIXA_FAB + ALTURA_BARRA + 4.dp),
+        )
 
         if (escolhendoFormato) {
             AlertDialog(

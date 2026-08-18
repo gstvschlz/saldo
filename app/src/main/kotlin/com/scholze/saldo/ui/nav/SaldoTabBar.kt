@@ -7,24 +7,28 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.scholze.saldo.ui.components.HairlineDivider
 import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.theme.SaldoTheme
@@ -37,10 +41,14 @@ enum class SaldoTab(val rotulo: String, val icon: SaldoIcon) {
 }
 
 /**
- * Option 1k — four tabs with a prominent center add button.
+ * The M3 navigation bar — four destinations, the active one carrying a pill
+ * indicator behind its icon, with the add FAB docked over the bar's top edge.
  *
- * The add control sits in the tab bar's center slot but is a button, not a
- * tab: it opens the nova-movimentação sheet and never becomes "selected".
+ * The information architecture is exactly what it was: four tabs and a centre add
+ * button that is a button, not a destination, and never becomes "selected".
+ *
+ * Altura total = [ALTURA_FAIXA_FAB] + [ALTURA_BARRA] acima do inset de navegação.
+ * Quem desenhar por cima da barra (o SnackbarHost) precisa desse número.
  */
 @Composable
 fun SaldoTabBar(
@@ -50,24 +58,36 @@ fun SaldoTabBar(
     modifier: Modifier = Modifier,
 ) {
     val colors = SaldoTheme.colors
-    Column(modifier.fillMaxWidth().background(colors.navBar)) {
-        HairlineDivider()
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(52.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TabItem(SaldoTab.SALDOS, selected, onSelect, Modifier.weight(1f))
-            TabItem(SaldoTab.TOTAIS, selected, onSelect, Modifier.weight(1f))
-
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                AddButton(onAdd)
+    // Box e não Column: o FAB transborda a própria faixa e precisa ser desenhado DEPOIS
+    // da barra, senão o `background(navBar)` da Row passa por cima e corta o botão ao
+    // meio — que foi exatamente o que aconteceu na primeira versão desta tela.
+    Box(modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            Spacer(Modifier.height(ALTURA_FAIXA_FAB))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(colors.navBar)
+                    .navigationBarsPadding()
+                    .height(ALTURA_BARRA)
+                    .padding(bottom = 14.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                TabItem(SaldoTab.SALDOS, selected, onSelect, Modifier.weight(1f))
+                TabItem(SaldoTab.TOTAIS, selected, onSelect, Modifier.weight(1f))
+                // O vão do FAB.
+                Box(Modifier.width(72.dp))
+                TabItem(SaldoTab.TAGS, selected, onSelect, Modifier.weight(1f))
+                TabItem(SaldoTab.MAIS, selected, onSelect, Modifier.weight(1f))
             }
-
-            TabItem(SaldoTab.TAGS, selected, onSelect, Modifier.weight(1f))
-            TabItem(SaldoTab.MAIS, selected, onSelect, Modifier.weight(1f))
+        }
+        // O FAB avança para dentro da barra. `offset` em vez de padding negativo porque
+        // só o desenho desce: o alvo de toque acompanha o deslocamento.
+        Box(
+            Modifier.fillMaxWidth().height(ALTURA_FAIXA_FAB).align(Alignment.TopCenter),
+            contentAlignment = Alignment.Center,
+        ) {
+            AddButton(onAdd, Modifier.offset(y = 4.dp))
         }
     }
 }
@@ -81,26 +101,36 @@ private fun TabItem(
 ) {
     val colors = SaldoTheme.colors
     val active = tab == selected
-    val tint = if (active) colors.tint else colors.secondaryLabel
 
     Column(
         modifier
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-            ) { onSelect(tab) }
-            .padding(top = 6.dp),
+            ) { onSelect(tab) },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        SaldoGlyph(tab.icon, tint, size = 24.dp, strokeWidth = if (active) 2.2.dp else 1.9.dp)
+        Box(
+            Modifier
+                .size(width = 64.dp, height = 32.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(if (active) colors.primaryContainer else Color.Transparent),
+            contentAlignment = Alignment.Center,
+        ) {
+            SaldoGlyph(
+                tab.icon,
+                if (active) colors.onPrimaryContainer else colors.secondaryLabel,
+                size = 22.dp,
+                strokeWidth = if (active) 2.4.dp else 2.dp,
+            )
+        }
         Text(
             tab.rotulo,
             style = SaldoTheme.type.caption.copy(
-                fontSize = 10.sp,
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
             ),
-            color = tint,
+            color = if (active) colors.label else colors.secondaryLabel,
         )
     }
 }
@@ -108,18 +138,36 @@ private fun TabItem(
 /** O `+` central, para os testes: é um glifo desenhado, sem nó de texto para procurar. */
 const val TAG_ADD = "tab-add"
 
+/** A faixa que o FAB ocupa acima da barra. */
+val ALTURA_FAIXA_FAB = 36.dp
+
+/** A barra em si, do topo até o inset de navegação. */
+val ALTURA_BARRA = 84.dp
+
 @Composable
-private fun AddButton(onAdd: () -> Unit) {
+private fun AddButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
     Box(
-        Modifier
-            .size(46.dp)
-            .clip(CircleShape)
+        modifier
+            // requiredSize, não size: a faixa que hospeda o FAB tem ALTURA_FAIXA_FAB (36dp)
+            // de altura, e `size` se deixa espremer pela restrição máxima do pai — o botão
+            // saía com 36dp. `requiredSize` ignora a restrição, que é o que faz o FAB
+            // TRANSBORDAR para dentro da barra em vez de caber nela.
+            .requiredSize(64.dp)
+            .shadow(6.dp, RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(colors.tint)
             .clickable(onClick = onAdd)
             .testTag(TAG_ADD),
         contentAlignment = Alignment.Center,
     ) {
-        SaldoGlyph(SaldoIcon.PLUS, Color.White, size = 26.dp, strokeWidth = 2.4.dp)
+        // Branco fixo aqui daria 1,68:1 no escuro, onde o tint é verde claro: `onPrimary`
+        // é o papel feito para isso, e mantém o hex numa única casa (Theme.kt).
+        SaldoGlyph(
+            SaldoIcon.PLUS,
+            MaterialTheme.colorScheme.onPrimary,
+            size = 28.dp,
+            strokeWidth = 2.6.dp,
+        )
     }
 }

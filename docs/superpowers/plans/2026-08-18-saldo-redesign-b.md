@@ -891,7 +891,7 @@ git commit -m "feat: componentes — chips, pill de saldo, badge do dia e barra 
 - Consumes: `SaldoTab`, `SaldoGlyph`, `SaldoTheme`.
 - Produces: `SaldoTabBar(selected, onSelect, onAdd, modifier)` — **signature unchanged**, so `SaldoApp.kt` is not touched. `TAG_ADD` keeps its value `"tab-add"`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/src/androidTest/kotlin/com/scholze/saldo/ui/nav/SaldoTabBarTest.kt`:
 
@@ -963,7 +963,7 @@ Add this import with the others:
 import androidx.compose.ui.test.assertExists
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 mise exec -- ./gradlew connectedDebugAndroidTest --tests '*SaldoTabBarTest*'
@@ -971,7 +971,7 @@ mise exec -- ./gradlew connectedDebugAndroidTest --tests '*SaldoTabBarTest*'
 
 Expected: FAIL — `oFabTemOTamanhoDoM3` fails, because the current add button is 46dp.
 
-- [ ] **Step 3: Rewrite `SaldoTabBar.kt`**
+- [x] **Step 3: Rewrite `SaldoTabBar.kt`**
 
 Replace the whole of `app/src/main/kotlin/com/scholze/saldo/ui/nav/SaldoTabBar.kt` with:
 
@@ -1119,7 +1119,7 @@ private fun AddButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 mise exec -- ./gradlew connectedDebugAndroidTest --tests '*SaldoTabBarTest*'
@@ -1127,7 +1127,7 @@ mise exec -- ./gradlew connectedDebugAndroidTest --tests '*SaldoTabBarTest*'
 
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Run everything green**
+- [x] **Step 5: Run everything green**
 
 ```bash
 mise run test
@@ -1136,6 +1136,33 @@ mise exec -- ./gradlew lintDebug
 ```
 
 Expected: JVM 144, instrumented 74, lint 0 errors.
+
+> **Desvios da Task 3 (registrados na execucao, 2026-08-18) — tres, e so um foi pego por teste:**
+>
+> 1. **O FAB saia com 36dp, nao 64.** `Modifier.size(64.dp)` se deixa espremer pela
+>    restricao maxima do pai, e a faixa que hospeda o FAB tem 36dp. Trocado por
+>    `requiredSize(64.dp)`, que ignora a restricao — que e o que faz o botao TRANSBORDAR
+>    para dentro da barra em vez de caber nela. Pego pelo `oFabTemOTamanhoDoM3` do proprio
+>    plano: TDD funcionando como devia.
+>
+> 2. **O FAB saia cortado ao meio.** Num `Column` a `Row` da barra e declarada depois da
+>    faixa do FAB, entao o `background(navBar)` dela pinta por cima da metade que
+>    transborda. A estrutura virou um `Box` com a coluna primeiro e o FAB por ultimo, que
+>    e o que "docked over the bar's top edge" exige. **Nenhum dos quatro testes pegou
+>    isto** — `assertHeightIsAtLeast` mede bounds nao-clipados, entao passou com o botao
+>    visivelmente cortado. Foi um screenshot que pegou. Vale a licao para as Tasks 4-8:
+>    teste de Compose nao ve ordem de pintura.
+>
+> 3. **O snackbar ficava POR DENTRO da barra.** `SaldoApp.kt:262` fixava
+>    `padding(bottom = 70.dp)`, que era a altura da barra do HIG; a barra do M3 mede
+>    120dp acima do inset. O plano dizia que `SaldoApp.kt` nao seria tocado — verdade
+>    quanto a *assinatura* de `SaldoTabBar`, falso quanto a *altura*. A barra agora
+>    exporta `ALTURA_FAIXA_FAB` e `ALTURA_BARRA`, e o snackbar deriva o offset delas em
+>    vez de repetir um numero magico.
+>
+> Tambem: o glifo `PLUS` usa `MaterialTheme.colorScheme.onPrimary` em vez do
+> `if (colors.isDark) Color(0xFF003919) else Color.White` do plano — mesmo resultado, mas
+> o hex fica so no Theme.kt.
 
 - [ ] **Step 6: Commit**
 
