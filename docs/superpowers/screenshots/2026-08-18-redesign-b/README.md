@@ -20,6 +20,10 @@ Capturas feitas durante a execução das Tasks 1–9 do plano
 | `12-totais-fonte-1.5-claro.png` | totais a **escala de fonte 1.5** | claro |
 | `13-chips-fonte-2.0-claro.png` | os chips a **escala 2.0** — o rótulo quebra dentro do chip | claro |
 | `14-ledger-fonte-1.5-claro.png` | ledger inteiro a **escala 1.5** | claro |
+| `15-totais-escuro.png` | totais › mês | escuro |
+| `16-a-caminho-escuro.png` | totais › a caminho (estado vazio) | escuro |
+| `17-tags-escuro.png` | tags | escuro |
+| `18-mais-escuro.png` | mais (repare no Switch: verde do esquema, sem domar) | escuro |
 
 ## O que ainda NÃO foi conferido
 
@@ -28,8 +32,8 @@ O Step 2 da Task 9 pede a caminhada à mão nos dois temas, em escala de fonte
 
 - escala de fonte 1.5/2.0 nas telas que **não** são ledger e totais (as duas
   estão acima e passam);
-- **tema escuro** de tudo que não seja o ledger (totais nos três segmentos,
-  recorrências, tags, mais, lembretes, sheet, teclado, onboarding);
+- **tema escuro** de: tendência, recorrências, lembretes, sheet, teclado e
+  onboarding (ledger, totais › mês, a caminho, tags e mais já estão acima);
 - **lembretes e a sheet de lançamento** em qualquer tema (tags, mais e o
   teclado já estão acima, no claro);
 - dos três pontos que o plano manda vigiar de perto:
