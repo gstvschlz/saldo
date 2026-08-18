@@ -144,7 +144,12 @@ fun SaldoApp(
         when (destino) {
             null -> return@LaunchedEffect
             is Destino.Saldos -> { ledgerVm.irPara(destino.mes, destino.dia); tab = SaldoTab.SALDOS }
-            Destino.NovaMovimentacao -> { entryVm.iniciarNova(LocalDate.now()); sheetAberto = true }
+            is Destino.NovaMovimentacao -> {
+                entryVm.iniciarNova(LocalDate.now())
+                // O widget "lançar" já diz de que lado é: pular esse toque é o ponto dele.
+                destino.saida?.let { entryVm.definirSaida(it) }
+                sheetAberto = true
+            }
             is Destino.Totais -> { totaisVm.irPara(destino.mes); abrindoRecorrencias = false; tab = SaldoTab.TOTAIS }
         }
         onDestinoConsumido()

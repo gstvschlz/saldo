@@ -109,7 +109,7 @@ object Notificacoes {
             titulo = "registrar os gastos de hoje?",
             texto = "nada anotado hoje — toque para lançar",
             tituloPublico = "registrar os gastos de hoje?",
-            destino = Destino.NovaMovimentacao,
+            destino = Destino.NovaMovimentacao(),
         )
         is Lembrete.FechamentoMes -> {
             val nomeMes = lembrete.mes.month.getDisplayName(TextStyle.FULL, ptBr)

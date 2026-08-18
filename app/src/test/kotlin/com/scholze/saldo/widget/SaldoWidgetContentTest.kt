@@ -71,7 +71,7 @@ class SaldoWidgetContentTest {
             doSaldos,
         )
 
-        val daNova = Destino.NovaMovimentacao.paraParametros().asMap().mapKeys { it.key.name }
+        val daNova = Destino.NovaMovimentacao().paraParametros().asMap().mapKeys { it.key.name }
         assertEquals(mapOf("destino" to "nova"), daNova)
     }
 }

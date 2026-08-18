@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 /**
- * Mantém o widget em dia enquanto o processo vive: toda escrita acontece neste processo, então
+ * Mantém os widgets em dia enquanto o processo vive: toda escrita acontece neste processo, então
  * observar o ledger (que já embute a virada do dia, ver `diaAtual`) e as settings (a máscara)
  * cobre tudo que muda o número. `updateAll` sem widget na tela é um no-op barato.
  */
@@ -35,7 +35,12 @@ class WidgetRefresher(
                 .catch { Log.e(TAG, "widget: fluxo de atualização falhou", it) }
                 .collect {
                     try {
+                        // Os QUATRO tipos: um `updateAll` por provider. Sem widget daquele tipo
+                        // na tela a chamada é um no-op barato, então não custa nada varrer todos.
                         SaldoWidget().updateAll(context)
+                        ACaminhoWidget().updateAll(context)
+                        ParaOndeFoiWidget().updateAll(context)
+                        LancarWidget().updateAll(context)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {

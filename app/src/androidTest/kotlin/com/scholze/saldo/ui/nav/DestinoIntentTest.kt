@@ -31,7 +31,7 @@ class DestinoIntentTest {
 
     @Test
     fun novaMovimentacaoVaiEVoltaPeloIntent() {
-        assertEquals(Destino.NovaMovimentacao, Destino.deIntent(Destino.NovaMovimentacao.aplicarEm(Intent())))
+        assertEquals(Destino.NovaMovimentacao(), Destino.deIntent(Destino.NovaMovimentacao().aplicarEm(Intent())))
     }
 
     @Test

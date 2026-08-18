@@ -30,7 +30,7 @@ class DeepLinkTest {
         // Já com onboarding feito: antes dele o destino é ignorado (o teclado toma a tela).
         runBlocking { app.container.settings.definirSaldoInicial(100_000_00, LocalDate.now()) }
 
-        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.NovaMovimentacao)).use {
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.NovaMovimentacao())).use {
             rule.waitUntil(5_000) {
                 rule.onAllNodesWithText("nova movimentação").fetchSemanticsNodes().isNotEmpty()
             }

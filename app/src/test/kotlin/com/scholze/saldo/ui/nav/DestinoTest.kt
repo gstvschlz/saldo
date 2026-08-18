@@ -12,7 +12,12 @@ class DestinoTest {
 
     private fun volta(d: Destino): Destino? {
         val p = d.paraPares().toMap()
-        return Destino.de(p[Destino.EXTRA_DESTINO] as String?, p[Destino.EXTRA_ANO_MES] as Int?, p[Destino.EXTRA_DIA] as Int?)
+        return Destino.de(
+            p[Destino.EXTRA_DESTINO] as String?,
+            p[Destino.EXTRA_ANO_MES] as Int?,
+            p[Destino.EXTRA_DIA] as Int?,
+            p[Destino.EXTRA_SAIDA] as Int?,
+        )
     }
 
     @Test
@@ -26,7 +31,22 @@ class DestinoTest {
     }
 
     @Test
-    fun novaMovimentacaoVaiEVolta() = assertEquals(Destino.NovaMovimentacao, volta(Destino.NovaMovimentacao))
+    fun novaMovimentacaoVaiEVolta() = assertEquals(Destino.NovaMovimentacao(), volta(Destino.NovaMovimentacao()))
+
+    /** Os dois botões do widget "lançar" — cada lado tem de sobreviver à ida e volta. */
+    @Test
+    fun novaMovimentacaoLevaOLadoEscolhido() {
+        assertEquals(Destino.NovaMovimentacao(saida = true), volta(Destino.NovaMovimentacao(saida = true)))
+        assertEquals(Destino.NovaMovimentacao(saida = false), volta(Destino.NovaMovimentacao(saida = false)))
+    }
+
+    /** Sem lado escolhido a chave nem é emitida: a sheet decide sozinha, como antes. */
+    @Test
+    fun novaMovimentacaoSemLadoNaoEmiteAChaveSaida() {
+        val d = Destino.NovaMovimentacao()
+        assertEquals(listOf(Destino.EXTRA_DESTINO), d.paraPares().map { it.first })
+        assertNull((d as Destino.NovaMovimentacao).saida)
+    }
 
     @Test
     fun totaisVaiEVolta() = assertEquals(Destino.Totais(ago), volta(Destino.Totais(ago)))

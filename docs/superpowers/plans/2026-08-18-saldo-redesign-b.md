@@ -870,7 +870,12 @@ Expected: JVM 144, instrumented 70 (66 + 4 new), lint 0 errors. `LembretesScreen
 > widget **nao** sai de graca. `SaldoWidgetContent` monta seus `ColorProvider` a partir de
 > `Light/DarkSaldoColors`, entao retokenizar carrega as cores — e carrega junto esta
 > regressao. Nenhuma task do plano abre esse arquivo. Precisa de um `onPrimary` proprio
-> (o Glance nao enxerga o `MaterialTheme.colorScheme`), e nenhum teste cobre isso.
+> (o Glance nao enxerga o `MaterialTheme.colorScheme`), e a cobertura de teste dele nao olha cor.
+>
+> **CORRECAO (2026-08-18):** esta tabela dizia "nenhum teste cobre isso" e estava ERRADA.
+> `app/src/test/.../widget/SaldoWidgetContentTest.kt` existe, com 6 testes JVM em
+> `runGlanceAppWidgetUnitTest`. O que eles nao cobrem e COR: asseveram texto, testTag e os
+> extras do deep link. Por isso a regressao do `+` passou — faltava o teste certo, nao o arquivo.
 
 - [ ] **Step 8: Commit**
 
@@ -1928,7 +1933,7 @@ Expected: only `Theme.kt`'s `outlineVariant = colors.separator`. Keep `separator
 >    visivel ao usuario final: `CoresWidget.branco` sobre `CoresWidget.tint` da 1,68:1 no
 >    escuro. Virou `CoresWidget.sobreTint` (branco no dia, `#003919` na noite) — o mesmo papel
 >    que o app chama de `onPrimary`, repetido porque o Glance nao enxerga o
->    `MaterialTheme.colorScheme`. **Continua sem teste**: nada cobre o widget.
+>    `MaterialTheme.colorScheme`. **O widget TEM teste** (6 casos JVM em `SaldoWidgetContentTest`), mas nenhum olha cor.
 >
 > Lint caiu de 14 para 13 avisos: o `UseOfNonLambdaOffsetOverload` morreu junto com o
 > `SegmentedControl`. Nova linha de base para a Task 9: **0 erros / 13 avisos / 1 hint**.
