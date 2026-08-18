@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -116,7 +117,7 @@ fun SegmentedControl(
     }
 }
 
-/** An iOS grouped-inset container: rounded card, hairline-separated rows. */
+/** An M3 tonal card: 28dp corners, `surfaceContainerLow`, rows separated by space. */
 @Composable
 fun InsetGroup(
     modifier: Modifier = Modifier,
@@ -125,8 +126,9 @@ fun InsetGroup(
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(SaldoTheme.colors.surface),
+            .clip(RoundedCornerShape(28.dp))
+            .background(SaldoTheme.colors.surface)
+            .padding(vertical = 6.dp),
         content = content,
     )
 }
@@ -144,11 +146,11 @@ fun InsetRow(
     val colors = SaldoTheme.colors
     val base = modifier
         .fillMaxWidth()
-        .defaultMinSize(minHeight = 44.dp)
+        .defaultMinSize(minHeight = 48.dp)
 
     Row(
         (if (onClick != null) base.clickable(onClick = onClick) else base)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -157,7 +159,7 @@ fun InsetRow(
         if (value != null) {
             Text(
                 text = value,
-                style = SaldoTheme.type.body,
+                style = SaldoTheme.type.body.copy(fontWeight = FontWeight.Bold),
                 color = valueColor ?: colors.secondaryLabel,
             )
         }
@@ -165,7 +167,7 @@ fun InsetRow(
     }
 }
 
-/** A filled, full-width HIG action button. */
+/** A filled, full-width M3 action button. */
 @Composable
 fun FilledActionButton(
     text: String,
@@ -177,16 +179,20 @@ fun FilledActionButton(
     Box(
         modifier
             .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (enabled) colors.tint else colors.segmentedTrack)
+            .height(56.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(if (enabled) colors.tint else colors.surface)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            style = SaldoTheme.type.body.copy(fontWeight = FontWeight.SemiBold),
-            color = if (enabled) Color.White else colors.secondaryLabel,
+            style = SaldoTheme.type.body.copy(fontWeight = FontWeight.Bold),
+            // NÃO é Color.White: no escuro o `tint` do M3 é um verde CLARO (#99D5AC) e
+            // branco sobre ele dá 1,68:1. `onPrimary` é o papel feito para isto — branco
+            // no claro, #003919 no escuro, 7,8:1. Sob o HIG o tint era escuro nos dois
+            // esquemas, e foi por isso que o branco fixo passou despercebido até aqui.
+            color = if (enabled) MaterialTheme.colorScheme.onPrimary else colors.secondaryLabel,
         )
     }
 }

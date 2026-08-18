@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
  */
 enum class SaldoIcon {
     SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE, RECORRENTE,
-    OLHO, OLHO_RISCADO,
+    OLHO, OLHO_RISCADO, CHECK,
 }
 
 @Composable
@@ -132,6 +132,11 @@ fun SaldoGlyph(
                 )
                 drawLine(tint, Offset(w * 0.72f, h * 0.12f), Offset(w * 0.84f, h * 0.26f), sw, StrokeCap.Round)
                 drawLine(tint, Offset(w * 0.84f, h * 0.26f), Offset(w * 0.68f, h * 0.32f), sw, StrokeCap.Round)
+            }
+            // O tique do chip selecionado.
+            SaldoIcon.CHECK -> {
+                drawLine(tint, Offset(w * 0.20f, h * 0.52f), Offset(w * 0.42f, h * 0.74f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.42f, h * 0.74f), Offset(w * 0.80f, h * 0.28f), sw, StrokeCap.Round)
             }
             // Olho: dois arcos e a pupila. OLHO_RISCADO acrescenta a barra na diagonal.
             SaldoIcon.OLHO, SaldoIcon.OLHO_RISCADO -> {
