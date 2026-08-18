@@ -20,9 +20,9 @@ val LocalSaldoTypography: ProvidableCompositionLocal<SaldoTypography> =
     staticCompositionLocalOf { saldoTypography }
 
 /**
- * The app theme. Material 3 is kept underneath only so that plumbing which
- * expects it (ripples, text defaults, window insets) keeps working; every
- * visible color and type choice comes from [SaldoTheme.colors] / [SaldoTheme.type].
+ * The app theme. Material 3 is the real scheme now, not a thing to be contained:
+ * [SaldoTheme.colors] and the `MaterialTheme.colorScheme` are two views of the same
+ * pinned green seed, so Material's own surfaces land where the design wants them.
  */
 @Composable
 fun SaldoTheme(
@@ -31,54 +31,63 @@ fun SaldoTheme(
 ) {
     val colors = if (darkTheme) DarkSaldoColors else LightSaldoColors
 
-    // `surface` alone is not enough: AlertDialog paints itself with
-    // `surfaceContainerHigh`, and OutlinedTextField borders come from `outline` — left
-    // unmapped they fall back to Material's baseline lavender and land a Material dialog
-    // in the middle of an otherwise HIG-coloured app. Every container role is pinned to
-    // the app surface so the mapping cannot leak again.
+    // Antes, cada papel de container do Material era preso na mesma `surface` chapada
+    // para o Material não vazar lavanda por baixo do HIG. Agora os papéis VALEM: o
+    // esquema é um M3 de verdade, e diálogo, snackbar, switch e campo de texto herdam
+    // dele em vez de precisarem ser domados um a um.
+    //
+    // Os papéis "inverse" são a exceção que continua explícita: `lightColorScheme` /
+    // `darkColorScheme` NÃO os derivam de `primary`, então sem mapeá-los o Snackbar
+    // volta a se pintar com o lavanda de fábrica — foi exatamente o bug que o mapa
+    // antigo corrigia. Aqui eles são os cinzas esverdeados do próprio tema, e
+    // `inversePrimary` é o tint do esquema oposto, que é o que lê sobre eles.
     val material = if (darkTheme) {
         darkColorScheme(
             primary = colors.tint,
-            // O polegar do Switch usa `onPrimary`; sem mapear, no escuro ele saía roxo.
-            onPrimary = Color.White,
+            onPrimary = Color(0xFF003919),
+            primaryContainer = colors.primaryContainer,
+            onPrimaryContainer = colors.onPrimaryContainer,
+            secondaryContainer = colors.secondaryContainer,
+            onSecondaryContainer = colors.onPrimaryContainer,
             background = colors.background,
-            surface = colors.surface,
-            surfaceContainerLowest = colors.surface,
-            surfaceContainerLow = colors.surface,
-            surfaceContainer = colors.surface,
-            surfaceContainerHigh = colors.surface,
-            surfaceContainerHighest = colors.surface,
             onBackground = colors.label,
+            surface = colors.background,
             onSurface = colors.label,
+            surfaceContainerLowest = Color(0xFF0B0F0B),
+            surfaceContainerLow = colors.surface,
+            surfaceContainer = colors.navBar,
+            surfaceContainerHigh = Color(0xFF262C26),
+            surfaceContainerHighest = Color(0xFF313830),
             onSurfaceVariant = colors.secondaryLabel,
-            outline = colors.separator,
-            // O Snackbar se pinta com os papéis "inverse"; sem mapeá-los ele saía lavanda
-            // com a ação roxa no tema escuro.
-            inverseSurface = if (darkTheme) Color(0xFF3A3A3C) else Color(0xFF2C2C2E),
-            inverseOnSurface = Color.White,
-            inversePrimary = colors.tint,
+            outline = Color(0xFF8A938A),
+            outlineVariant = colors.separator,
+            inverseSurface = Color(0xFFE0E4DC),
+            inverseOnSurface = Color(0xFF2D322C),
+            inversePrimary = Color(0xFF2F6A45),
         )
     } else {
         lightColorScheme(
             primary = colors.tint,
-            // O polegar do Switch usa `onPrimary`; sem mapear, no escuro ele saía roxo.
             onPrimary = Color.White,
+            primaryContainer = colors.primaryContainer,
+            onPrimaryContainer = colors.onPrimaryContainer,
+            secondaryContainer = colors.secondaryContainer,
+            onSecondaryContainer = colors.onPrimaryContainer,
             background = colors.background,
-            surface = colors.surface,
-            surfaceContainerLowest = colors.surface,
-            surfaceContainerLow = colors.surface,
-            surfaceContainer = colors.surface,
-            surfaceContainerHigh = colors.surface,
-            surfaceContainerHighest = colors.surface,
             onBackground = colors.label,
+            surface = colors.background,
             onSurface = colors.label,
+            surfaceContainerLowest = Color(0xFFFFFFFF),
+            surfaceContainerLow = colors.surface,
+            surfaceContainer = colors.navBar,
+            surfaceContainerHigh = Color(0xFFE6E9E2),
+            surfaceContainerHighest = Color(0xFFE0E4DB),
             onSurfaceVariant = colors.secondaryLabel,
-            outline = colors.separator,
-            // O Snackbar se pinta com os papéis "inverse"; sem mapeá-los ele saía lavanda
-            // com a ação roxa no tema escuro.
-            inverseSurface = if (darkTheme) Color(0xFF3A3A3C) else Color(0xFF2C2C2E),
-            inverseOnSurface = Color.White,
-            inversePrimary = colors.tint,
+            outline = Color(0xFF717970),
+            outlineVariant = colors.separator,
+            inverseSurface = Color(0xFF2D322C),
+            inverseOnSurface = Color(0xFFEFF2EB),
+            inversePrimary = Color(0xFF99D5AC),
         )
     }
 

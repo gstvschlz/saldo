@@ -8,9 +8,10 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 
 /**
- * The HIG type scale used by the canvas. SF Pro is not redistributable, so the
- * platform sans-serif stands in for it; the sizes, weights and (negative)
- * tracking are the design's.
+ * The Material 3 Expressive ramp (canvas "B · sistema"), on the platform sans —
+ * which on Android is Roboto, M3's own face, so the app carries no font asset.
+ * The HIG's negative tracking survives only on display sizes; M3 does not tighten
+ * body text.
  */
 @Immutable
 data class SaldoTypography(
@@ -32,44 +33,47 @@ private val trim = LineHeightStyle(
 val saldoTypography = SaldoTypography(
     largeTitle = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 34.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.37.sp,
+        fontSize = 38.sp,
+        fontWeight = FontWeight.ExtraBold,
+        letterSpacing = (-1.1).sp,
         lineHeightStyle = trim,
     ),
     navTitle = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 17.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.4).sp,
+        fontSize = 30.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.6).sp,
     ),
     body = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 17.sp,
-        letterSpacing = (-0.4).sp,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Medium,
     ),
     row = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontSize = 15.sp,
-        letterSpacing = (-0.24).sp,
+        fontWeight = FontWeight.Medium,
     ),
     subhead = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 15.sp,
-        letterSpacing = (-0.24).sp,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
     ),
     footnote = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontSize = 13.sp,
-        letterSpacing = (-0.08).sp,
+        fontWeight = FontWeight.SemiBold,
     ),
     caption = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
     ),
+    // Deixa de ser caixa-alta destacada: no M3 o cabeçalho de seção é um título de
+    // card em caixa baixa. As três strings que o usavam perderam as maiúsculas.
     sectionHeader = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 12.sp,
-        letterSpacing = 0.72.sp,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Bold,
     ),
 )

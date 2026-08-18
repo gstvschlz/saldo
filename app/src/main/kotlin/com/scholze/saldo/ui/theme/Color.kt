@@ -4,9 +4,13 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /**
- * Tokens transcribed from the "Finance app design system" canvas (option set
- * 1a / 1d / 1g / 1k). The palette is Apple HIG system colors, so the names
- * follow Apple's semantic roles rather than Material's.
+ * Tokens for the Material 3 Expressive direction (canvas "B · sistema"), on a
+ * pinned green seed — no dynamic color. The field names are the ones the app
+ * already used under the HIG dress; most kept their name and changed value.
+ *
+ * `segmentedTrack`, `segmentedThumb` and `separator` are on the way out — the
+ * segmented control became filter chips and M3 separates by tone and space, not
+ * by hairlines. They stay until their last readers are gone.
  */
 @Immutable
 data class SaldoColors(
@@ -18,15 +22,20 @@ data class SaldoColors(
     val tint: Color,
     /** Positive deltas, e.g. "+R$ 6.506,38". */
     val positive: Color,
-    /** The running-balance figure in the saldo column. */
+    /** The running-balance figure, now inside the saldo pill. */
     val balance: Color,
-    /** Heat tints for the saldo column, lightest to strongest. */
+    /** Heat tints for the saldo pill, lightest to strongest. */
     val balanceTint1: Color,
     val balanceTint2: Color,
     val balanceTint3: Color,
     val navBar: Color,
     val segmentedTrack: Color,
     val segmentedThumb: Color,
+    /** The hero card, and the text on it. */
+    val primaryContainer: Color,
+    val onPrimaryContainer: Color,
+    /** Day badge and the nav bar's pill indicator. */
+    val secondaryContainer: Color,
     /** Category dots. */
     val categoryVariable: Color,
     val categoryFixed: Color,
@@ -37,45 +46,51 @@ data class SaldoColors(
 )
 
 val LightSaldoColors = SaldoColors(
-    background = Color(0xFFF2F2F7),
-    surface = Color(0xFFFFFFFF),
-    separator = Color(0xFFC6C6C8),
-    label = Color(0xFF000000),
-    secondaryLabel = Color(0x993C3C43),
-    tint = Color(0xFF007AFF),
-    positive = Color(0xFF1E8E4A),
-    balance = Color(0xFF14663A),
-    balanceTint1 = Color(0xFFE9F6EE),
-    balanceTint2 = Color(0xFFDDF1E3),
-    balanceTint3 = Color(0xFFCFEBD8),
-    navBar = Color(0xDBF2F2F7),
+    background = Color(0xFFF8FAF5),
+    surface = Color(0xFFF2F5EE),
+    separator = Color(0xFFC1C9BF),
+    label = Color(0xFF191D18),
+    secondaryLabel = Color(0xFF414941),
+    tint = Color(0xFF2F6A45),
+    positive = Color(0xFF2F6A45),
+    balance = Color(0xFF10281A),
+    balanceTint1 = Color(0xFFE2EFE4),
+    balanceTint2 = Color(0xFFCBE7D2),
+    balanceTint3 = Color(0xFFB4F1C7),
+    navBar = Color(0xFFECEFE8),
     segmentedTrack = Color(0x1F767680),
     segmentedThumb = Color(0xFFFFFFFF),
-    categoryVariable = Color(0xFFA6486B),
-    categoryFixed = Color(0xFFB95A2E),
-    insightOutras = Color(0xFF8E8E93),
-    insightSemTag = Color(0xFFC7C7CC),
+    primaryContainer = Color(0xFFB4F1C7),
+    onPrimaryContainer = Color(0xFF00210F),
+    secondaryContainer = Color(0xFFD6E8D8),
+    categoryVariable = Color(0xFF8C4F63),
+    categoryFixed = Color(0xFF7A5A2E),
+    insightOutras = Color(0xFF5C5F66),
+    insightSemTag = Color(0xFFB9C0B5),
     isDark = false,
 )
 
 val DarkSaldoColors = SaldoColors(
-    background = Color(0xFF000000),
-    surface = Color(0xFF1C1C1E),
-    separator = Color(0xFF38383A),
-    label = Color(0xFFFFFFFF),
-    secondaryLabel = Color(0x99EBEBF5),
-    tint = Color(0xFF0A84FF),
-    positive = Color(0xFF30D158),
-    balance = Color(0xFF5CD98A),
-    balanceTint1 = Color(0xFF12301C),
-    balanceTint2 = Color(0xFF173B25),
-    balanceTint3 = Color(0xFF1D5030),
-    navBar = Color(0xD1141416),
+    background = Color(0xFF101410),
+    surface = Color(0xFF191F1A),
+    separator = Color(0xFF414941),
+    label = Color(0xFFE0E4DC),
+    secondaryLabel = Color(0xFFBFC9BD),
+    tint = Color(0xFF99D5AC),
+    positive = Color(0xFF7FD79B),
+    balance = Color(0xFFB4F1C7),
+    balanceTint1 = Color(0xFF1C2C21),
+    balanceTint2 = Color(0xFF243A2B),
+    balanceTint3 = Color(0xFF2E4C37),
+    navBar = Color(0xFF1D231E),
     segmentedTrack = Color(0x3D767680),
     segmentedThumb = Color(0xFF636366),
-    categoryVariable = Color(0xFFE07A9E),
-    categoryFixed = Color(0xFFE58A5A),
-    insightOutras = Color(0xFF8E8E93),
-    insightSemTag = Color(0xFF48484A),
+    primaryContainer = Color(0xFF1E5133),
+    onPrimaryContainer = Color(0xFFB4F1C7),
+    secondaryContainer = Color(0xFF33463A),
+    categoryVariable = Color(0xFFD493A8),
+    categoryFixed = Color(0xFFD9BC8A),
+    insightOutras = Color(0xFFC0C6CC),
+    insightSemTag = Color(0xFF4A524A),
     isDark = true,
 )
