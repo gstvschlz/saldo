@@ -219,6 +219,7 @@ fun SaldoApp(
                         onVerTag = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
                         // Mesma guarda do ledger: ocorrência virtual (id 0) não abre o editor.
                         onAbrirMovimentacao = { if (it.id != 0L) { entryVm.iniciarEdicao(it); sheetAberto = true } },
+                        onIrParaDia = { mes, dia -> ledgerVm.irPara(mes, dia); tab = SaldoTab.SALDOS },
                     )
                     SaldoTab.TAGS -> TagsScreen(
                         vm = viewModel(factory = tagsFactory),

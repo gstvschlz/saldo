@@ -9,10 +9,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.scholze.saldo.AppContainer
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.FiltroLedger
+import com.scholze.saldo.domain.ACaminho
 import com.scholze.saldo.domain.InsightsEngine
 import com.scholze.saldo.domain.ParaOndeFoi
 import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.domain.ResumoRecorrencias
 import com.scholze.saldo.domain.TotaisMes
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
@@ -35,6 +37,10 @@ data class TotaisUiState(
     val insights: ParaOndeFoi? = null,
     /** 6 meses até o mês visto; `null` junto com [totais]. */
     val tendencia: List<PontoMes>? = null,
+    /** O que ainda passa pelo saldo depois de hoje até o fim do mês visto. */
+    val aCaminho: ACaminho? = null,
+    /** Só o resumo, para a linha de atalho; a tela própria tem seu ViewModel. */
+    val recorrencias: ResumoRecorrencias? = null,
 )
 
 class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
@@ -48,6 +54,8 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
             estimativaCentavos = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).estimativaCentavos,
             insights = InsightsEngine.paraOndeFoi(input, mes),
             tendencia = InsightsEngine.tendencia(input, mes),
+            aCaminho = InsightsEngine.aCaminho(input, mes),
+            recorrencias = InsightsEngine.recorrencias(input, mes),
         )
     }
         // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma mais

@@ -14,14 +14,19 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.domain.ACaminho
 import com.scholze.saldo.domain.Fatia
 import com.scholze.saldo.domain.Fatura
 import com.scholze.saldo.domain.GrupoGasto
+import com.scholze.saldo.domain.ItemDia
+import com.scholze.saldo.domain.ItemFuturo
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Padroes
 import com.scholze.saldo.domain.ParaOndeFoi
 import com.scholze.saldo.domain.PontoMes
+import com.scholze.saldo.domain.Recorrencia
+import com.scholze.saldo.domain.ResumoRecorrencias
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.TotaisMes
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -32,6 +37,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -90,17 +96,63 @@ class TotaisContentTest {
         )
     }
 
+
+    private val aluguelMov = Movimentacao(
+        id = 7, descricao = "aluguel", valorCentavos = -2_400_00, data = LocalDate.parse("2026-07-28"),
+        natureza = Natureza.DIARIO, recorrenciaId = 1,
+    )
+    private val aCaminho = ACaminho(
+        saemCentavos = 2_400_00,
+        entramCentavos = 8_240_00,
+        itens = listOf(
+            ItemFuturo(aluguelMov.data, ItemDia.Mov(aluguelMov)),
+            ItemFuturo(
+                LocalDate.parse("2026-07-31"),
+                ItemDia.Mov(
+                    Movimentacao(
+                        id = 8, descricao = "salário", valorCentavos = 8_240_00,
+                        data = LocalDate.parse("2026-07-31"), natureza = Natureza.DIARIO,
+                    ),
+                ),
+            ),
+        ),
+        mesEncerrado = false,
+    )
+    private val resumoRecorrencias = ResumoRecorrencias(
+        ativas = listOf(
+            Recorrencia(
+                id = 1, descricao = "aluguel", valorCentavos = -2_400_00, natureza = Natureza.DIARIO,
+                diaDoMes = 28, inicio = YearMonth.of(2026, 1),
+            ),
+        ),
+        encerradas = emptyList(),
+        entramMes = 8_240_00,
+        saemMes = 2_400_00,
+    )
+
+    private fun comACaminho(a: ACaminho) = TotaisUiState(
+        YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia,
+        aCaminho = a, recorrencias = resumoRecorrencias,
+    )
+
     private fun montar(
         state: TotaisUiState,
         oculto: Boolean = false,
         onVerTag: (Tag) -> Unit = {},
         onAbrirMovimentacao: (Movimentacao) -> Unit = {},
         onIrParaMes: (YearMonth) -> Unit = {},
+        onIrParaDia: (YearMonth, Int) -> Unit = { _, _ -> },
+        onAbrirRecorrencias: () -> Unit = {},
     ) {
         rule.setContent {
             SaldoTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = oculto)) {
-                    TotaisContent(state, {}, {}, onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, onIrParaMes = onIrParaMes)
+                    TotaisContent(
+                        state, {}, {},
+                        onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao,
+                        onIrParaMes = onIrParaMes, onIrParaDia = onIrParaDia,
+                        onAbrirRecorrencias = onAbrirRecorrencias,
+                    )
                 }
             }
         }
@@ -269,5 +321,57 @@ class TotaisContentTest {
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, tendencia = umPonto))
         segmento("tendência").performClick()
         rule.onNodeWithText("12% este mês").performScrollTo().assertIsDisplayed()
+    }
+    @Test
+    fun aCaminhoMostraCabecalhoListaEAtalhoDeRecorrencias() {
+        var dia: Pair<YearMonth, Int>? = null
+        var recorrenciasPedidas = false
+        montar(
+            comACaminho(aCaminho),
+            onIrParaDia = { m, d -> dia = m to d },
+            onAbrirRecorrencias = { recorrenciasPedidas = true },
+        )
+        rule.onNodeWithText("a caminho").performClick()
+
+        rule.onNodeWithText("ainda saem").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("até 31 jul").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("aluguel").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("salário").performScrollTo().assertIsDisplayed()
+        // O segmento substitui o de mês, nao soma a ele.
+        rule.onNodeWithText("para onde foi").assertDoesNotExist()
+
+        rule.onNodeWithText("aluguel").performScrollTo().performClick()
+        assertEquals(YearMonth.of(2026, 7) to 28, dia)
+
+        rule.onNodeWithText("1 fixa ·", substring = true).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("recorrências").performScrollTo().performClick()
+        assertTrue(recorrenciasPedidas)
+    }
+
+    /** Mes passado: nada a caminho por definicao, mas o atalho continua valendo. */
+    @Test
+    fun mesPassadoMostraEncerradoEAindaOAtalho() {
+        montar(comACaminho(ACaminho(0, 0, emptyList(), mesEncerrado = true)))
+        rule.onNodeWithText("a caminho").performClick()
+        rule.onNodeWithText("mês encerrado").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("ainda saem").assertDoesNotExist()
+        rule.onNodeWithText("recorrências").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun semItensFuturosMostraNadaAgendado() {
+        montar(comACaminho(aCaminho.copy(saemCentavos = 0, entramCentavos = 0, itens = emptyList())))
+        rule.onNodeWithText("a caminho").performClick()
+        rule.onNodeWithText("nada agendado até o fim do mês").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Todo valor do segmento passa por MoneyText, entao a mascara vale aqui tambem. */
+    @Test
+    fun aCaminhoRespeitaAMascaraDePrivacidade() {
+        montar(comACaminho(aCaminho), oculto = true)
+        rule.onNodeWithText("a caminho").performClick()
+        rule.onNodeWithText("ainda saem").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("−2.400,00").assertDoesNotExist()
+        rule.onNodeWithText("+8.240,00").assertDoesNotExist()
     }
 }

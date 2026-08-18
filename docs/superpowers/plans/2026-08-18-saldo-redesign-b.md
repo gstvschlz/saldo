@@ -1755,7 +1755,7 @@ This supersedes insights-1's `i1-task-6-brief.md`. The behaviour and copy are th
 - Consumes: `InsightsEngine.aCaminho(input, mes)` — already built and tested in insights-1 Task 2, returning `ACaminho(itens: List<ItemDia>, totalCentavos: Long, mesEncerrado: Boolean)`. Verify the exact shape with `grep -n "aCaminho" app/src/main/kotlin/com/scholze/saldo/domain/InsightsEngine.kt` before writing against it.
 - Produces: `SegmentoTotais` gains `A_CAMINHO("a caminho")`; `TotaisUiState` gains `aCaminho: ACaminho?`.
 
-- [ ] **Step 1: Confirm the engine's shape**
+- [x] **Step 1: Confirm the engine's shape**
 
 ```bash
 grep -n "aCaminho\|class ACaminho\|data class ACaminho" app/src/main/kotlin/com/scholze/saldo/domain/InsightsEngine.kt
@@ -1763,7 +1763,7 @@ grep -n "aCaminho\|class ACaminho\|data class ACaminho" app/src/main/kotlin/com/
 
 Expected: the function and its return type. **Write the composable against what this prints, not against this plan's recollection of it.**
 
-- [ ] **Step 2: Add the enum case and watch it fail to compile**
+- [x] **Step 2: Add the enum case and watch it fail to compile**
 
 In `TotaisScreen.kt`:
 
@@ -1777,15 +1777,44 @@ mise exec -- ./gradlew compileDebugKotlin
 
 Expected: FAIL — `'when' expression must be exhaustive, add necessary 'A_CAMINHO' branch`. The `when` in `TotaisContent` has no `else`, which is exactly why this is safe.
 
-- [ ] **Step 3: Write the segment**
+- [x] **Step 3: Write the segment**
 
 Create `app/src/main/kotlin/com/scholze/saldo/ui/totais/SegmentoACaminho.kt` with a header card (total still to come, or the `mesEncerrado` empty state), then one `InsetGroup` listing the items by day. Use `InsetRow` for each line and `MoneyText(formato = FormatoMoney.ASSINADO)` for every value. Copy, verbatim from the spec: `"a caminho até 31 ago"` for the header, `"mês encerrado"` when `mesEncerrado`, `"nada a caminho"` when the list is empty and the month is open.
 
-- [ ] **Step 4: Wire the branch, the ViewModel and the tests**
+- [x] **Step 4: Wire the branch, the ViewModel and the tests**
 
 Add the `SegmentoTotais.A_CAMINHO -> state.aCaminho?.let { SegmentoACaminho(it, state.mesAtual) }` branch; add `aCaminho` to `TotaisUiState` and compute it inside the **existing** `flowOn` (do not add a second one). Extend `TotaisContentTest` with: the chip switching to the segment, the empty state on a closed month, and one masked value under `LocalPrivacy`.
 
-- [ ] **Step 5: Run everything green and commit**
+> **Desvios da Task 6 (registrados na execucao, 2026-08-18):**
+>
+> 1. **A forma do `ACaminho` no plano estava errada** — e o proprio plano mandava conferir.
+>    Nao e `ACaminho(itens, totalCentavos, mesEncerrado)`: e
+>    `ACaminho(saemCentavos, entramCentavos, itens, mesEncerrado)` com `itens: List<ItemFuturo>`.
+>    Escrito contra o que o `grep` do Step 1 imprimiu, como o plano manda.
+>
+> 2. **A copy do Step 3 nao era a da spec, apesar de dizer "verbatim from the spec".** O plano
+>    lista `"a caminho ate 31 ago"` e `"nada a caminho"`; a spec e o `i1-task-6-brief.md` dizem
+>    `"ainda saem"` + `"ate 31 jul"` e `"nada agendado ate o fim do mes"`. Valeu a spec/brief,
+>    que e o que a instrucao apontava e o que os testes do brief assertam.
+>
+> 3. **O cabecalho de secao "A CAMINHO" do brief foi removido, nao so minusculado.** Com a
+>    regra da Task 5 (cabecalhos em caixa baixa) ele viraria `"a caminho"` — exatamente o
+>    texto do chip logo acima, a poucos dp. Alem de repetitivo, daria DOIS nos com o mesmo
+>    texto e o `onNodeWithText("a caminho").performClick()` que o brief usa para trocar de
+>    segmento passaria a falhar com "expected exactly 1 node".
+>
+> 4. **O bloco "ainda saem" virou card tonal**, como os herois do mes e do ledger, em vez de
+>    linhas dentro de um `InsetGroup`; e os `HairlineDivider` do brief sairam (a Task 5 ja os
+>    tinha tirado do pacote inteiro).
+>
+> A linha "recorrencias ›" e renderizada aqui mas fica **inerte ate a Task 7** —
+> `onAbrirRecorrencias` mantem o default `{}` em `TotaisScreen`, e o teste a exercita direto
+> no `TotaisContent`. Captura: `.superpowers/sdd/shots/rb-task6-acaminho*.png`.
+>
+> **Para o olho do usuario na Task 9:** o segmento empilha DOIS cards verdes grandes (o heroi
+> de performance da aba e o "ainda saem" do segmento). Funciona, mas e bastante verde junto.
+
+- [x] **Step 5: Run everything green and commit**
 
 ```bash
 mise run test

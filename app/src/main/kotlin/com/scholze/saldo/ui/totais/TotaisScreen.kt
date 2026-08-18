@@ -43,7 +43,11 @@ import java.time.format.DateTimeFormatter
 private val diaMes = DateTimeFormatter.ofPattern("d MMM", ptBr)
 
 /** Os segmentos da aba totais; a seleção é estado de tela (`rememberSaveable`), não de ViewModel. */
-enum class SegmentoTotais(val rotulo: String) { MES("mês"), TENDENCIA("tendência") }
+enum class SegmentoTotais(val rotulo: String) {
+    MES("mês"),
+    TENDENCIA("tendência"),
+    A_CAMINHO("a caminho"),
+}
 
 const val TAG_SEGMENTO_TOTAIS = "totais:segmento"
 
@@ -52,12 +56,14 @@ fun TotaisScreen(
     vm: TotaisViewModel,
     onVerTag: (Tag) -> Unit,
     onAbrirMovimentacao: (Movimentacao) -> Unit,
+    onIrParaDia: (YearMonth, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by vm.state.collectAsState()
     TotaisContent(
         state, vm::mesAnterior, vm::proximoMes,
         onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, onIrParaMes = vm::irPara,
+        onIrParaDia = onIrParaDia,
         modifier = modifier,
     )
 }
@@ -71,6 +77,9 @@ fun TotaisContent(
     onVerTag: (Tag) -> Unit = {},
     onAbrirMovimentacao: (Movimentacao) -> Unit = {},
     onIrParaMes: (YearMonth) -> Unit = {},
+    onIrParaDia: (YearMonth, Int) -> Unit = { _, _ -> },
+    // Inerte até a Task 7 ligar a tela de recorrências em SaldoApp, onde vivem as factories.
+    onAbrirRecorrencias: () -> Unit = {},
 ) {
     val colors = SaldoTheme.colors
     val t = state.totais
@@ -164,6 +173,10 @@ fun TotaisContent(
                             segmento = SegmentoTotais.MES
                         },
                     )
+                }
+
+                SegmentoTotais.A_CAMINHO -> state.aCaminho?.let { a ->
+                    SegmentoACaminho(a, state.recorrencias, state.mesAtual, onIrParaDia, onAbrirRecorrencias)
                 }
             }
         }
