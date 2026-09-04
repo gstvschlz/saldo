@@ -14,13 +14,17 @@ import androidx.room.RoomDatabase
         TagEntity::class,
         MovimentacaoTagCross::class,
         RecorrenciaTagCross::class,
+        DeteccaoEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
     autoMigrations = [
         // 1 -> 2: índice em movimentacoes.recorrenciaId. Só um índice novo, então a migração
         // gerada basta; o MigrationTest a valida contra app/schemas/.../2.json.
         AutoMigration(from = 1, to = 2),
+        // 2 -> 3: tabela `deteccoes` (captura de notificações). Tabela nova e nada
+        // tocado nas antigas, então a migração gerada basta; o MigrationTest a valida.
+        AutoMigration(from = 2, to = 3),
     ],
 )
 abstract class SaldoDatabase : RoomDatabase() {
@@ -28,6 +32,7 @@ abstract class SaldoDatabase : RoomDatabase() {
     abstract fun movimentacaoDao(): MovimentacaoDao
     abstract fun recorrenciaDao(): RecorrenciaDao
     abstract fun tagDao(): TagDao
+    abstract fun deteccaoDao(): DeteccaoDao
 
     companion object {
         /**

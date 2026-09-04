@@ -47,4 +47,31 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun de2Para3CriaTabelaDeteccoesEPreservaLinhas() {
+        helper.createDatabase(nome, 2).use { db ->
+            db.execSQL(
+                "INSERT INTO movimentacoes (descricao, valorCentavos, dataEpochDay, natureza, recorrenciaId, editadaManualmente, criadaEm) " +
+                    "VALUES ('mercado', -18990, 20700, 'DIARIO', NULL, 0, 0)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(nome, 3, true).use { db ->
+            db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'deteccoes'").use { c ->
+                assertEquals("a tabela deteccoes tem de existir na v3", 1, c.count)
+            }
+            // A tabela nasce vazia e a migração não pode tocar no que já havia.
+            db.query("SELECT COUNT(*) FROM deteccoes").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals(0L, c.getLong(0))
+            }
+            db.query("SELECT descricao, valorCentavos FROM movimentacoes").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals("mercado", c.getString(0))
+                assertEquals(-18990L, c.getLong(1))
+                assertEquals(1, c.count)
+            }
+        }
+    }
 }

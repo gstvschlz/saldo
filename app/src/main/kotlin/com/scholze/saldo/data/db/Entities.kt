@@ -7,6 +7,7 @@ import androidx.room.Index
 import androidx.room.Junction
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import com.scholze.saldo.domain.Deteccao
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Recorrencia
@@ -129,3 +130,23 @@ fun Recorrencia.toEntity() = RecorrenciaEntity(
 
 fun YearMonth.toAnoMes(): Int = year * 12 + monthValue - 1
 fun Int.toYearMonth(): YearMonth = YearMonth.of(this / 12, this % 12 + 1)
+
+/**
+ * Uma notificação com valor que o saldo viu.
+ *
+ * `emMillis` indexado: toda leitura é uma janela de tempo — as recentes para deduplicar, as
+ * velhas para apagar. E repare no que a tabela NÃO tem: título, corpo, nome do app. O texto
+ * da notificação vive em memória durante a avaliação e nunca chega aqui.
+ */
+@Entity(tableName = "deteccoes", indices = [Index("emMillis")])
+data class DeteccaoEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val pacote: String,
+    val chave: String,
+    val centavos: Long,
+    val emMillis: Long,
+    val resolvida: Boolean = false,
+)
+
+fun DeteccaoEntity.toDomain() = Deteccao(id, pacote, chave, centavos, emMillis, resolvida)
+fun Deteccao.toEntity() = DeteccaoEntity(id, pacote, chave, centavos, emMillis, resolvida)

@@ -104,3 +104,21 @@ interface TagDao {
     @Query("UPDATE tags SET nome = :nome WHERE id = :id") suspend fun rename(id: Long, nome: String)
     @Query("DELETE FROM tags WHERE id = :id") suspend fun deleteById(id: Long)
 }
+
+@Dao
+interface DeteccaoDao {
+    @Insert suspend fun insert(d: DeteccaoEntity): Long
+
+    @Query("SELECT * FROM deteccoes WHERE emMillis >= :desde ORDER BY emMillis")
+    suspend fun desde(desde: Long): List<DeteccaoEntity>
+
+    @Query("SELECT * FROM deteccoes WHERE id = :id")
+    suspend fun porId(id: Long): DeteccaoEntity?
+
+    @Query("UPDATE deteccoes SET resolvida = 1 WHERE id = :id")
+    suspend fun resolver(id: Long)
+
+    /** A varredura das 24 h. Chamada a cada detecção: é um DELETE indexado, sai barato. */
+    @Query("DELETE FROM deteccoes WHERE emMillis < :antesDe")
+    suspend fun limpar(antesDe: Long)
+}
