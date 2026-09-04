@@ -2,6 +2,7 @@ package com.scholze.saldo.ui.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import kotlin.math.abs
 
 /**
  * Tokens for the Material 3 Expressive direction (canvas "B · sistema"), on a
@@ -40,6 +41,18 @@ data class SaldoColors(
     /** "para onde foi": as tags além do top 4 agrupadas, e o que não tem tag. */
     val insightOutras: Color,
     val insightSemTag: Color,
+    /**
+     * Os sete tons da grade do board: três rosas (saiu mais), o neutro do dia parado e
+     * três verdes (entrou mais). Rosa e verde são as duas famílias que o app já usa —
+     * `categoryVariable` e `tint` — esticadas em rampa.
+     */
+    val boardZero: Color,
+    val boardNeg1: Color,
+    val boardNeg2: Color,
+    val boardNeg3: Color,
+    val boardPos1: Color,
+    val boardPos2: Color,
+    val boardPos3: Color,
     val isDark: Boolean,
 )
 
@@ -63,6 +76,13 @@ val LightSaldoColors = SaldoColors(
     categoryFixed = Color(0xFF7A5A2E),
     insightOutras = Color(0xFF5C5F66),
     insightSemTag = Color(0xFFB9C0B5),
+    boardZero = Color(0xFFE7EBE4),
+    boardNeg1 = Color(0xFFF0DDE3),
+    boardNeg2 = Color(0xFFD7A9B7),
+    boardNeg3 = Color(0xFF8C4F63),
+    boardPos1 = Color(0xFFCBE7D2),
+    boardPos2 = Color(0xFF79C293),
+    boardPos3 = Color(0xFF2F6A45),
     isDark = false,
 )
 
@@ -86,5 +106,33 @@ val DarkSaldoColors = SaldoColors(
     categoryFixed = Color(0xFFD9BC8A),
     insightOutras = Color(0xFFC0C6CC),
     insightSemTag = Color(0xFF4A524A),
+    boardZero = Color(0xFF232A24),
+    boardNeg1 = Color(0xFF3A2830),
+    boardNeg2 = Color(0xFF6B3C4C),
+    boardNeg3 = Color(0xFFC98FA4),
+    boardPos1 = Color(0xFF223A2A),
+    boardPos2 = Color(0xFF3E7A55),
+    boardPos3 = Color(0xFF7FD79B),
     isDark = true,
 )
+
+/**
+ * O tom da célula para um nível de −3 a 3. Satura nas pontas em vez de estourar: o motor
+ * promete a faixa, mas um `nivel` fora dela não pode virar crash de renderização.
+ */
+fun SaldoColors.tomDoBoard(nivel: Int): Color = when (nivel.coerceIn(-3, 3)) {
+    -3 -> boardNeg3
+    -2 -> boardNeg2
+    -1 -> boardNeg1
+    1 -> boardPos1
+    2 -> boardPos2
+    3 -> boardPos3
+    else -> boardZero
+}
+
+/**
+ * A tinta que se lê em cima de [tomDoBoard]. Só os tons 3 são escuros o bastante (no
+ * claro) ou claros o bastante (no escuro) para exigirem o contraste invertido.
+ */
+fun SaldoColors.textoSobreBoard(nivel: Int): Color =
+    if (abs(nivel) >= 3) (if (isDark) background else Color(0xFFFFFFFF)) else secondaryLabel

@@ -65,4 +65,36 @@ class SaldoColorsTest {
 
     /** O quanto o verde se destaca do vermelho e do azul. */
     private fun verdor(c: Color): Float = c.green - (c.red + c.blue) / 2f
+
+    @Test
+    fun tomDoBoardCobreOsSeteNiveisNosDoisEsquemas() {
+        for (cores in listOf(LightSaldoColors, DarkSaldoColors)) {
+            val tons = (-3..3).map { cores.tomDoBoard(it) }
+            assertEquals("sete níveis, sete tons distintos", 7, tons.toSet().size)
+            assertEquals(cores.boardZero, cores.tomDoBoard(0))
+            assertEquals(cores.boardNeg3, cores.tomDoBoard(-3))
+            assertEquals(cores.boardPos3, cores.tomDoBoard(3))
+        }
+    }
+
+    /** O motor promete −3..3, mas um nível fora da faixa não pode virar crash. */
+    @Test
+    fun tomDoBoardSaturaEmVezDeEstourar() {
+        assertEquals(LightSaldoColors.boardNeg3, LightSaldoColors.tomDoBoard(-9))
+        assertEquals(LightSaldoColors.boardPos3, LightSaldoColors.tomDoBoard(9))
+    }
+
+    /** Mesma lógica da rampa de calor: mais gasto, mais rosa — nos dois esquemas. */
+    @Test
+    fun aRampaRosaGanhaRosaNosDoisEsquemas() {
+        for (cores in listOf(LightSaldoColors, DarkSaldoColors)) {
+            val rampa = listOf(cores.boardNeg1, cores.boardNeg2, cores.boardNeg3)
+            rampa.map(::rosidade).zipWithNext { menor, maior ->
+                assertTrue("rampa rosa fora de ordem em isDark=${cores.isDark}", menor < maior)
+            }
+        }
+    }
+
+    /** O quanto o vermelho se destaca do verde. */
+    private fun rosidade(c: Color): Float = c.red - c.green
 }
