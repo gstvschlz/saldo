@@ -3,6 +3,7 @@ package com.scholze.saldo.domain
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -163,6 +164,32 @@ class RitmoEngineTest {
     }
 
     // ---- o desvio ----
+
+    /**
+     * O caso que a captura pegou: existem meses anteriores, mas até ESTE dia do mês eles
+     * estavam zerados. Não há porcentagem, e ainda assim há comparação — dizer "sem mês
+     * anterior" aqui é mentira para quem tem seis meses de histórico.
+     */
+    @Test
+    fun `costume zerado neste ponto do mes ainda e comparacao`() {
+        val r = setembro(
+            listOf(
+                mov(LocalDate.of(2026, 9, 1), -5_000),
+                // Agosto só gastou no dia 20: no dia 4, o costume dele era zero.
+                mov(LocalDate.of(2026, 8, 20), -90_000),
+            ),
+        )
+        assertTrue(r.temComparacao)
+        assertEquals(0L, r.referenciaAteAgora)
+        assertNull(r.desvioPercentual)
+    }
+
+    @Test
+    fun `sem mes anterior nao ha comparacao nenhuma`() {
+        val r = setembro(emptyList())
+        assertFalse(r.temComparacao)
+        assertNull(r.desvioPercentual)
+    }
 
     @Test
     fun `desvio positivo quer dizer gastando mais que o costume`() {

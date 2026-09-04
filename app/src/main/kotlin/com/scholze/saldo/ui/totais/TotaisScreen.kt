@@ -215,6 +215,13 @@ private fun LinhaValor(rotulo: String, centavos: Long, cor: Color? = null) {
  * diferença apareceu. Sem mês anterior com que comparar, o bloco diz isso em vez de
  * desenhar uma referência inventada.
  */
+/** Gastando mais do que o costume — com ou sem porcentagem para expressar quanto. */
+private fun acimaDoCostume(ritmo: Ritmo): Boolean {
+    if (!ritmo.temComparacao) return false
+    val desvio = ritmo.desvioPercentual ?: return ritmo.gastoAteAgora > 0
+    return desvio > 0
+}
+
 @Composable
 private fun BlocoRitmo(ritmo: Ritmo) {
     val colors = SaldoTheme.colors
@@ -235,7 +242,10 @@ private fun BlocoRitmo(ritmo: Ritmo) {
                 val desvio = ritmo.desvioPercentual
                 Text(
                     text = when {
-                        desvio == null -> "sem mês anterior"
+                        !ritmo.temComparacao -> "sem mês anterior"
+                        // Há comparação, mas o costume neste ponto do mês era zero: não há
+                        // porcentagem, e mesmo assim dá para dizer de que lado se está.
+                        desvio == null -> if (ritmo.gastoAteAgora > 0) "acima do costume" else "no costume"
                         desvio > 0 -> "$desvio% acima do costume"
                         desvio < 0 -> "${-desvio}% abaixo do costume"
                         else -> "no costume"
@@ -243,7 +253,7 @@ private fun BlocoRitmo(ritmo: Ritmo) {
                     style = SaldoTheme.type.footnote,
                     // Gastar mais que o costume não é erro, é informação: o tom forte fica
                     // para o lado que pesa, e o resto é secundário.
-                    color = if (desvio != null && desvio > 0) colors.categoryVariable else colors.secondaryLabel,
+                    color = if (acimaDoCostume(ritmo)) colors.categoryVariable else colors.secondaryLabel,
                 )
             }
 

@@ -2,6 +2,11 @@
 
 `01-home-board.png` — a aba `saldos` com a grade do mês, hoje com o anel do tint e o painel
 do dia aberto embaixo. `02-totais-ritmo.png` — `totais › mês` com o bloco do ritmo.
+`03-para-onde-foi-no-tempo.png` — as tags empilhadas nos seis meses.
+
+Falta a da poupança mês a mês: a seção fica abaixo da dobra e o `performScrollTo` recusa
+naquele ponto (o nó não tem ancestral rolável no instante da busca). As barras estão
+cobertas por teste; a captura fica para quando alguém rolar à mão.
 
 ## como recapturar
 

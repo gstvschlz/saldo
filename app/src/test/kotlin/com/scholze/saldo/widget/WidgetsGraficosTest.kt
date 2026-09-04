@@ -106,6 +106,8 @@ class WidgetsGraficosTest {
         diasDecorridos = 12,
         gastoCentavos = 1_240_00,
         desvioPercentual = 24,
+        temComparacao = true,
+        gastouAlgo = true,
         fracao = 1f,
         fracaoCostume = 0.8f,
         mostrarValores = true,
@@ -132,16 +134,32 @@ class WidgetsGraficosTest {
     @Test
     fun ritmoSemMesAnteriorDizQueNaoHaComparacao() = runGlanceAppWidgetUnitTest {
         setAppWidgetSize(FAIXA)
-        provideComposable { RitmoWidgetContent(ritmo.copy(desvioPercentual = null)) }
+        provideComposable {
+            RitmoWidgetContent(ritmo.copy(desvioPercentual = null, temComparacao = false))
+        }
         onNode(hasTestTag(TAG_RITMO_DESVIO)).assertHasText("sem comparação")
+    }
+
+    /** Com histórico mas costume zerado neste ponto do mês, ainda dá para dizer o lado. */
+    @Test
+    fun ritmoComCostumeZeradoDizQueEstaAcima() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(FAIXA)
+        provideComposable { RitmoWidgetContent(ritmo.copy(desvioPercentual = null)) }
+        onNode(hasTestTag(TAG_RITMO_DESVIO)).assertHasText("acima do costume")
     }
 
     @Test
     fun `o texto do desvio muda de sinal`() {
-        assertEquals("+24% vs costume", textoDoDesvio(24))
-        assertEquals("-24% vs costume", textoDoDesvio(-24))
-        assertEquals("no costume", textoDoDesvio(0))
-        assertEquals("sem comparação", textoDoDesvio(null))
+        assertEquals("+24% vs costume", textoDoDesvio(24, temComparacao = true, gastouAlgo = true))
+        assertEquals("-24% vs costume", textoDoDesvio(-24, temComparacao = true, gastouAlgo = true))
+        assertEquals("no costume", textoDoDesvio(0, temComparacao = true, gastouAlgo = true))
+    }
+
+    @Test
+    fun `sem comparacao e costume zerado dizem coisas diferentes`() {
+        assertEquals("sem comparação", textoDoDesvio(null, temComparacao = false, gastouAlgo = true))
+        assertEquals("acima do costume", textoDoDesvio(null, temComparacao = true, gastouAlgo = true))
+        assertEquals("no costume", textoDoDesvio(null, temComparacao = true, gastouAlgo = false))
     }
 
     @Test

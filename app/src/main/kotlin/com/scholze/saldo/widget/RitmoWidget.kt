@@ -50,6 +50,9 @@ sealed interface RitmoWidgetEstado {
         val diasDecorridos: Int,
         val gastoCentavos: Long,
         val desvioPercentual: Int?,
+        /** Há mês anterior com que comparar, mesmo que o costume aqui seja zero. */
+        val temComparacao: Boolean,
+        val gastouAlgo: Boolean,
         val fracao: Float,
         val fracaoCostume: Float,
         val mostrarValores: Boolean,
@@ -76,6 +79,8 @@ class RitmoWidget : GlanceAppWidget() {
                     diasDecorridos = r.acumulado.size,
                     gastoCentavos = r.gastoAteAgora,
                     desvioPercentual = r.desvioPercentual,
+                    temComparacao = r.temComparacao,
+                    gastouAlgo = r.gastoAteAgora > 0,
                     fracao = if (maior > 0) r.gastoAteAgora.toFloat() / maior else 0f,
                     fracaoCostume = if (maior > 0) r.referenciaAteAgora.toFloat() / maior else 0f,
                     mostrarValores = carga.mostrarValores,
@@ -126,10 +131,10 @@ private fun CorpoRitmo(estado: RitmoWidgetEstado.Pronto) {
             )
         }
         Text(
-            textoDoDesvio(estado.desvioPercentual),
+            textoDoDesvio(estado.desvioPercentual, estado.temComparacao, estado.gastouAlgo),
             modifier = GlanceModifier.semantics { testTag = TAG_RITMO_DESVIO },
             style = TextStyle(
-                color = if ((estado.desvioPercentual ?: 0) > 0) CoresWidget.negativo else CoresWidget.secundario,
+                color = if (acimaDoCostume(estado)) CoresWidget.negativo else CoresWidget.secundario,
                 fontSize = 12.sp,
             ),
             maxLines = 1,
@@ -171,11 +176,22 @@ internal fun pesoCheio(fracao: Float): Int =
 
 internal const val PESO_TOTAL = 12
 
-internal fun textoDoDesvio(desvio: Int?): String = when {
-    desvio == null -> "sem comparação"
+/**
+ * [temComparacao] separa "não há mês anterior" de "o costume neste ponto do mês era zero" —
+ * no dia 3, o segundo é comum e não quer dizer que falte histórico.
+ */
+internal fun textoDoDesvio(desvio: Int?, temComparacao: Boolean, gastouAlgo: Boolean): String = when {
+    !temComparacao -> "sem comparação"
+    desvio == null -> if (gastouAlgo) "acima do costume" else "no costume"
     desvio > 0 -> "+" + desvio + "% vs costume"
     desvio < 0 -> desvio.toString() + "% vs costume"
     else -> "no costume"
+}
+
+/** Gastando mais do que o costume — com ou sem porcentagem para expressar quanto. */
+internal fun acimaDoCostume(estado: RitmoWidgetEstado.Pronto): Boolean {
+    if (!estado.temComparacao) return false
+    return (estado.desvioPercentual ?: return estado.gastouAlgo) > 0
 }
 
 @Composable

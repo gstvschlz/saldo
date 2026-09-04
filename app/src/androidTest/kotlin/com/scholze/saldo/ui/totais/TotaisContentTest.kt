@@ -411,6 +411,22 @@ class TotaisContentTest {
         rule.onNodeWithText("50% acima do costume").assertIsDisplayed()
     }
 
+    /**
+     * O caso que a captura pegou: há meses anteriores, mas até este dia do mês eles estavam
+     * zerados. Não há porcentagem — e ainda assim não é "sem mês anterior".
+     */
+    @Test
+    fun comCostumeZeradoORitmoDizSoOLado() {
+        montar(
+            TotaisUiState(
+                YearMonth.of(2026, 7), totais,
+                ritmo = ritmo.copy(referencia = listOf(0L, 0L, 0L, 0L)),
+            ),
+        )
+        rule.onNodeWithText("ritmo do mês").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("acima do costume").assertIsDisplayed()
+    }
+
     @Test
     fun semMesAnteriorORitmoDizQueNaoHaComparacao() {
         montar(

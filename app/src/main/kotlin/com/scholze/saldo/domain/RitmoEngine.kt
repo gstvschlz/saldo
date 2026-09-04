@@ -24,13 +24,25 @@ data class Ritmo(
     val referenciaAteAgora: Long get() = referencia.lastOrNull() ?: 0L
 
     /**
-     * Quanto por cento acima (positivo) ou abaixo (negativo) do costume, hoje. `null` quando
-     * não há com que comparar — o que é diferente de "está igual".
+     * Existe mês anterior com que comparar.
+     *
+     * É diferente de [desvioPercentual] ser `null`: no dia 3 de um mês, o costume dos meses
+     * anteriores no dia 3 pode ser legitimamente zero — ninguém tinha gasto nada ainda —, e
+     * aí não há porcentagem possível mas há comparação. Tratar os dois casos como um só
+     * fazia a tela dizer "sem mês anterior" para quem tem seis meses de histórico.
+     */
+    val temComparacao: Boolean get() = mesesComparados > 0
+
+    /**
+     * Quanto por cento acima (positivo) ou abaixo (negativo) do costume, hoje.
+     *
+     * `null` nos dois casos em que a divisão não existe: sem mês anterior, e com o costume
+     * zerado neste ponto do mês. Quem mostra distingue os dois por [temComparacao].
      */
     val desvioPercentual: Int?
         get() {
             val base = referenciaAteAgora
-            if (referencia.isEmpty() || base <= 0L) return null
+            if (!temComparacao || base <= 0L) return null
             return (((gastoAteAgora - base) * 100) / base).toInt()
         }
 }
