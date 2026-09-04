@@ -25,6 +25,7 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Padroes
 import com.scholze.saldo.domain.ParaOndeFoi
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
@@ -142,7 +143,7 @@ private fun LinhaMaiorGasto(mov: Movimentacao, onClick: () -> Unit) {
             mov.data.dayOfMonth.toString().padStart(2, '0'),
             style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
         )
-        Text(mov.descricao, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
+        DescricaoTexto(mov.descricao, Modifier.weight(1f))
         MoneyText(centavos = mov.valorCentavos, style = SaldoTheme.type.body, color = colors.label, formato = FormatoMoney.ASSINADO)
     }
 }

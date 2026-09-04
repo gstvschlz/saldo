@@ -56,6 +56,8 @@ import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.descricaoVisivel
+import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.DiaBadge
 import com.scholze.saldo.ui.components.FiltroChips
 import com.scholze.saldo.ui.components.IconeRedondo
@@ -277,7 +279,8 @@ fun LedgerScreen(
                         fatura.compras.forEach { compra ->
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    compra.data.format(diaCurto).removeSuffix(".") + "  " + compra.descricao,
+                                    compra.data.format(diaCurto).removeSuffix(".") + "  " +
+                                        compra.descricao.descricaoVisivel(),
                                     Modifier.weight(1f), style = SaldoTheme.type.row,
                                 )
                                 MoneyText(centavos = compra.valorCentavos, style = SaldoTheme.type.row, formato = FormatoMoney.ASSINADO)
@@ -528,7 +531,7 @@ private fun LinhaMov(
                 ),
             )
         }
-        Text(descricao, style = SaldoTheme.type.row, color = colors.label)
+        DescricaoTexto(descricao, style = SaldoTheme.type.row)
         MoneyText(
             centavos = centavos,
             modifier = Modifier.weight(1f),

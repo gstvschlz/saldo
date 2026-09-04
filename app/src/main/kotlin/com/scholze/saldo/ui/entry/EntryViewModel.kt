@@ -47,7 +47,11 @@ data class EntryUiState(
     val todasTags: List<Tag> = emptyList(),
     val saldoResultanteCentavos: Long? = null,
 ) {
-    val podeSalvar: Boolean get() = centavos > 0 && descricao.isNotBlank()
+    /**
+     * Só o valor prende o salvar. A descrição é opcional: exigi-la no caminho rápido — o
+     * widget, o botão "lançar" de uma sugestão — só rendia "x" e "asdf" no lugar de nada.
+     */
+    val podeSalvar: Boolean get() = centavos > 0
     val valorAssinado: Long get() = if (saida) -centavos else centavos
 }
 

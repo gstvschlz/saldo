@@ -25,6 +25,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.scholze.saldo.domain.InsightsEngine
+import com.scholze.saldo.domain.descricaoVisivel
 import com.scholze.saldo.ui.money.centavosAssinado
 import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.nav.Destino
@@ -79,7 +80,11 @@ class ACaminhoWidget : GlanceAppWidget() {
                     saemCentavos = a.saemCentavos,
                     mesEncerrado = a.mesEncerrado,
                     linhas = a.itens.take(LINHAS_VISIVEIS).map {
-                        ACaminhoEstado.Linha(it.data.dayOfMonth, it.item.descricao, it.item.valorCentavos)
+                        ACaminhoEstado.Linha(
+                            it.data.dayOfMonth,
+                            it.item.descricao.descricaoVisivel(),
+                            it.item.valorCentavos,
+                        )
                     },
                     restantes = (a.itens.size - LINHAS_VISIVEIS).coerceAtLeast(0),
                     mostrarValores = carga.mostrarValores,

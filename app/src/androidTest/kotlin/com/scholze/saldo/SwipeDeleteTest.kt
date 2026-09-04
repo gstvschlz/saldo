@@ -53,7 +53,7 @@ class SwipeDeleteTest {
 
         // adiciona uma movimentação (mesma sequência do EntryFlowTest)
         rule.onNodeWithTag(TAG_ADD).performClick()
-        rule.onNodeWithText("toque para escrever").performClick()
+        rule.onNodeWithText("opcional").performClick()
         rule.onNode(hasSetTextAction()).performTextInput("uber")
         rule.onNodeWithText("0,00").performClick()               // abre o teclado
         "2740".forEach { rule.onNodeWithText(it.toString()).performClick() }

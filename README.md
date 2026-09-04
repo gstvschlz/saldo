@@ -16,6 +16,9 @@ Os testes instrumentados precisam de um device ou emulador ligado:
 Os dados ficam 100% no aparelho (sem backup em nuvem nem transferência entre aparelhos).
 Exporte em `mais → exportar dados`, em csv ou json.
 
+Lançar cobra só o valor: a **descrição é opcional**, e a linha sem nome aparece como "sem
+descrição" nas listas. Os exports guardam o campo vazio como ele é.
+
 O app abre no **board**: o mês corrente em quadradinhos, um por dia — do dia 1 até hoje,
 sem passar disso, porque uma célula pintada quer dizer "este dia aconteceu". A cor é o saldo
 do dia: rosa saiu mais do que entrou, verde o contrário, e a intensidade sai de múltiplos de

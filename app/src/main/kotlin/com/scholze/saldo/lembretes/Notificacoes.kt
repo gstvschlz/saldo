@@ -14,6 +14,7 @@ import com.scholze.saldo.MainActivity
 import com.scholze.saldo.R
 import com.scholze.saldo.domain.Lembrete
 import com.scholze.saldo.domain.Slot
+import com.scholze.saldo.domain.descricaoVisivel
 import com.scholze.saldo.ui.money.centavosAssinado
 import com.scholze.saldo.ui.money.centavosValor
 import com.scholze.saldo.ui.nav.Destino
@@ -95,7 +96,9 @@ object Notificacoes {
             )
         }
         is Lembrete.RecorrenciasHoje -> {
-            val linhas = lembrete.itens.map { it.descricao + " " + it.valorCentavos.centavosAssinado() }
+            val linhas = lembrete.itens.map {
+                it.descricao.descricaoVisivel() + " " + it.valorCentavos.centavosAssinado()
+            }
             ID_RECORRENCIAS to notificacao(
                 context, ID_RECORRENCIAS,
                 titulo = if (linhas.size == 1) "hoje: ${linhas.single()}" else "hoje: ${linhas.size} movimentações fixas",

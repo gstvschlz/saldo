@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Recorrencia
+import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
@@ -164,7 +165,7 @@ private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> U
     ) {
         Text("dia ${rec.diaDoMes}", Modifier.width(50.dp), style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
         Column(Modifier.weight(1f)) {
-            Text(rec.descricao, style = SaldoTheme.type.body, color = colors.label)
+            DescricaoTexto(rec.descricao)
             val nota = when {
                 rec.inicio > mes -> "começa em " + rec.inicio.rotuloCurto()
                 !rec.ativa -> "encerrada"

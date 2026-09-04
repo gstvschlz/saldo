@@ -9,6 +9,18 @@ enum class FiltroLedger(val rotulo: String) { TODAS("todas"), DIARIOS("diários"
 
 data class Tag(val id: Long = 0, val nome: String, val cor: Long)
 
+/**
+ * O que se lê no lugar de uma descrição em branco.
+ *
+ * A descrição é opcional — pelo widget, ou aceitando uma sugestão de notificação, o normal
+ * é registrar o valor e seguir a vida —, mas nenhuma tela pode mostrar um dinheiro ao lado
+ * de um espaço vazio. Os exports guardam o vazio como está; isto é só leitura.
+ */
+const val SEM_DESCRICAO = "sem descrição"
+
+/** A descrição como ela se lê: o texto, ou [SEM_DESCRICAO] quando ficou em branco. */
+fun String.descricaoVisivel(): String = ifBlank { SEM_DESCRICAO }
+
 data class Movimentacao(
     val id: Long = 0,
     val descricao: String,

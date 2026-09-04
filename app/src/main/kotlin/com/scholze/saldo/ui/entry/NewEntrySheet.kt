@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -207,18 +210,38 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
 
             InsetGroup {
                 if (editandoDescricao) {
+                    // Enquanto está aberto, o campo é dono do próprio texto.
+                    //
+                    // `state` vem de um `combine` com `flowOn(Default)`: o que se digita só
+                    // volta do ViewModel um ou dois frames depois. Um TextField cujo `value`
+                    // chega atrasado desfaz e refaz a edição a cada tecla — o cursor pula para
+                    // o fim no meio da palavra, e digitando rápido some letra. Este `remember`
+                    // é síncrono e responde na mesma composição; o ViewModel continua recebendo
+                    // tudo, porque é `form` quem o `salvar` lê.
+                    var texto by remember { mutableStateOf(state.descricao) }
+                    val foco = remember { FocusRequester() }
+                    // Abrir o campo é um toque deliberado na linha: ele já vem com o cursor.
+                    LaunchedEffect(Unit) { foco.requestFocus() }
                     OutlinedTextField(
-                        value = state.descricao,
-                        onValueChange = vm::definirDescricao,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        value = texto,
+                        onValueChange = {
+                            texto = it
+                            vm.definirDescricao(it)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .focusRequester(foco),
                         placeholder = { Text("descrição", color = colors.secondaryLabel) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions.Default,
                     )
                 } else {
+                    // "opcional" e não "toque para escrever": a linha inteira já é clicável, e
+                    // o que precisa ser dito aqui é que dá para salvar sem escrever nada.
                     InsetRow(
                         label = "descrição",
-                        value = state.descricao.ifBlank { "toque para escrever" },
+                        value = state.descricao.ifBlank { "opcional" },
                         onClick = { editandoDescricao = true },
                     )
                 }

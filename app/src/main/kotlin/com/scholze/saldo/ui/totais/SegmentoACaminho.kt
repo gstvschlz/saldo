@@ -19,6 +19,7 @@ import com.scholze.saldo.domain.ACaminho
 import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.ItemFuturo
 import com.scholze.saldo.domain.ResumoRecorrencias
+import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.components.SaldoGlyph
@@ -159,7 +160,7 @@ private fun LinhaFuturo(f: ItemFuturo, onClick: () -> Unit) {
             Modifier.width(20.dp),
             style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
         )
-        Text(f.item.descricao, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
+        DescricaoTexto(f.item.descricao, Modifier.weight(1f))
         // Fixa (recorrência ou fatura): o mesmo glifo do ledger, mesma leitura.
         if (f.item.recorrente) {
             SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 12.dp, strokeWidth = 1.6.dp)
