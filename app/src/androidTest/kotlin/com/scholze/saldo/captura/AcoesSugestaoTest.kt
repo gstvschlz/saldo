@@ -48,7 +48,7 @@ class AcoesSugestaoTest {
     }
 
     private fun disparar(deteccao: Deteccao, titulo: String) {
-        val n = NotificacaoSugestao.construir(app, deteccao, "Banco", jaLancado = false)
+        val n = NotificacaoSugestao.construir(app, deteccao, "Banco", "Banco", jaLancado = false)
         n.actions.first { it.title.toString() == titulo }.actionIntent.send()
     }
 

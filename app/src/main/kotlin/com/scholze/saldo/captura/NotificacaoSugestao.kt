@@ -45,25 +45,46 @@ object NotificacaoSugestao {
     /** Uma sugestão por detecção: uma repetida renotifica no MESMO id, e por isso substitui. */
     fun idDe(deteccaoId: Long): Int = BASE_ID + (deteccaoId % 100_000L).toInt()
 
-    fun mostrar(context: Context, deteccao: Deteccao, rotulo: String, jaLancado: Boolean) {
+    fun mostrar(
+        context: Context,
+        deteccao: Deteccao,
+        rotulo: String,
+        descricao: String,
+        jaLancado: Boolean,
+    ) {
         // Checagem inline (não via helper) para o lint enxergar a guarda de MissingPermission.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) return
         NotificationManagerCompat.from(context)
-            .notify(idDe(deteccao.id), construir(context, deteccao, rotulo, jaLancado))
+            .notify(idDe(deteccao.id), construir(context, deteccao, rotulo, descricao, jaLancado))
     }
 
     fun cancelar(context: Context, deteccaoId: Long) {
         NotificationManagerCompat.from(context).cancel(idDe(deteccaoId))
     }
 
-    /** Separado de [mostrar] para os testes lerem título e texto sem depender do sistema. */
-    fun construir(context: Context, deteccao: Deteccao, rotulo: String, jaLancado: Boolean): Notification {
+    /**
+     * Separado de [mostrar] para os testes lerem título e texto sem depender do sistema.
+     *
+     * [rotulo] é o nome do app e fica no título, porque é ele que diz DE ONDE a sugestão
+     * veio. [descricao] é o estabelecimento lido do texto, e é o nome com que o lançamento
+     * nasce — quando não houve nenhum reconhecível, quem chama já manda o rótulo aqui.
+     */
+    fun construir(
+        context: Context,
+        deteccao: Deteccao,
+        rotulo: String,
+        descricao: String,
+        jaLancado: Boolean,
+    ): Notification {
         val id = idDe(deteccao.id)
         val valor = "R$ " + deteccao.centavos.centavosValor()
-        val texto = if (jaLancado) "já lançado hoje · lançar mesmo assim?" else "lançar como saída de hoje?"
+        val pergunta = if (jaLancado) "já lançado hoje · lançar mesmo assim?" else "lançar como saída de hoje?"
+        // O estabelecimento vem antes da pergunta: é o que faz reconhecer a compra sem abrir
+        // nada. Quando ele é só o nome do app, repeti-lo no corpo seria eco do título.
+        val texto = if (descricao == rotulo) pergunta else descricao + " · " + pergunta
 
         // Abrir a sheet já preenchida é a saída para tudo que a decisão de um toque não cobre:
         // trocar o sinal, mudar para cartão, pôr tag, corrigir a descrição.
@@ -71,7 +92,7 @@ object NotificacaoSugestao {
             context, id,
             MainActivity.intent(
                 context,
-                Destino.NovaMovimentacao(saida = true, centavos = deteccao.centavos, descricao = rotulo),
+                Destino.NovaMovimentacao(saida = true, centavos = deteccao.centavos, descricao = descricao),
             ),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -90,14 +111,15 @@ object NotificacaoSugestao {
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publica)
-            .addAction(0, "lançar", acao(context, AcoesSugestao.ACAO_LANCAR, deteccao, rotulo, id * 2))
-            .addAction(0, "ignorar", acao(context, AcoesSugestao.ACAO_IGNORAR, deteccao, rotulo, id * 2 + 1))
+            .addAction(0, "lançar", acao(context, AcoesSugestao.ACAO_LANCAR, deteccao, descricao, id * 2))
+            .addAction(0, "ignorar", acao(context, AcoesSugestao.ACAO_IGNORAR, deteccao, descricao, id * 2 + 1))
             .build()
     }
 
     /**
-     * O rótulo do app viaja como extra em vez de ser consultado no receiver: ele roda noutro
-     * momento e não tem por que enxergar o pacote que emitiu a notificação original.
+     * A descrição viaja como extra em vez de ser recalculada no receiver: ele roda noutro
+     * momento, e a essa altura o texto da notificação original já não existe em lugar nenhum
+     * — nem no banco, que guarda só pacote, valor e hora.
      */
     private fun acao(
         context: Context,

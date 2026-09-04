@@ -27,20 +27,20 @@ class NotificacaoSugestaoTest {
 
     @Test
     fun mostraORotuloEOValor() {
-        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", jaLancado = false)
+        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", "Banco", jaLancado = false)
         assertEquals("Banco · R$ 32,90", titulo(n))
         assertEquals("lançar como saída de hoje?", texto(n))
     }
 
     @Test
     fun quandoJaLancadoAPerguntaMuda() {
-        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", jaLancado = true)
+        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", "Banco", jaLancado = true)
         assertEquals("já lançado hoje · lançar mesmo assim?", texto(n))
     }
 
     @Test
     fun tresOpcoesLancarIgnorarEAbrir() {
-        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", jaLancado = false)
+        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", "Banco", jaLancado = false)
         assertEquals(listOf("lançar", "ignorar"), n.actions.orEmpty().map { it.title.toString() })
         assertTrue("o corpo tem de abrir a sheet", n.contentIntent != null)
     }
@@ -51,7 +51,7 @@ class NotificacaoSugestaoTest {
      */
     @Test
     fun aVersaoPublicaNaoLevaValor() {
-        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", jaLancado = false)
+        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", "Banco", jaLancado = false)
         val publica = n.publicVersion
         assertEquals("sugestão de lançamento", titulo(publica!!))
         assertTrue("nada de valor na tela bloqueada", titulo(publica)?.contains("32,90") != true)
@@ -70,5 +70,33 @@ class NotificacaoSugestaoTest {
         listOf(0L, 1L, 99_999L, 100_000L, 1_234_567L).forEach {
             assertTrue("id ${NotificacaoSugestao.idDe(it)} colide", NotificacaoSugestao.idDe(it) >= 2000)
         }
+    }
+
+    // ---- o estabelecimento ----
+
+    /**
+     * O nome lido do texto entra no corpo, antes da pergunta: é o que faz reconhecer a
+     * compra sem abrir nada. O título continua sendo o app, que diz de onde veio.
+     */
+    @Test
+    fun oEstabelecimentoEntraNoCorpo() {
+        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", "VMT*CAROLINA", jaLancado = false)
+        assertEquals("Banco · R$ 32,90", titulo(n))
+        assertEquals("VMT*CAROLINA · lançar como saída de hoje?", texto(n))
+    }
+
+    /** Sem estabelecimento reconhecido, a descrição É o rótulo — e repeti-lo seria eco. */
+    @Test
+    fun semEstabelecimentoOCorpoNaoEcoaOTitulo() {
+        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", "Banco", jaLancado = false)
+        assertEquals("lançar como saída de hoje?", texto(n))
+    }
+
+    @Test
+    fun oEstabelecimentoNaoVazaParaATelaBloqueada() {
+        val n = NotificacaoSugestao.construir(context, deteccao, "Banco", "VMT*CAROLINA", jaLancado = false)
+        val publica = n.publicVersion!!
+        assertEquals("sugestão de lançamento", titulo(publica))
+        assertTrue("nada do texto na tela bloqueada", texto(publica)?.contains("CAROLINA") != true)
     }
 }

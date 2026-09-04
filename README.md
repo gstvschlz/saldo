@@ -38,11 +38,20 @@ meses em barra) e **para onde foi ao longo do tempo** (as tags empilhadas, seis 
 Sugestão a partir de notificação, em `mais → notificações`, **desligada por padrão**: quando
 um app que você marcou emite uma notificação com valor em reais, o saldo manda a sua própria
 notificação com os botões "lançar" e "ignorar" — o lançamento entra como saída do dia, em
-diários, e o corpo abre a sheet preenchida para trocar sinal, natureza ou tag. Requer ligar o
-acesso a notificações à mão em *Configurações → Acesso a notificações*: o Android não tem
-diálogo para isso, e com ele ligado o sistema entrega ao app o texto de toda notificação do
-aparelho. O saldo só lê os apps marcados, e não guarda o texto de nenhum — do que detecta,
-ficam só pacote, valor e hora, apagados em 24 h.
+diários, e o corpo abre a sheet preenchida para trocar sinal, natureza ou tag.
+
+A leitura é do texto **inteiro** da notificação, não só do título: corpo, texto expandido,
+subtítulo e as linhas do `InboxStyle` (que é como banco lista várias transações de uma vez).
+O valor vale em `R$` ou em `BRL`. Do mesmo texto sai o **nome do estabelecimento** — "compra
+em VMT*CAROLINA" vira um lançamento chamado `VMT*CAROLINA`, e não o nome do app; quando não
+dá para reconhecer nenhum, o nome do app é o que sobra.
+
+Requer ligar o acesso a notificações à mão em *Configurações → Acesso a notificações*: o
+Android não tem diálogo para isso, e com ele ligado o sistema entrega ao app o texto de toda
+notificação do aparelho. O saldo só lê os apps marcados, e **nada de texto vai para o
+banco** — a detecção guarda pacote, valor e hora, apagados em 24 h. O nome do
+estabelecimento existe enquanto a sugestão está na barra e vira a descrição do lançamento se
+você tocar em "lançar"; se ignorar, morre com a notificação.
 
 **Sete widgets** de tela inicial: saldo, a caminho, para onde foi, lançar, board do mês,
 ritmo e poupança. Os que mostram dinheiro vêm mascarados por padrão — ligue em `mais →

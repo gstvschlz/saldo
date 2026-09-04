@@ -6,6 +6,7 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.scholze.saldo.SaldoApplication
 import com.scholze.saldo.domain.Deteccao
+import com.scholze.saldo.domain.DetectorDescricao
 import com.scholze.saldo.domain.DetectorValor
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.Sugestao
@@ -39,24 +40,34 @@ class EscutaNotificacoes : NotificationListenerService() {
         // O sumário de um grupo repete o texto dos filhos; contá-lo duplicaria a compra.
         if (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
 
-        val texto = textoDe(sbn.notification)
+        val texto = textoDaNotificacao(sbn.notification.extras)
         if (texto.isBlank()) return
         val centavos = DetectorValor.primeiroValorEmCentavos(texto) ?: return
 
         val pacote = sbn.packageName
         val chave = sbn.key
         val agora = System.currentTimeMillis()
+        // O nome do estabelecimento sai do texto AQUI, junto com o valor: é o último instante
+        // em que o texto existe. Da avaliação em diante viajam só o valor e este pedaço,
+        // nunca a notificação inteira.
+        val estabelecimento = DetectorDescricao.descricao(texto)
         // onNotificationPosted roda na main thread do serviço e não pode tocar em Room.
         container.scope.launch {
             try {
-                avaliar(pacote, chave, centavos, agora)
+                avaliar(pacote, chave, centavos, agora, estabelecimento)
             } catch (e: Exception) {
                 Log.e(TAG, "avaliar notificação falhou", e)
             }
         }
     }
 
-    private suspend fun avaliar(pacote: String, chave: String, centavos: Long, agora: Long) {
+    private suspend fun avaliar(
+        pacote: String,
+        chave: String,
+        centavos: Long,
+        agora: Long,
+        estabelecimento: String?,
+    ) {
         val config = container.settings.lerCaptura()
         if (!config.ligada) return
         if (pacote !in config.marcados) {
@@ -76,33 +87,24 @@ class EscutaNotificacoes : NotificationListenerService() {
 
         val candidata = Deteccao(pacote = pacote, chave = chave, centavos = centavos, emMillis = agora)
         val rotulo = rotuloDe(pacote)
+        // Sem estabelecimento reconhecível, o lançamento fica com o nome do app — que era o
+        // comportamento de sempre, e é melhor do que um palpite errado virando linha do ledger.
+        val descricao = estabelecimento ?: rotulo
 
         when (val sugestao = SugestaoEngine.avaliar(candidata, config, recentes, valoresDeHoje)) {
             Sugestao.Ignorar -> Unit
             // Mesmo id de notificação: substitui a que já está na barra em vez de empilhar.
             is Sugestao.Repetida ->
-                NotificacaoSugestao.mostrar(this, sugestao.existente, rotulo, jaLancado = false)
+                NotificacaoSugestao.mostrar(this, sugestao.existente, rotulo, descricao, jaLancado = false)
             is Sugestao.Nova -> {
                 val id = dao.insert(candidata.toEntity())
-                NotificacaoSugestao.mostrar(this, candidata.copy(id = id), rotulo, jaLancado = false)
+                NotificacaoSugestao.mostrar(this, candidata.copy(id = id), rotulo, descricao, jaLancado = false)
             }
             is Sugestao.JaLancado -> {
                 val id = dao.insert(candidata.toEntity())
-                NotificacaoSugestao.mostrar(this, candidata.copy(id = id), rotulo, jaLancado = true)
+                NotificacaoSugestao.mostrar(this, candidata.copy(id = id), rotulo, descricao, jaLancado = true)
             }
         }
-    }
-
-    /** Título, texto e o texto grande, juntos — o valor pode estar em qualquer um deles. */
-    private fun textoDe(notificacao: Notification): String {
-        val extras = notificacao.extras ?: return ""
-        return listOf(
-            Notification.EXTRA_TITLE,
-            Notification.EXTRA_TEXT,
-            Notification.EXTRA_BIG_TEXT,
-        ).mapNotNull { extras.getCharSequence(it)?.toString() }
-            .filter { it.isNotBlank() }
-            .joinToString(" · ")
     }
 
     /** O nome que o usuário lê. Consulta por pacote, que não exige `QUERY_ALL_PACKAGES`. */
