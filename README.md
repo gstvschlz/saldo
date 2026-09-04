@@ -22,6 +22,15 @@ múltiplos de um dia típico (a mediana dos dias com movimento). Uma compra no c
 dia da compra; o anel marca o dia em que a fatura vence. Toque num dia para abrir o mês
 naquele dia, ou use o ícone de lista no cabeçalho para o ledger de sempre.
 
+Sugestão a partir de notificação, em `mais → notificações`, **desligada por padrão**: quando
+um app que você marcou emite uma notificação com valor em reais, o saldo manda a sua própria
+notificação com os botões "lançar" e "ignorar" — o lançamento entra como saída do dia, em
+diários, e o corpo abre a sheet preenchida para trocar sinal, natureza ou tag. Requer ligar o
+acesso a notificações à mão em *Configurações → Acesso a notificações*: o Android não tem
+diálogo para isso, e com ele ligado o sistema entrega ao app o texto de toda notificação do
+aparelho. O saldo só lê os apps marcados, e não guarda o texto de nenhum — do que detecta,
+ficam só pacote, valor e hora, apagados em 24 h.
+
 Widget de tela inicial (saldo projetado + novo lançamento) mascarado por padrão — ligue em
 `mais → mostrar valores no widget`. Lembretes locais (fatura vence amanhã, recorrência hoje,
 registrar gastos, fechamento do mês) em `mais → lembretes`; todos desligados por padrão.

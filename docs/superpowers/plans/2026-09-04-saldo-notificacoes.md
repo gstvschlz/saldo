@@ -685,3 +685,30 @@ git commit -m "docs: captura de notificações no README, com capturas"
 **Cobertura do spec:** notificação com botões → Task 5; escopo por app marcado → Tasks 4, 7, 8; dólar fora → Task 1 (o regex exige `R$`); natureza sempre diária → Task 5 (o ramo `ACAO_LANCAR`); dedup por janela + ledger → Task 2 e Task 7; armazenamento mínimo com limpeza de 24 h → Tasks 3 e 7; lista descoberta → Tasks 4 (`registrarAppVisto`) e 7 (passo 6); toda sugestão é saída → Task 5; primeiro valor é o valor → Task 1; corpo abre a sheet preenchida → Task 6; o texto que diz a verdade sobre o acesso → Task 8.
 
 **Fora de escopo confirmado:** dólar e conversão, heurística de sinal e de conta × cartão, ler SMS ou e-mail, categorizar sozinho, e backfill do que chegou antes da marcação.
+
+---
+
+## Execução (2026-09-04)
+
+Executado direto nesta sessão, em sete commits em vez de nove — o ciclo do Gradle nesta
+máquina é de minutos, e um build por task pagaria mais em espera do que renderia em
+granularidade. Quatro desvios do plano valem registro:
+
+1. **O regex do plano estava errado** e o teste pegou: com `(\.\d{3})*` a alternativa de
+   milhar vence também quando não há separador, e "R$ 1234,56" viraria R$ 1,23 em silêncio.
+   Passou a exigir `+`.
+2. **`connectedDebugAndroidTest` não aceita `--tests`.** O filtro é
+   `-Pandroid.testInstrumentationRunnerArguments.class=...`. O plano tinha o comando errado
+   em duas tasks.
+3. **A prova ponta a ponta por `adb shell am broadcast` é impossível**, e isso é uma
+   propriedade e não um defeito: o receiver das ações é `exported="false"` porque ninguém de
+   fora pode lançar dinheiro na sua conta, e o shell é de fora. O caminho de verdade — o
+   `PendingIntent` que a notificação carrega — virou o `AcoesSugestaoTest`.
+4. **`CapturaScreen` teve de ser dividida** em tela e conteúdo. Lendo o acesso do sistema por
+   dentro, o resultado dos testes passava a depender de como o emulador estava configurado —
+   e dois casos quebraram justamente depois de a verificação manual conceder o acesso. Com o
+   acesso hoisted, os dois estados são testados de propósito.
+
+Verde ao fim: **206 testes JVM**, **121 instrumentados**, `lintDebug` com 0 erros. A cadeia
+inteira foi vista funcionando num emulador de verdade, com capturas em
+`docs/superpowers/screenshots/2026-09-04-notificacoes/`.
