@@ -20,7 +20,7 @@ literal — o que muda é a superfície de permissão, e ela muda bastante (ver 
 | Decisão | Escolha | Consequência |
 |---|---|---|
 | Ao detectar | **Notificação com botões** "lançar" e "ignorar" | Resolve na barra de status. Tocar no corpo abre a sheet já preenchida, para tag e descrição. |
-| Escopo | **Só os apps que você marcar** | Notificação de app não marcado morre na primeira linha do listener, sem parse. |
+| Escopo | **Só os apps que você marcar** | Notificação de app não marcado não vira sugestão nem toca o disco; o único vestígio é o nome do pacote entrando na lista de "vistos". |
 | Dólar | **Ignorado; só R$** | Sem rede não há cotação, e uma cotação velha mentiria no saldo. O pedido original citava USD; ele optou por cortar. |
 | Natureza | **Sempre `DIARIO`** | Um toque, sem heurística. **Risco aceito e explicitado:** uma compra no cartão lançada como diária sai do saldo hoje *e de novo* no vencimento da fatura. |
 | Duplicata | **Janela de 10 min + confere no ledger** | A mesma dupla (app, valor) em 10 min atualiza a sugestão. E se já existe movimentação do mesmo valor hoje, a notificação muda de texto em vez de fingir que é nova. |
