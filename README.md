@@ -16,6 +16,12 @@ Os testes instrumentados precisam de um device ou emulador ligado:
 Os dados ficam 100% no aparelho (sem backup em nuvem nem transferência entre aparelhos).
 Exporte em `mais → exportar dados`, em csv ou json.
 
+O app abre no **board**: os últimos 12 meses em quadradinhos, um por dia, coloridos pelo
+saldo daquele dia — rosa saiu mais do que entrou, verde o contrário, e a intensidade sai de
+múltiplos de um dia típico (a mediana dos dias com movimento). Uma compra no cartão pinta o
+dia da compra; o anel marca o dia em que a fatura vence. Toque num dia para abrir o mês
+naquele dia, ou use o ícone de lista no cabeçalho para o ledger de sempre.
+
 Widget de tela inicial (saldo projetado + novo lançamento) mascarado por padrão — ligue em
 `mais → mostrar valores no widget`. Lembretes locais (fatura vence amanhã, recorrência hoje,
 registrar gastos, fechamento do mês) em `mais → lembretes`; todos desligados por padrão.
