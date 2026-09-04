@@ -45,7 +45,6 @@ import com.scholze.saldo.data.Exporters
 import com.scholze.saldo.data.Settings
 import com.scholze.saldo.ui.board.BoardScreen
 import com.scholze.saldo.ui.board.BoardViewModel
-import com.scholze.saldo.ui.board.VistaSaldos
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
 import com.scholze.saldo.ui.entry.EntryViewModel
 import com.scholze.saldo.ui.entry.NewEntrySheet
@@ -130,10 +129,10 @@ fun SaldoApp(
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
     // A tela de recorrências toma a aba totais; sair da aba fecha (voltar depois em "totais"
     // deve mostrar totais, não a subtela onde o usuário estava dez minutos antes).
-    // Qual vista da aba saldos está no ar. `rememberSaveable` e não DataStore de
-    // propósito: a escolha sobrevive à rotação e à morte do processo, mas uma abertura
-    // fria volta ao board — que é o que "o app abre no board" quer dizer.
-    var vista by rememberSaveable { mutableStateOf(VistaSaldos.BOARD) }
+    // A aba `saldos` é o board, e só. O ledger sobreviveu como UMA subtela: "os
+    // lançamentos desta etiqueta", que é onde a aba tags e o "ver tag" de totais
+    // aterrissam — sem ele, tocar numa tag não teria para onde ir.
+    var abrindoTag by rememberSaveable { mutableStateOf(false) }
     var abrindoRecorrencias by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(tab) { if (tab != SaldoTab.TOTAIS) abrindoRecorrencias = false }
 
@@ -155,8 +154,8 @@ fun SaldoApp(
             null -> return@LaunchedEffect
             // Quem chega por widget ou lembrete pediu um dia, não um panorama.
             is Destino.Saldos -> {
-                vista = VistaSaldos.LISTA
-                ledgerVm.irPara(destino.mes, destino.dia)
+                abrindoTag = false
+                boardVm.irPara(destino.mes, destino.dia)
                 tab = SaldoTab.SALDOS
             }
             is Destino.NovaMovimentacao -> {
@@ -237,16 +236,19 @@ fun SaldoApp(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Box(Modifier.weight(1f)) {
                 when (tab) {
-                    SaldoTab.SALDOS -> if (vista == VistaSaldos.BOARD) {
+                    SaldoTab.SALDOS -> if (!abrindoTag) {
                         BoardScreen(
                             state = boardState,
-                            // Tocar num dia é pedir aquele dia: leva ao ledger já
-                            // posicionado nele, que é a mesma porta do deep link.
-                            onDiaClick = { data ->
-                                ledgerVm.irPara(YearMonth.from(data), data.dayOfMonth)
-                                vista = VistaSaldos.LISTA
-                            },
-                            onVerLista = { vista = VistaSaldos.LISTA },
+                            // Tocar num dia abre os lançamentos dele embaixo da grade;
+                            // tocar de novo no mesmo dia fecha.
+                            onDiaClick = boardVm::alternarDia,
+                            onMesAnterior = boardVm::mesAnterior,
+                            onProximoMes = boardVm::proximoMes,
+                            onItemClick = abrirMovimentacao,
+                            // Mesmas guardas do ledger: ocorrência virtual (id 0) não abre o
+                            // editor nem passa pelo delete, que a recusaria e faria o
+                            // "desfazer" duplicar a linha.
+                            onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
                             onTogglePrivacidade = privacidade::alternar,
                         )
                     } else {
@@ -264,8 +266,8 @@ fun SaldoApp(
                             // uma IllegalArgumentException engolida pelo ViewModel.
                             onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
                             onTogglePrivacidade = privacidade::alternar,
-                            onLimparTag = { ledgerVm.definirTagFiltro(null) },
-                            onVerBoard = { vista = VistaSaldos.BOARD },
+                            onLimparTag = { ledgerVm.definirTagFiltro(null); abrindoTag = false },
+                            onVerBoard = { abrindoTag = false },
                             alvo = alvoLedger,
                             onAlvoConsumido = ledgerVm::limparAlvo,
                             contentPadding = PaddingValues(bottom = 24.dp),
@@ -281,15 +283,19 @@ fun SaldoApp(
                     } else {
                         TotaisScreen(
                             totaisVm,
-                            onVerTag = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
+                            onVerTag = { ledgerVm.definirTagFiltro(it); abrindoTag = true; tab = SaldoTab.SALDOS },
                             onAbrirMovimentacao = abrirMovimentacao,
-                            onIrParaDia = { mes, dia -> ledgerVm.irPara(mes, dia); tab = SaldoTab.SALDOS },
+                            onIrParaDia = { mes, dia ->
+                                abrindoTag = false
+                                boardVm.irPara(mes, dia)
+                                tab = SaldoTab.SALDOS
+                            },
                             onAbrirRecorrencias = { abrindoRecorrencias = true },
                         )
                     }
                     SaldoTab.TAGS -> TagsScreen(
                         vm = viewModel(factory = tagsFactory),
-                        onTagClick = { ledgerVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
+                        onTagClick = { ledgerVm.definirTagFiltro(it); abrindoTag = true; tab = SaldoTab.SALDOS },
                     )
                     SaldoTab.MAIS -> MaisScreen(
                         vm = viewModel(factory = maisFactory),
@@ -299,7 +305,11 @@ fun SaldoApp(
             }
             SaldoTabBar(
                 selected = tab,
-                onSelect = { tab = it },
+                // Tocar em `saldos` na barra é pedir a home: fecha a subtela da etiqueta.
+                onSelect = { novo ->
+                    if (novo == SaldoTab.SALDOS) abrindoTag = false
+                    tab = novo
+                },
                 onAdd = { entryVm.iniciarNova(LocalDate.now()); sheetAberto = true },
             )
         }

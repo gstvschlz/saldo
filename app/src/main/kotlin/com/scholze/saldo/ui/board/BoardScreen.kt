@@ -14,14 +14,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,10 +35,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.DiaBoard
+import com.scholze.saldo.domain.Fatura
+import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.ui.components.IconeRedondo
+import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.components.SaldoTopBar
 import com.scholze.saldo.ui.ledger.BalanceHero
+import com.scholze.saldo.ui.ledger.DayRow
+import com.scholze.saldo.ui.ledger.DialogoFatura
+import com.scholze.saldo.ui.ledger.faixaSaldos
 import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -54,9 +61,13 @@ import kotlin.math.abs
 
 private val ptBr = Locale.forLanguageTag("pt-BR")
 private val mesCurto = DateTimeFormatter.ofPattern("MMM", ptBr)
+private val tituloMes = DateTimeFormatter.ofPattern("MMMM yyyy", ptBr)
 private val diaLongo = DateTimeFormatter.ofPattern("d 'de' MMMM", ptBr)
 
-/** A grade inteira, para os testes acharem de uma vez. */
+/**
+ * O corpo rolável do board — grade e painel do dia. Os testes acham a tela por ele e rolam
+ * dentro dele; com fonte 2× a grade sozinha já passa da altura de um telefone.
+ */
 const val TAG_BOARD_GRADE = "board:grade"
 
 /** A régua no rodapé — os testes leem o "dia típico" por aqui. */
@@ -73,75 +84,95 @@ private const val ESCALA_SEM_NUMERO = 1.3f
 
 private val DIAS_SEMANA = listOf("s", "t", "q", "q", "s", "s", "d")
 
-/** Qual das duas vistas da aba `saldos` está no ar. O app sempre abre em [BOARD]. */
-enum class VistaSaldos { BOARD, LISTA }
-
 /**
- * O board: o mês corrente, do dia 1 até hoje, em sete colunas de dia da semana e semanas
- * empilhadas.
+ * O board: um mês em sete colunas de dia da semana, semanas empilhadas, e embaixo os
+ * lançamentos do dia que estiver aberto.
  *
- * Em pé e não deitado como o do GitHub por uma razão prática: a raiz da aba `saldos` já
- * gasta o arrasto horizontal trocando de mês, e uma grade que rolasse para o lado
- * brigaria com esse gesto todo dia. Em pé ela também cabe num telefone sem espremer a
- * célula abaixo do que se lê.
+ * É a única vista da aba `saldos` desde que o ledger deixou de ser tela: a lista do mês
+ * inteiro virou o painel de um dia só, que é o que se olha noventa por cento das vezes.
  *
- * Um mês cabe em cinco ou seis linhas, então a grade quase nunca rola — a `LazyColumn`
- * fica por causa da fonte grande, onde as células crescem e a última semana sairia da
- * tela.
+ * Em pé e não deitada como a do GitHub por uma razão prática: a aba gasta o arrasto
+ * horizontal trocando de mês, e uma grade que rolasse para o lado brigaria com esse gesto
+ * todo dia. Em pé ela também cabe num telefone sem espremer a célula abaixo do que se lê.
+ *
+ * O hero e o cabeçalho de colunas ficam FORA da rolagem. A grade e o painel rolam juntos —
+ * com fonte 2× e um dia de muitos lançamentos eles passam da tela, e foi o hero sumindo na
+ * abertura que a board-1 já pagou uma vez para aprender.
  */
 @Composable
 fun BoardScreen(
     state: BoardUiState,
     onDiaClick: (LocalDate) -> Unit,
-    onVerLista: () -> Unit,
+    onMesAnterior: () -> Unit,
+    onProximoMes: () -> Unit,
+    onItemClick: (Movimentacao) -> Unit,
+    onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = SaldoTheme.colors
     val board = state.board
-    val listState = rememberLazyListState()
     val semanas = remember(board) { board?.let { semanasDe(it.dias) }.orEmpty() }
+    var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
 
-    // A grade abre no fim: hoje é a última linha, e é ela que interessa ao abrir o app.
-    LaunchedEffect(semanas.size) {
-        if (semanas.isNotEmpty()) listState.scrollToItem(semanas.size - 1)
-    }
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .arrastoDeMes(state.mesAtual, onMesAnterior, onProximoMes),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            SaldoTopBar(
+                titulo = state.mesAtual.format(tituloMes),
+                onAnterior = onMesAnterior,
+                onProximo = onProximoMes,
+                acoes = {
+                    IconeRedondo(
+                        if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
+                        "alternar privacidade",
+                        onTogglePrivacidade,
+                    )
+                },
+            )
 
-    Column(modifier.fillMaxSize().background(colors.background)) {
-        SaldoTopBar(
-            titulo = "seus dias",
-            onAnterior = {},
-            onProximo = {},
-            mostrarSetas = false,
-            acoes = {
-                IconeRedondo(SaldoIcon.SALDOS, "ver como lista", onVerLista)
-                IconeRedondo(
-                    if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
-                    "alternar privacidade",
-                    onTogglePrivacidade,
-                )
-            },
-        )
+            val mes = state.mes
+            if (board == null || mes == null) {
+                Box(Modifier.fillMaxSize())
+                return@Column
+            }
 
-        if (board == null || state.mes == null) {
-            Box(Modifier.fillMaxSize())
-            return@Column
-        }
+            BalanceHero(mes, onTogglePrivacidade)
+            CabecalhoColunas()
 
-        // Só a grade rola. O hero, o cabeçalho de colunas e a régua ficam parados: a
-        // grade abre no fim, e num LazyColumn único isso empurraria os três para fora da
-        // tela — o saldo projetado sumia justamente na abertura do app.
-        BalanceHero(state.mes, onTogglePrivacidade)
-        CabecalhoColunas()
-        LazyColumn(Modifier.weight(1f).testTag(TAG_BOARD_GRADE), state = listState) {
-            items(
-                semanas,
-                key = { semana -> semana.filterNotNull().first().data.toEpochDay() },
-            ) { semana ->
-                LinhaSemana(semana, state.hoje, onDiaClick = onDiaClick)
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .testTag(TAG_BOARD_GRADE),
+            ) {
+                semanas.forEach { semana ->
+                    LinhaSemana(semana, state.hoje, state.diaAberto, onDiaClick)
+                }
+
+                // Ou os lançamentos do dia aberto, ou a régua. Os dois ao mesmo tempo
+                // empurrariam o painel para fora da primeira dobra num telefone.
+                val linha = state.linhaDoDia
+                if (linha != null) {
+                    DayRow(
+                        dia = linha,
+                        faixa = mes.faixaSaldos(),
+                        hoje = state.hoje,
+                        onItemClick = onItemClick,
+                        onExcluir = onExcluir,
+                        onFaturaClick = { faturaAberta = it },
+                    )
+                } else {
+                    Legenda(board.unidadeCentavos)
+                }
             }
         }
-        Legenda(board.unidadeCentavos)
+
+        faturaAberta?.let { DialogoFatura(it) { faturaAberta = null } }
     }
 }
 
@@ -189,6 +220,7 @@ private fun CabecalhoColunas() {
 private fun LinhaSemana(
     semana: List<DiaBoard?>,
     hoje: LocalDate,
+    diaAberto: LocalDate?,
     onDiaClick: (LocalDate) -> Unit,
 ) {
     // A grade é de um mês só, e o dia 1 cai sempre na primeira linha: o rótulo nomeia o
@@ -207,13 +239,19 @@ private fun LinhaSemana(
         }
         semana.forEach { dia ->
             if (dia == null) Spacer(Modifier.weight(1f).aspectRatio(1f))
-            else Celula(dia, hoje, Modifier.weight(1f), onDiaClick)
+            else Celula(dia, hoje, dia.data == diaAberto, Modifier.weight(1f), onDiaClick)
         }
     }
 }
 
 @Composable
-private fun Celula(dia: DiaBoard, hoje: LocalDate, modifier: Modifier, onDiaClick: (LocalDate) -> Unit) {
+private fun Celula(
+    dia: DiaBoard,
+    hoje: LocalDate,
+    aberto: Boolean,
+    modifier: Modifier,
+    onDiaClick: (LocalDate) -> Unit,
+) {
     val colors = SaldoTheme.colors
     val oculto = LocalPrivacy.current.oculto
     val forma = RoundedCornerShape(8.dp)
@@ -229,7 +267,15 @@ private fun Celula(dia: DiaBoard, hoje: LocalDate, modifier: Modifier, onDiaClic
     Box(
         modifier
             .aspectRatio(1f)
-            .then(if (ehHoje) Modifier.border(2.dp, colors.label, RoundedCornerShape(11.dp)) else Modifier)
+            .then(
+                when {
+                    // O dia aberto ganha o tint: é a ligação visível entre a célula tocada
+                    // e o painel que apareceu embaixo.
+                    aberto -> Modifier.border(2.dp, colors.tint, RoundedCornerShape(11.dp))
+                    ehHoje -> Modifier.border(2.dp, colors.label, RoundedCornerShape(11.dp))
+                    else -> Modifier
+                },
+            )
             .padding(2.dp),
     ) {
         Box(

@@ -71,6 +71,51 @@ class BoardEngineTest {
         assertEquals(0, b.unidadeCentavos)
     }
 
+    // ---- a janela de um mês escolhido ----
+
+    @Test
+    fun `mes passado aparece inteiro`() {
+        val b = BoardEngine.board(input(emptyList()), YearMonth.of(2026, 8))
+        assertEquals(LocalDate.of(2026, 8, 1), b.inicio)
+        assertEquals(LocalDate.of(2026, 8, 31), b.fim)
+        assertEquals(31, b.dias.size)
+    }
+
+    @Test
+    fun `fevereiro de ano bissexto tem 29 dias`() {
+        val b = BoardEngine.board(input(emptyList()), YearMonth.of(2024, 2))
+        assertEquals(29, b.dias.size)
+    }
+
+    /** A tela não deixa navegar até lá; o motor não pode estourar se ela deixar. */
+    @Test
+    fun `mes futuro devolve grade vazia`() {
+        val b = BoardEngine.board(input(emptyList()), YearMonth.of(2026, 10))
+        assertTrue(b.dias.isEmpty())
+        assertEquals(0, b.unidadeCentavos)
+    }
+
+    @Test
+    fun `sem mes escolhido a janela e a do mes de hoje`() {
+        assertEquals(BoardEngine.board(input(emptyList()), YearMonth.of(2026, 9)).dias.size,
+            BoardEngine.board(input(emptyList())).dias.size)
+    }
+
+    /** Cada mês soma o seu: o gasto de agosto não vaza para a grade de setembro. */
+    @Test
+    fun `o valor do dia e do mes pedido`() {
+        val emAgosto = LocalDate.of(2026, 8, 14)
+        val entrada = input(listOf(mov(emAgosto, -7_000), mov(LocalDate.of(2026, 9, 2), -1_000)))
+
+        val agosto = BoardEngine.board(entrada, YearMonth.of(2026, 8))
+        assertEquals(-7_000, agosto.dia(emAgosto).valorCentavos)
+        assertTrue(agosto.dias.none { it.data.month == java.time.Month.SEPTEMBER })
+
+        val setembro = BoardEngine.board(entrada, YearMonth.of(2026, 9))
+        assertEquals(-1_000, setembro.dia(LocalDate.of(2026, 9, 2)).valorCentavos)
+        assertTrue(setembro.dias.none { it.data.month == java.time.Month.AUGUST })
+    }
+
     @Test
     fun `dias sao contiguos e sem buraco`() {
         val b = BoardEngine.board(input(listOf(mov(hoje.minusDays(3), -5_000))))

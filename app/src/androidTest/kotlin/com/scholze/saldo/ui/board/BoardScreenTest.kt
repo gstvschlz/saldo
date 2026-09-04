@@ -9,6 +9,8 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -77,18 +79,22 @@ class BoardScreenTest {
         hoje = hoje,
     )
 
-    private fun estado(entrada: LedgerInput = input) = BoardUiState(
-        board = BoardEngine.board(entrada),
+    private fun estado(entrada: LedgerInput = input, diaAberto: LocalDate? = null) = BoardUiState(
+        board = BoardEngine.board(entrada, YearMonth.from(entrada.hoje)),
         mes = ProjectionEngine.mes(entrada, YearMonth.from(entrada.hoje), FiltroLedger.TODAS),
         hoje = entrada.hoje,
+        mesAtual = YearMonth.from(entrada.hoje),
+        diaAberto = diaAberto,
     )
 
     private var clicado: LocalDate? = null
+    private var mesesAndados = 0
 
     private fun montar(
         entrada: LedgerInput = input,
         oculto: Boolean = false,
         escalaFonte: Float = 1f,
+        diaAberto: LocalDate? = null,
     ) {
         rule.setContent {
             val densidade = LocalDensity.current
@@ -98,9 +104,12 @@ class BoardScreenTest {
             ) {
                 SaldoTheme {
                     BoardScreen(
-                        state = estado(entrada),
+                        state = estado(entrada, diaAberto),
                         onDiaClick = { clicado = it },
-                        onVerLista = {},
+                        onMesAnterior = { mesesAndados-- },
+                        onProximoMes = { mesesAndados++ },
+                        onItemClick = {},
+                        onExcluir = {},
                         onTogglePrivacidade = {},
                     )
                 }
@@ -197,6 +206,45 @@ class BoardScreenTest {
         montar(escalaFonte = 2f)
         // O número do dia some, a célula e o seu anúncio ficam.
         celula(diaDoGasto).assertContentDescriptionEquals("4 de setembro, saiu R$ 152,30")
+    }
+
+    // ---- o mês na barra e o painel do dia ----
+
+    @Test
+    fun aBarraMostraOMesDaGrade() {
+        montar()
+        rule.onNodeWithText("setembro 2026").assertIsDisplayed()
+    }
+
+    @Test
+    fun asSetasPedemOMesVizinho() {
+        mesesAndados = 0
+        montar()
+        rule.onNodeWithContentDescription("mês anterior").performClick()
+        assertEquals(-1, mesesAndados)
+        rule.onNodeWithContentDescription("próximo mês").performClick()
+        assertEquals(0, mesesAndados)
+    }
+
+    /** Sem dia aberto o rodapé é a régua; com um dia aberto, são os lançamentos dele. */
+    @Test
+    fun oPainelMostraOsLancamentosDoDiaAberto() {
+        montar(diaAberto = diaDoGasto)
+        rule.onNodeWithText("mercado").assertIsDisplayed()
+        rule.onNodeWithText("uber").assertIsDisplayed()
+    }
+
+    @Test
+    fun semDiaAbertoORodapeEaRegua() {
+        montar()
+        rule.onNodeWithTag(TAG_BOARD_LEGENDA).assertExists()
+        rule.onAllNodesWithText("mercado").fetchSemanticsNodes().let { assertEquals(0, it.size) }
+    }
+
+    @Test
+    fun diaAbertoSemLancamentoDizQueNaoTeveMovimentacao() {
+        montar(diaAberto = LocalDate.parse("2026-09-03"))
+        rule.onNodeWithText("sem movimentações").assertIsDisplayed()
     }
 
     @Test

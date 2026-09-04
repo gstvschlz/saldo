@@ -23,8 +23,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * As duas vistas da aba `saldos`: o board é onde o app abre, a lista está a um toque, e
- * quem chega por deep link cai na lista porque pediu um dia, não um panorama.
+ * A aba `saldos` é o board, e só ele: o ledger deixou de ser vista.
+ *
+ * O que este teste protege é a home — que ela abra na grade, que as setas troquem de mês,
+ * que a seta de avançar não passe do mês corrente, e que quem chega por deep link pedindo
+ * um dia caia na grade daquele mês em vez de numa lista que não existe mais.
  */
 @RunWith(AndroidJUnit4::class)
 class VistaSaldosTest {
@@ -39,6 +42,7 @@ class VistaSaldosTest {
         DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("pt-BR"))
 
     private val mesCorrente: String get() = YearMonth.now().format(tituloMes)
+    private val mesPassado: String get() = YearMonth.now().minusMonths(1).format(tituloMes)
 
     /** Onboarding já feito: sem saldo inicial o teclado toma a tela e não há vista nenhuma. */
     private fun app(): SaldoApplication {
@@ -51,44 +55,75 @@ class VistaSaldosTest {
         rule.onAllNodesWithTag(TAG_BOARD_GRADE).fetchSemanticsNodes().isNotEmpty()
     }
 
-    private fun esperarLista() = rule.waitUntil(5_000) {
-        rule.onAllNodesWithText(mesCorrente).fetchSemanticsNodes().isNotEmpty()
+    private fun esperarTitulo(mes: String) = rule.waitUntil(5_000) {
+        rule.onAllNodesWithText(mes).fetchSemanticsNodes().isNotEmpty()
     }
 
     @Test
-    fun oAppAbreNoBoard() {
+    fun oAppAbreNoBoardDoMesCorrente() {
         app()
         ActivityScenario.launch(MainActivity::class.java).use {
             esperarBoard()
-            rule.onNodeWithText("seus dias").assertIsDisplayed()
-        }
-    }
-
-    @Test
-    fun oToggleLevaAListaEVolta() {
-        app()
-        ActivityScenario.launch(MainActivity::class.java).use {
-            esperarBoard()
-
-            rule.onNodeWithContentDescription("ver como lista").performClick()
-            esperarLista()
             rule.onNodeWithText(mesCorrente).assertIsDisplayed()
-
-            rule.onNodeWithContentDescription("ver como grade").performClick()
-            esperarBoard()
-            rule.onNodeWithTag(TAG_BOARD_GRADE).assertExists()
         }
     }
 
     @Test
-    fun deepLinkDeUmDiaCaiNaLista() {
+    fun aSetaVoltaUmMes() {
+        app()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            esperarBoard()
+            rule.onNodeWithContentDescription("mês anterior").performClick()
+            esperarTitulo(mesPassado)
+            rule.onNodeWithText(mesPassado).assertIsDisplayed()
+        }
+    }
+
+    /** O futuro tem tela própria (`totais › a caminho`); a grade não vai até lá. */
+    @Test
+    fun aSetaDeAvancarNaoPassaDoMesCorrente() {
+        app()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            esperarBoard()
+            rule.onNodeWithContentDescription("próximo mês").performClick()
+            rule.waitForIdle()
+            rule.onNodeWithText(mesCorrente).assertIsDisplayed()
+        }
+    }
+
+    /** Voltar um mês e avançar de novo tem de terminar onde começou. */
+    @Test
+    fun voltarEAvancarFechaOCiclo() {
+        app()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            esperarBoard()
+            rule.onNodeWithContentDescription("mês anterior").performClick()
+            esperarTitulo(mesPassado)
+            rule.onNodeWithContentDescription("próximo mês").performClick()
+            esperarTitulo(mesCorrente)
+            rule.onNodeWithText(mesCorrente).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun deepLinkDeUmDiaCaiNoBoardDaqueleMes() {
         val app = app()
         val destino = Destino.Saldos(YearMonth.now(), LocalDate.now().dayOfMonth)
         ActivityScenario.launch<MainActivity>(MainActivity.intent(app, destino)).use {
-            esperarLista()
+            esperarBoard()
+            rule.onNodeWithTag(TAG_BOARD_GRADE).assertExists()
             rule.onNodeWithText(mesCorrente).assertIsDisplayed()
-            rule.onAllNodesWithTag(TAG_BOARD_GRADE).fetchSemanticsNodes().let {
-                assert(it.isEmpty()) { "o deep link de um dia tem de abrir a lista, não a grade" }
+        }
+    }
+
+    /** Sem lançamento nenhum, o painel do dia de hoje diz isso em vez de ficar vazio. */
+    @Test
+    fun oPainelDeHojeJaVemAberto() {
+        app()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            esperarBoard()
+            rule.waitUntil(5_000) {
+                rule.onAllNodesWithText("sem movimentações").fetchSemanticsNodes().isNotEmpty()
             }
         }
     }

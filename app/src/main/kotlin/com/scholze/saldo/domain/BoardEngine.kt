@@ -36,11 +36,12 @@ data class Board(
 )
 
 /**
- * O board: o saldo de cada dia do mês corrente, do dia 1 até hoje, em sete tons.
+ * O board: o saldo de cada dia de um mês, em sete tons.
  *
- * A janela para no dia de hoje de propósito. O resto do mês já está projetado — o ledger e
- * o "a caminho" mostram isso —, mas aqui uma célula pintada quer dizer "este dia
- * aconteceu": pintar o que ainda vai vencer faria a mesma cor significar duas coisas.
+ * A janela nunca passa de hoje, de propósito. O resto do mês já está projetado — o "a
+ * caminho" mostra isso —, mas aqui uma célula pintada quer dizer "este dia aconteceu":
+ * pintar o que ainda vai vencer faria a mesma cor significar duas coisas. Por isso o mês
+ * corrente para em hoje enquanto um mês passado aparece inteiro.
  *
  * Duas escolhas separam este motor do [ProjectionEngine], e as duas são deliberadas:
  *
@@ -57,10 +58,17 @@ data class Board(
  */
 object BoardEngine {
 
-    fun board(input: LedgerInput): Board {
-        val fim = input.hoje
-        val mes = YearMonth.from(fim)
+    /**
+     * [mes] é o mês que a tela está mostrando; por omissão, o de `input.hoje`.
+     *
+     * O corte é uma linha só — `minOf(fim do mês, hoje)` — e resolve os três casos: o mês
+     * corrente para em hoje, um mês passado vai até o fim, e um mês futuro devolve grade
+     * vazia, porque `hoje` cai antes do dia 1 dele. A tela nem deixa navegar até lá, mas um
+     * motor que estoura quando a tela erra é um motor pior.
+     */
+    fun board(input: LedgerInput, mes: YearMonth = YearMonth.from(input.hoje)): Board {
         val inicio = mes.atDay(1)
+        val fim = minOf(mes.atEndOfMonth(), input.hoje)
 
         val porDia = ProjectionEngine.movimentacoesDoMes(input, mes)
             .filter { it.data <= fim }

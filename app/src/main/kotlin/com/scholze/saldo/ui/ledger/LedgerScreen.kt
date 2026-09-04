@@ -58,6 +58,7 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.descricaoVisivel
 import com.scholze.saldo.ui.components.DescricaoTexto
+import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.components.DiaBadge
 import com.scholze.saldo.ui.components.FiltroChips
 import com.scholze.saldo.ui.components.IconeRedondo
@@ -141,50 +142,7 @@ fun LedgerScreen(
         modifier
             .fillMaxSize()
             .background(colors.background)
-            // Navegação de mês por arrasto, cedendo a vez aos filhos.
-            //
-            // A versão anterior era um `detectHorizontalDragGestures` aqui na raiz, e ele
-            // COMPETE com o SwipeToDismissBox de cada linha: num arrasto real (não no
-            // swipeLeft() sintético dos testes) a raiz costumava ganhar a corrida do touch
-            // slop, engolir o gesto e trocar o mês em vez de excluir a linha.
-            //
-            // O loop abaixo roda no pass Main, que num nó pai chega DEPOIS dos filhos: se a
-            // linha (ou a rolagem da lista) já consumiu movimento, `alheio` fecha a porta e
-            // o mês não muda. Só o consumo de MOVIMENTO conta — `clickable` consome o down
-            // para marcar o press, e isso não pode valer como "alguém pegou o gesto".
-            //
-            // Quando é a raiz que assume, ela consome: sem isso o `clickable` do hero, que
-            // não tem slop nenhum, dispararia junto e alternaria a privacidade no fim do
-            // arrasto.
-            .pointerInput(state.mesAtual) {
-                val limiar = 120.dp.toPx()
-                val slop = viewConfiguration.touchSlop
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    var totalX = 0f
-                    var totalY = 0f
-                    var meu = false
-                    var alheio = false
-                    while (true) {
-                        val evento = awaitPointerEvent()
-                        val mudanca = evento.changes.firstOrNull() ?: break
-                        val delta = mudanca.positionChangeIgnoreConsumed()
-                        if (!meu && mudanca.isConsumed && delta != Offset.Zero) alheio = true
-                        if (!alheio) {
-                            totalX += delta.x
-                            totalY += delta.y
-                            // Predominantemente horizontal, senão uma rolagem na diagonal
-                            // sobre a coluna de dias viraria troca de mês.
-                            if (!meu && abs(totalX) > slop && abs(totalX) > abs(totalY)) meu = true
-                            if (meu) mudanca.consume()
-                        }
-                        if (!mudanca.pressed) break
-                    }
-                    if (meu) {
-                        if (totalX > limiar) onMesAnterior() else if (totalX < -limiar) onProximoMes()
-                    }
-                }
-            },
+            .arrastoDeMes(state.mesAtual, onMesAnterior, onProximoMes)
     ) {
         Column(Modifier.fillMaxSize()) {
             SaldoTopBar(
@@ -270,31 +228,38 @@ fun LedgerScreen(
             }
         }
 
-        faturaAberta?.let { fatura ->
-            AlertDialog(
-                onDismissRequest = { faturaAberta = null },
-                title = { Text("fatura · vence " + fatura.vencimento.format(diaCurto).removeSuffix(".")) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        fatura.compras.forEach { compra ->
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    compra.data.format(diaCurto).removeSuffix(".") + "  " +
-                                        compra.descricao.descricaoVisivel(),
-                                    Modifier.weight(1f), style = SaldoTheme.type.row,
-                                )
-                                MoneyText(centavos = compra.valorCentavos, style = SaldoTheme.type.row, formato = FormatoMoney.ASSINADO)
-                            }
-                        }
-                    }
-                },
-                confirmButton = { TextButton(onClick = { faturaAberta = null }) { Text("ok") } },
-            )
-        }
+        faturaAberta?.let { DialogoFatura(it) { faturaAberta = null } }
     }
 }
 
-private fun MesLedger.faixaSaldos(): ClosedRange<Long> {
+/**
+ * As compras que formaram uma fatura. Vive fora da tela porque o board também abre esta
+ * lista: a fatura é a mesma dos dois lados, e duas cópias divergiriam na primeira mudança.
+ */
+@Composable
+internal fun DialogoFatura(fatura: Fatura, onFechar: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onFechar,
+        title = { Text("fatura · vence " + fatura.vencimento.format(diaCurto).removeSuffix(".")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                fatura.compras.forEach { compra ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            compra.data.format(diaCurto).removeSuffix(".") + "  " +
+                                compra.descricao.descricaoVisivel(),
+                            Modifier.weight(1f), style = SaldoTheme.type.row,
+                        )
+                        MoneyText(centavos = compra.valorCentavos, style = SaldoTheme.type.row, formato = FormatoMoney.ASSINADO)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onFechar) { Text("ok") } },
+    )
+}
+
+internal fun MesLedger.faixaSaldos(): ClosedRange<Long> {
     if (dias.isEmpty()) return 0L..0L
     val saldos = dias.map { it.saldoCentavos }
     return saldos.min()..saldos.max()
@@ -383,7 +348,7 @@ private fun EmptyMonth(comTagFiltro: Boolean = false) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DayRow(
+internal fun DayRow(
     dia: DiaRow,
     faixa: ClosedRange<Long>,
     hoje: LocalDate,

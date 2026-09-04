@@ -23,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -43,6 +44,13 @@ import com.scholze.saldo.ui.theme.tabular
  * Digits accumulate from the right in centavos, the way a till does, so the
  * comma is placed for you rather than typed.
  */
+/**
+ * As teclas de dígito. Existe para os testes: a sheet fica POR CIMA do board, e o número de
+ * um dia da grade é um "4" tão legítimo quanto o do teclado — sem um escopo, clicar num
+ * dígito encontra dois nós e a data em que o teste roda decide se ele passa.
+ */
+const val TAG_TECLADO = "teclado"
+
 @Composable
 fun AmountKeypadScreen(
     onContinue: (centavos: Long) -> Unit,
@@ -100,7 +108,10 @@ private fun Keypad(onDigit: (Long) -> Unit, onBackspace: () -> Unit) {
         listOf(Key.Comma, Key.Digit(0), Key.Backspace),
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        Modifier.testTag(TAG_TECLADO),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { key ->

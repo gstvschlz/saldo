@@ -1,22 +1,22 @@
 package com.scholze.saldo
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.ui.entry.TAG_TECLADO
 import com.scholze.saldo.ui.nav.TAG_ADD
-import java.time.LocalDate
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,8 +45,6 @@ class SwipeDeleteTest {
         rule.waitUntil(5_000) {
             rule.onAllNodesWithText("saldo projetado", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        // O app abre no board desde a board-1; este fluxo é sobre o ledger.
-        rule.onNodeWithContentDescription("ver como lista").performClick()
 
         // revela valores (hero toggle)
         rule.onAllNodesWithText("saldo projetado", substring = true).onFirst().performClick()
@@ -56,18 +54,15 @@ class SwipeDeleteTest {
         rule.onNodeWithText("opcional").performClick()
         rule.onNode(hasSetTextAction()).performTextInput("uber")
         rule.onNodeWithText("0,00").performClick()               // abre o teclado
-        "2740".forEach { rule.onNodeWithText(it.toString()).performClick() }
+        // Dentro do teclado: o "4" da grade atrás da sheet é outro nó com o mesmo texto.
+        "2740".forEach { d ->
+            rule.onNode(hasAnyAncestor(hasTestTag(TAG_TECLADO)) and hasText(d.toString()))
+                .performClick()
+        }
         rule.onNodeWithText("continuar").performClick()
         rule.onNodeWithText("adicionar diário").performClick()
 
-        // A linha de hoje raramente cabe na primeira dobra (mesmo problema do
-        // EntryFlowTest): espera a lista deixar de estar vazia e rola pela CHAVE do
-        // item (o epochDay do dia), não pelo texto — não depende do dia do mês em que
-        // o teste roda.
-        rule.waitUntil(5_000) {
-            rule.onAllNodesWithText("toque em + para adicionar").fetchSemanticsNodes().isEmpty()
-        }
-        rule.onNode(hasScrollToIndexAction()).performScrollToKey(LocalDate.now().toEpochDay())
+        // O painel de hoje já está aberto embaixo da grade: a linha aparece nele sem rolar.
         rule.waitUntil(5_000) { rule.onAllNodesWithText("uber").fetchSemanticsNodes().isNotEmpty() }
 
         // swipe para excluir
@@ -77,14 +72,6 @@ class SwipeDeleteTest {
         // desfazer restaura
         rule.onNodeWithText("desfazer").performClick()
 
-        // "uber" era a ÚNICA movimentação do mês: excluí-la troca a grade inteira pelo
-        // placeholder "sem movimentações neste mês" (item único), e restaurá-la troca de
-        // volta — nessa virada de tipo de conteúdo a LazyColumn não preserva a posição de
-        // rolagem antiga, então rola de novo pela mesma chave antes de procurar a linha.
-        rule.waitUntil(5_000) {
-            rule.onAllNodesWithText("toque em + para adicionar").fetchSemanticsNodes().isEmpty()
-        }
-        rule.onNode(hasScrollToIndexAction()).performScrollToKey(LocalDate.now().toEpochDay())
         rule.waitUntil(5_000) { rule.onAllNodesWithText("uber").fetchSemanticsNodes().isNotEmpty() }
     }
 }
