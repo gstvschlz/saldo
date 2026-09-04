@@ -93,6 +93,7 @@ fun LedgerScreen(
     onItemClick: (Movimentacao) -> Unit,
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
+    onVerBoard: () -> Unit,
     onLimparTag: () -> Unit,
     alvo: AlvoLedger? = null,
     onAlvoConsumido: () -> Unit = {},
@@ -188,7 +189,8 @@ fun LedgerScreen(
                 titulo = state.mesAtual.format(tituloMes),
                 onAnterior = onMesAnterior,
                 onProximo = onProximoMes,
-                acao = {
+                acoes = {
+                    IconeRedondo(SaldoIcon.GRADE, "ver como grade", onVerBoard)
                     IconeRedondo(
                         if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
                         "alternar privacidade",
@@ -295,8 +297,9 @@ private fun MesLedger.faixaSaldos(): ClosedRange<Long> {
     return saldos.min()..saldos.max()
 }
 
+/** O card do saldo projetado. `internal` porque o board mostra exatamente o mesmo. */
 @Composable
-private fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
+internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
     val colors = SaldoTheme.colors
     Column(
         Modifier

@@ -4,7 +4,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -18,7 +20,7 @@ import androidx.compose.ui.unit.dp
  */
 enum class SaldoIcon {
     SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE, RECORRENTE,
-    OLHO, OLHO_RISCADO, CHECK,
+    OLHO, OLHO_RISCADO, CHECK, GRADE,
 }
 
 @Composable
@@ -137,6 +139,22 @@ fun SaldoGlyph(
             SaldoIcon.CHECK -> {
                 drawLine(tint, Offset(w * 0.20f, h * 0.52f), Offset(w * 0.42f, h * 0.74f), sw, StrokeCap.Round)
                 drawLine(tint, Offset(w * 0.42f, h * 0.74f), Offset(w * 0.80f, h * 0.28f), sw, StrokeCap.Round)
+            }
+            // Quatro quadradinhos: a grade do board.
+            SaldoIcon.GRADE -> {
+                val lado = w * 0.34f
+                val gap = w * 0.10f
+                val x0 = (w - lado * 2 - gap) / 2
+                val y0 = (h - lado * 2 - gap) / 2
+                listOf(0f to 0f, 1f to 0f, 0f to 1f, 1f to 1f).forEach { (cx, cy) ->
+                    drawRoundRect(
+                        color = tint,
+                        topLeft = Offset(x0 + cx * (lado + gap), y0 + cy * (lado + gap)),
+                        size = Size(lado, lado),
+                        cornerRadius = CornerRadius(sw),
+                        style = stroke,
+                    )
+                }
             }
             // Olho: dois arcos e a pupila. OLHO_RISCADO acrescenta a barra na diagonal.
             SaldoIcon.OLHO, SaldoIcon.OLHO_RISCADO -> {

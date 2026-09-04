@@ -94,6 +94,7 @@ class LedgerDayGridTest {
                         onItemClick = onItemClick,
                         onExcluir = {},
                         onTogglePrivacidade = {},
+                        onVerBoard = {},
                         onLimparTag = onLimparTag,
                     )
                 }

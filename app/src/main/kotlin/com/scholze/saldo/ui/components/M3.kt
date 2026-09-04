@@ -136,7 +136,12 @@ fun DiaBadge(dia: Int, diaSemana: String, destacado: Boolean, modifier: Modifier
  * A barra superior grande do M3: título alinhado à ESQUERDA e em corpo grande, que é
  * a diferença mais visível de todas contra a barra centrada do HIG.
  *
- * [acao] entra entre as duas setas — é onde o olho da privacidade mora no ledger.
+ * [acoes] entra entre as duas setas — é onde o olho da privacidade e o toggle de vista
+ * moram. Como o bloco é invocado dentro da própria `Row`, dois ícones nele já saem lado
+ * a lado, sem nenhuma ginástica de layout.
+ *
+ * [mostrarSetas] `false` some com as duas: a janela do board é de 12 meses e não tem
+ * mês anterior nem próximo para onde ir.
  */
 @Composable
 fun SaldoTopBar(
@@ -144,7 +149,8 @@ fun SaldoTopBar(
     onAnterior: () -> Unit,
     onProximo: () -> Unit,
     modifier: Modifier = Modifier,
-    acao: @Composable (() -> Unit)? = null,
+    mostrarSetas: Boolean = true,
+    acoes: @Composable (() -> Unit)? = null,
 ) {
     val colors = SaldoTheme.colors
     Column(modifier.fillMaxWidth().background(colors.background)) {
@@ -152,10 +158,10 @@ fun SaldoTopBar(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconeRedondo(SaldoIcon.CHEVRON_LEFT, "mês anterior", onAnterior)
+            if (mostrarSetas) IconeRedondo(SaldoIcon.CHEVRON_LEFT, "mês anterior", onAnterior)
             Box(Modifier.weight(1f))
-            acao?.invoke()
-            IconeRedondo(SaldoIcon.CHEVRON_RIGHT, "próximo mês", onProximo)
+            acoes?.invoke()
+            if (mostrarSetas) IconeRedondo(SaldoIcon.CHEVRON_RIGHT, "próximo mês", onProximo)
         }
         Text(
             titulo,

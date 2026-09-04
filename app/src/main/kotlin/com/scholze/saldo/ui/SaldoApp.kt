@@ -43,6 +43,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.scholze.saldo.AppContainer
 import com.scholze.saldo.data.Exporters
 import com.scholze.saldo.data.Settings
+import com.scholze.saldo.ui.board.BoardScreen
+import com.scholze.saldo.ui.board.BoardViewModel
+import com.scholze.saldo.ui.board.VistaSaldos
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
 import com.scholze.saldo.ui.entry.EntryViewModel
 import com.scholze.saldo.ui.entry.NewEntrySheet
@@ -65,6 +68,7 @@ import com.scholze.saldo.ui.totais.RecorrenciasViewModel
 import com.scholze.saldo.ui.totais.TotaisScreen
 import com.scholze.saldo.ui.totais.TotaisViewModel
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.merge
@@ -110,11 +114,13 @@ fun SaldoApp(
     val ledgerVm: LedgerViewModel = viewModel(factory = remember(container) { LedgerViewModel.factory(container) })
     val entryVm: EntryViewModel = viewModel(factory = remember(container) { EntryViewModel.factory(container) })
     val totaisVm: TotaisViewModel = viewModel(factory = remember(container) { TotaisViewModel.factory(container) })
+    val boardVm: BoardViewModel = viewModel(factory = remember(container) { BoardViewModel.factory(container) })
     val tagsFactory = remember(container) { TagsViewModel.factory(container) }
     val maisFactory = remember(container) { MaisViewModel.factory(container) }
     val recorrenciasFactory = remember(container) { RecorrenciasViewModel.factory(container) }
     val ledgerState by ledgerVm.state.collectAsState()
     val totaisState by totaisVm.state.collectAsState()
+    val boardState by boardVm.state.collectAsState()
     val privacidade = LocalPrivacy.current
     val snackbar = remember { SnackbarHostState() }
 
@@ -124,6 +130,10 @@ fun SaldoApp(
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
     // A tela de recorrências toma a aba totais; sair da aba fecha (voltar depois em "totais"
     // deve mostrar totais, não a subtela onde o usuário estava dez minutos antes).
+    // Qual vista da aba saldos está no ar. `rememberSaveable` e não DataStore de
+    // propósito: a escolha sobrevive à rotação e à morte do processo, mas uma abertura
+    // fria volta ao board — que é o que "o app abre no board" quer dizer.
+    var vista by rememberSaveable { mutableStateOf(VistaSaldos.BOARD) }
     var abrindoRecorrencias by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(tab) { if (tab != SaldoTab.TOTAIS) abrindoRecorrencias = false }
 
@@ -143,7 +153,12 @@ fun SaldoApp(
     LaunchedEffect(destino) {
         when (destino) {
             null -> return@LaunchedEffect
-            is Destino.Saldos -> { ledgerVm.irPara(destino.mes, destino.dia); tab = SaldoTab.SALDOS }
+            // Quem chega por widget ou lembrete pediu um dia, não um panorama.
+            is Destino.Saldos -> {
+                vista = VistaSaldos.LISTA
+                ledgerVm.irPara(destino.mes, destino.dia)
+                tab = SaldoTab.SALDOS
+            }
             is Destino.NovaMovimentacao -> {
                 entryVm.iniciarNova(LocalDate.now())
                 // O widget "lançar" já diz de que lado é: pular esse toque é o ponto dele.
@@ -218,25 +233,40 @@ fun SaldoApp(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Box(Modifier.weight(1f)) {
                 when (tab) {
-                    SaldoTab.SALDOS -> LedgerScreen(
-                        state = ledgerState,
-                        onMesAnterior = ledgerVm::mesAnterior,
-                        onProximoMes = ledgerVm::proximoMes,
-                        onFiltro = ledgerVm::definirFiltro,
-                        // id 0 = ocorrência virtual: o mês ainda não foi materializado (a
-                        // `abrirMes` do ViewModel é assíncrona). Editá-la explodiria no save
-                        // com SO_ESTE_MES, então a linha simplesmente não abre o editor.
-                        onItemClick = abrirMovimentacao,
-                        // Mesma razão: `repo.excluir` recusa id 0 (o delete seria no-op e o
-                        // "desfazer" duplicaria a linha). Sem a guarda o swipe só produziria
-                        // uma IllegalArgumentException engolida pelo ViewModel.
-                        onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
-                        onTogglePrivacidade = privacidade::alternar,
-                        onLimparTag = { ledgerVm.definirTagFiltro(null) },
-                        alvo = alvoLedger,
-                        onAlvoConsumido = ledgerVm::limparAlvo,
-                        contentPadding = PaddingValues(bottom = 24.dp),
-                    )
+                    SaldoTab.SALDOS -> if (vista == VistaSaldos.BOARD) {
+                        BoardScreen(
+                            state = boardState,
+                            // Tocar num dia é pedir aquele dia: leva ao ledger já
+                            // posicionado nele, que é a mesma porta do deep link.
+                            onDiaClick = { data ->
+                                ledgerVm.irPara(YearMonth.from(data), data.dayOfMonth)
+                                vista = VistaSaldos.LISTA
+                            },
+                            onVerLista = { vista = VistaSaldos.LISTA },
+                            onTogglePrivacidade = privacidade::alternar,
+                        )
+                    } else {
+                        LedgerScreen(
+                            state = ledgerState,
+                            onMesAnterior = ledgerVm::mesAnterior,
+                            onProximoMes = ledgerVm::proximoMes,
+                            onFiltro = ledgerVm::definirFiltro,
+                            // id 0 = ocorrência virtual: o mês ainda não foi materializado (a
+                            // `abrirMes` do ViewModel é assíncrona). Editá-la explodiria no save
+                            // com SO_ESTE_MES, então a linha simplesmente não abre o editor.
+                            onItemClick = abrirMovimentacao,
+                            // Mesma razão: `repo.excluir` recusa id 0 (o delete seria no-op e o
+                            // "desfazer" duplicaria a linha). Sem a guarda o swipe só produziria
+                            // uma IllegalArgumentException engolida pelo ViewModel.
+                            onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
+                            onTogglePrivacidade = privacidade::alternar,
+                            onLimparTag = { ledgerVm.definirTagFiltro(null) },
+                            onVerBoard = { vista = VistaSaldos.BOARD },
+                            alvo = alvoLedger,
+                            onAlvoConsumido = ledgerVm::limparAlvo,
+                            contentPadding = PaddingValues(bottom = 24.dp),
+                        )
+                    }
                     SaldoTab.TOTAIS -> if (abrindoRecorrencias) {
                         RecorrenciasScreen(
                             vm = viewModel(factory = recorrenciasFactory),
