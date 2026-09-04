@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.scholze.saldo.domain.CapturaConfig
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.LembretesConfig
 import java.io.IOException
@@ -29,6 +31,7 @@ data class Settings(
     /** O widget mostra dinheiro na tela inicial? Padrão `false`: `R$ •••••` até o usuário optar. */
     val widgetMostrarValores: Boolean = false,
     val lembretes: LembretesConfig = LembretesConfig(),
+    val captura: CapturaConfig = CapturaConfig(),
 )
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -49,6 +52,9 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         /** Minutos desde a meia-noite (0..1439). */
         val lembretesHoraInformativos = intPreferencesKey("lembretes_hora_informativos")
         val lembretesHoraNudge = intPreferencesKey("lembretes_hora_nudge")
+        val capturaLigada = booleanPreferencesKey("captura_ligada")
+        val capturaMarcados = stringSetPreferencesKey("captura_marcados")
+        val capturaVistos = stringSetPreferencesKey("captura_vistos")
     }
 
     // Um disco ilegível não pode travar a primeira composição: o app cai nos defaults.
@@ -68,6 +74,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             tema = p[Keys.tema]?.let { v -> Tema.entries.find { it.name == v } } ?: Tema.SISTEMA,
             widgetMostrarValores = p[Keys.widgetMostrarValores] ?: false,
             lembretes = p.lembretes(),
+            captura = p.captura(),
         )
     }
 
@@ -80,6 +87,39 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
      * essa pressa e pode se dar ao luxo de tentar de novo.
      */
     suspend fun lerLembretes(): LembretesConfig = dataStore.data.first().lembretes()
+
+    private fun Preferences.captura(): CapturaConfig = CapturaConfig(
+        ligada = this[Keys.capturaLigada] ?: false,
+        marcados = this[Keys.capturaMarcados].orEmpty(),
+        vistos = this[Keys.capturaVistos].orEmpty(),
+    )
+
+    /** Sem engolir IOException, pela mesma razão de [lerLembretes]: o listener precisa saber. */
+    suspend fun lerCaptura(): CapturaConfig = dataStore.data.first().captura()
+
+    suspend fun definirCapturaLigada(v: Boolean) {
+        dataStore.edit { it[Keys.capturaLigada] = v }
+    }
+
+    suspend fun definirAppMarcado(pacote: String, marcado: Boolean) {
+        dataStore.edit { p ->
+            val marcados = p[Keys.capturaMarcados].orEmpty()
+            p[Keys.capturaMarcados] = if (marcado) marcados + pacote else marcados - pacote
+        }
+    }
+
+    /**
+     * Anota que [pacote] emitiu uma notificação com valor, para ele aparecer na tela
+     * esperando a marcação. **Só o nome do pacote** — nada do que veio na notificação.
+     *
+     * Sai cedo quando já está lá: uma escrita no DataStore por notificação recebida seria
+     * absurda, e o listener é chamado para toda notificação do aparelho.
+     */
+    suspend fun registrarAppVisto(pacote: String) {
+        val atuais = dataStore.data.first()[Keys.capturaVistos].orEmpty()
+        if (pacote in atuais) return
+        dataStore.edit { it[Keys.capturaVistos] = atuais + pacote }
+    }
 
     private fun Preferences.lembretes(): LembretesConfig = LembretesConfig(
         faturaAmanha = this[Keys.lembreteFaturaAmanha] ?: false,

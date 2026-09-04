@@ -87,4 +87,42 @@ class SettingsStoreTest {
         assertTrue(s.widgetMostrarValores)
         assertEquals(config, s.lembretes)
     }
+
+    @Test
+    fun capturaComecaDesligadaESemApp() = runBlocking {
+        val c = store().settings.first().captura
+        assertFalse(c.ligada)
+        assertTrue(c.marcados.isEmpty())
+        assertTrue(c.vistos.isEmpty())
+    }
+
+    @Test
+    fun ligarEMarcarAppsPersiste() = runBlocking {
+        val s = store()
+        s.definirCapturaLigada(true)
+        s.definirAppMarcado("com.nubank", true)
+        s.definirAppMarcado("com.itau", true)
+        s.definirAppMarcado("com.itau", false)
+        val c = s.settings.first().captura
+        assertTrue(c.ligada)
+        assertEquals(setOf("com.nubank"), c.marcados)
+    }
+
+    /** O listener chama isto para TODA notificação com valor: não pode escrever toda vez. */
+    @Test
+    fun registrarAppVistoEIdempotente() = runBlocking {
+        val s = store()
+        s.registrarAppVisto("com.nubank")
+        s.registrarAppVisto("com.nubank")
+        s.registrarAppVisto("com.picpay")
+        assertEquals(setOf("com.nubank", "com.picpay"), s.settings.first().captura.vistos)
+    }
+
+    @Test
+    fun lerCapturaVeOMesmoQueOFluxo() = runBlocking {
+        val s = store()
+        s.definirCapturaLigada(true)
+        s.definirAppMarcado("com.nubank", true)
+        assertEquals(s.settings.first().captura, s.lerCaptura())
+    }
 }
