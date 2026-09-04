@@ -181,6 +181,15 @@ object ProjectionEngine {
     fun movimentacoesDoMes(input: LedgerInput, mes: YearMonth): List<Movimentacao> =
         efetivas(input, mes).filter { YearMonth.from(it.data) == mes }
 
+    /**
+     * As movimentações efetivas do saldo inicial até o fim de [ateMes] — linhas
+     * materializadas e expansões virtuais, sem faturas. É a mesma lista que
+     * [movimentacoesDoMes] recorta num mês; o board precisa de treze meses de uma vez, e
+     * chamar aquela treze vezes reexpandiria as recorrências treze vezes.
+     */
+    fun movimentacoesAte(input: LedgerInput, ateMes: YearMonth): List<Movimentacao> =
+        efetivas(input, ateMes)
+
     // ---- internals ----
 
     /** Materialized rows + virtual expansions, from saldoInicialData through end of [ateMes]. */
