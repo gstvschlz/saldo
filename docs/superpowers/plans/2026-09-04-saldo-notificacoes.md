@@ -74,6 +74,9 @@ class DetectorValorTest {
     @Test fun `varios milhares`() = assertEquals(123_456_789L, v("R$ 1.234.567,89"))
     @Test fun `sem centavos vale reais inteiros`() = assertEquals(123_400L, v("R$ 1.234 transferidos"))
 
+    /** Banco que não usa separador de milhar não pode virar R$ 1,23. */
+    @Test fun `milhar sem separador`() = assertEquals(123_456L, v("R$ 1234,56"))
+
     /** O primeiro é a transação; o segundo costuma ser o saldo da conta. */
     @Test fun `com dois valores fica o primeiro`() =
         assertEquals(3_290L, v("Compra de R$ 32,90 · saldo R$ 1.204,00"))
@@ -110,12 +113,14 @@ package com.scholze.saldo.domain
 object DetectorValor {
 
     /**
-     * `R$`, espaço opcional, milhares separados por ponto (ou nenhum separador) e centavos
-     * opcionais. O grupo de milhar é `\d{1,3}(\.\d{3})*` e não `[\d.]+` para "1.2345" não
-     * passar por milhar.
+     * `R$`, espaço opcional, o número e centavos opcionais.
+     *
+     * A alternativa de milhar exige **pelo menos um** grupo `.ddd` (`+`, não `*`) e por isso
+     * só ganha quando há separador de verdade. Com `*` ela venceria também em "R$ 1234,56" —
+     * casaria só o "123" e o valor viraria R$ 1,23 em vez de R$ 1.234,56, calada.
      */
     private val REGEX = Regex(
-        """R\$\s*(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{2}))?""",
+        """R\$\s*(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{2}))?""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -135,7 +140,7 @@ object DetectorValor {
 
 - [ ] **Step 4: Green**
 
-Run: `mise exec -- ./gradlew testDebugUnitTest --tests '*DetectorValorTest*'` → PASS (13 testes).
+Run: `mise exec -- ./gradlew testDebugUnitTest --tests '*DetectorValorTest*'` → PASS (14 testes).
 
 - [ ] **Step 5: Commit**
 
@@ -439,7 +444,8 @@ Acrescente o caso 2→3 seguindo exatamente a forma do 1→2 que já existe no a
 - [ ] **Step 5: Build, testes e commit**
 
 ```bash
-mise run build && mise exec -- ./gradlew connectedDebugAndroidTest --tests '*MigrationTest*'
+mise run build && mise exec -- ./gradlew connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.scholze.saldo.data.db.MigrationTest
 git add app/src/main/kotlin/com/scholze/saldo/data/db app/schemas app/src/androidTest/kotlin/com/scholze/saldo/data/db/MigrationTest.kt
 git commit -m "feat: schema v3 — a tabela de detecções, sem uma linha de texto"
 ```

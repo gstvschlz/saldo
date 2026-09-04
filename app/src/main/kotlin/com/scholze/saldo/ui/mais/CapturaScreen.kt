@@ -59,16 +59,46 @@ fun CapturaScreen(
     onVoltar: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = SaldoTheme.colors
     val context = LocalContext.current
-    BackHandler(onBack = onVoltar)
-
-    // Não é observável: relido ao voltar do sistema, que é o único jeito de mudar.
+    // Não é observável: o acesso só muda nas configurações do sistema, então é relido ao
+    // voltar de lá. Fica aqui, e não no conteúdo, para o conteúdo poder ser testado nos dois
+    // estados sem depender de como o emulador está configurado.
     var acesso by remember { mutableStateOf(temAcesso(context)) }
     LifecycleResumeEffect(Unit) {
         acesso = temAcesso(context)
         onPauseOrDispose { }
     }
+
+    CapturaConteudo(
+        config = config,
+        acesso = acesso,
+        onLigar = onLigar,
+        onMarcarApp = onMarcarApp,
+        onAbrirAcesso = {
+            // "abrir configurações", não "permitir": o app não pode conceder isto.
+            runCatching {
+                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }.onFailure { Log.w("saldo", "acesso a notificações indisponível", it) }
+        },
+        onVoltar = onVoltar,
+        modifier = modifier,
+    )
+}
+
+/** A tela sem o estado do sistema: é esta que os testes montam, nos dois valores de [acesso]. */
+@Composable
+fun CapturaConteudo(
+    config: CapturaConfig,
+    acesso: Boolean,
+    onLigar: (Boolean) -> Unit,
+    onMarcarApp: (String, Boolean) -> Unit,
+    onAbrirAcesso: () -> Unit,
+    onVoltar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = SaldoTheme.colors
+    val context = LocalContext.current
+    BackHandler(onBack = onVoltar)
 
     val naLista = (config.marcados + config.vistos).sortedBy { rotuloDe(context, it).lowercase() }
 
@@ -106,12 +136,7 @@ fun CapturaScreen(
                     value = if (acesso) "ligado" else "abrir configurações do sistema",
                     valueColor = if (acesso) colors.secondaryLabel else colors.tint,
                     modifier = Modifier.testTag(TAG_CAPTURA_ACESSO),
-                    onClick = {
-                        // "abrir configurações", não "permitir": o app não pode conceder isto.
-                        runCatching {
-                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                        }.onFailure { Log.w("saldo", "acesso a notificações indisponível", it) }
-                    },
+                    onClick = onAbrirAcesso,
                 )
             }
 

@@ -1,6 +1,7 @@
 package com.scholze.saldo.ui.mais
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -17,11 +18,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * A tela `mais › notificações`.
+ * A tela `mais › notificações`, montada sem o estado do sistema.
  *
- * O emulador de teste nunca tem o acesso a notificações concedido — ele só se liga à mão nas
- * configurações do sistema — e é justamente esse o estado que interessa aqui: o que a tela
- * mostra para quem ainda não ligou nada.
+ * O acesso entra como parâmetro de propósito: lê-lo do sistema aqui tornaria o resultado
+ * dependente de como o emulador está configurado no momento — e foi exatamente o que
+ * quebrou estes testes depois de uma verificação manual que concedeu o acesso.
  */
 @RunWith(AndroidJUnit4::class)
 class CapturaScreenTest {
@@ -30,13 +31,15 @@ class CapturaScreenTest {
 
     private var marcou: Pair<String, Boolean>? = null
 
-    private fun montar(config: CapturaConfig) {
+    private fun montar(config: CapturaConfig, acesso: Boolean = false) {
         rule.setContent {
             SaldoTheme {
-                CapturaScreen(
+                CapturaConteudo(
                     config = config,
+                    acesso = acesso,
                     onLigar = {},
                     onMarcarApp = { p, m -> marcou = p to m },
+                    onAbrirAcesso = {},
                     onVoltar = {},
                 )
             }
@@ -87,5 +90,17 @@ class CapturaScreenTest {
         // Dois switches na tela: o mestre (índice 0) e o do app.
         rule.onAllNodes(isToggleable())[1].performClick()
         assertEquals("com.exemplo.banco" to true, marcou)
+    }
+
+    @Test
+    fun comAcessoOInterruptorFicaHabilitado() {
+        montar(CapturaConfig(), acesso = true)
+        rule.onAllNodes(isToggleable()).onFirst().assertIsEnabled()
+    }
+
+    @Test
+    fun comAcessoALinhaDizQueEstaLigado() {
+        montar(CapturaConfig(), acesso = true)
+        rule.onNodeWithText("ligado").assertIsDisplayed()
     }
 }
