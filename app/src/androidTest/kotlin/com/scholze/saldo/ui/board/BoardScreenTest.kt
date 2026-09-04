@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -41,23 +42,33 @@ class BoardScreenTest {
 
     @get:Rule val rule = createComposeRule()
 
-    private val hoje = LocalDate.parse("2026-09-04")
+    // A grade é do dia 1 até hoje; hoje no dia 20 dá mês suficiente para caber tudo
+    // o que estes testes olham.
+    private val hoje = LocalDate.parse("2026-09-20")
 
-    // 04/set: dois gastos no mesmo dia, 152,30 no total.
-    // 12/jul: compra no cartão — ciclo jul fecha 28/jul e vence 05/ago.
+    /** 04/set: dois gastos no mesmo dia, 152,30 no total. */
+    private val diaDoGasto = LocalDate.parse("2026-09-04")
+
+    // 12/ago: compra no cartão — ciclo ago fecha 28/ago e vence 05/set, dentro da grade.
     private val input = LedgerInput(
         saldoInicialCentavos = 500_000,
         saldoInicialData = LocalDate.parse("2026-01-01"),
         movimentacoes = listOf(
-            Movimentacao(id = 1, descricao = "mercado", valorCentavos = -128_40, data = hoje, natureza = Natureza.DIARIO),
-            Movimentacao(id = 2, descricao = "uber", valorCentavos = -23_90, data = hoje, natureza = Natureza.DIARIO),
+            Movimentacao(
+                id = 1, descricao = "mercado", valorCentavos = -128_40,
+                data = diaDoGasto, natureza = Natureza.DIARIO,
+            ),
+            Movimentacao(
+                id = 2, descricao = "uber", valorCentavos = -23_90,
+                data = diaDoGasto, natureza = Natureza.DIARIO,
+            ),
             Movimentacao(
                 id = 3, descricao = "salário", valorCentavos = 740_000,
                 data = LocalDate.parse("2026-09-01"), natureza = Natureza.DIARIO,
             ),
             Movimentacao(
                 id = 4, descricao = "fone", valorCentavos = -30_000,
-                data = LocalDate.parse("2026-07-12"), natureza = Natureza.CARTAO,
+                data = LocalDate.parse("2026-08-12"), natureza = Natureza.CARTAO,
             ),
         ),
         recorrencias = emptyList(),
@@ -104,11 +115,20 @@ class BoardScreenTest {
     }
 
     @Test
-    fun aGradeCobreOsUltimos12Meses() {
-        assertEquals(365, BoardEngine.board(input).dias.size)
+    fun aGradeCobreDoDia1AteHoje() {
+        assertEquals(20, BoardEngine.board(input).dias.size)
         montar()
+        celula(LocalDate.parse("2026-09-01")).assertExists()
         celula(hoje).assertExists()
-        celula(LocalDate.parse("2026-07-12")).assertExists()
+    }
+
+    /** O mês passado saiu da grade: a compra de 12/ago não tem célula nenhuma. */
+    @Test
+    fun oMesPassadoNaoTemCelula() {
+        montar()
+        rule.onAllNodesWithTag(tagCelula(LocalDate.parse("2026-08-12")))
+            .fetchSemanticsNodes()
+            .let { assertEquals(0, it.size) }
     }
 
     /** O hero fica fora da rolagem: a grade abre em hoje e ele não pode sumir junto. */
@@ -121,7 +141,7 @@ class BoardScreenTest {
     @Test
     fun celulaDeGastoAnunciaOValorQueSaiu() {
         montar()
-        celula(hoje).assertContentDescriptionEquals("4 de setembro, saiu R$ 152,30")
+        celula(diaDoGasto).assertContentDescriptionEquals("4 de setembro, saiu R$ 152,30")
     }
 
     @Test
@@ -139,14 +159,14 @@ class BoardScreenTest {
     @Test
     fun diaDeVencimentoAnunciaAFatura() {
         montar()
-        celula(LocalDate.parse("2026-08-05"))
-            .assertContentDescriptionEquals("5 de agosto, sem movimentação, fatura vence")
+        celula(LocalDate.parse("2026-09-05"))
+            .assertContentDescriptionEquals("5 de setembro, sem movimentação, fatura vence")
     }
 
     @Test
     fun privacidadeMascaraOValorMasNaoApagaAGrade() {
         montar(oculto = true)
-        celula(hoje).assertContentDescriptionEquals("4 de setembro, saiu R$ •••••")
+        celula(diaDoGasto).assertContentDescriptionEquals("4 de setembro, saiu R$ •••••")
         celula(LocalDate.parse("2026-09-03")).assertExists()
     }
 
@@ -176,12 +196,13 @@ class BoardScreenTest {
     fun fonteGrandeNaoQuebraAGrade() {
         montar(escalaFonte = 2f)
         // O número do dia some, a célula e o seu anúncio ficam.
-        celula(hoje).assertContentDescriptionEquals("4 de setembro, saiu R$ 152,30")
+        celula(diaDoGasto).assertContentDescriptionEquals("4 de setembro, saiu R$ 152,30")
     }
 
     @Test
     fun diaAnteriorAoSaldoInicialNaoTemRegistro() {
-        montar()
-        celula(LocalDate.parse("2025-12-31")).assertContentDescriptionEquals("31 de dezembro, sem registro")
+        // Saldo inicial no dia 3: o dia 2 está na grade, mas não há registro dele.
+        montar(input.copy(saldoInicialData = LocalDate.parse("2026-09-03")))
+        celula(LocalDate.parse("2026-09-02")).assertContentDescriptionEquals("2 de setembro, sem registro")
     }
 }

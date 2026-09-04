@@ -9,7 +9,9 @@ import org.junit.Test
 
 class BoardEngineTest {
 
-    private val hoje = LocalDate.of(2026, 9, 4)
+    // Dia 20: a janela é o mês corrente até hoje, e as três semanas antes dele são o
+    // espaço em que a mediana, o vencimento e a saturação do salário cabem.
+    private val hoje = LocalDate.of(2026, 9, 20)
 
     private fun mov(dia: LocalDate, centavos: Long, natureza: Natureza = Natureza.DIARIO) =
         Movimentacao(id = 1, descricao = "x", valorCentavos = centavos, data = dia, natureza = natureza)
@@ -34,13 +36,39 @@ class BoardEngineTest {
     // ---- janela ----
 
     @Test
-    fun `janela vai de 12 meses atras ate hoje`() {
+    fun `janela vai do dia 1 do mes corrente ate hoje`() {
         val b = BoardEngine.board(input(emptyList()))
-        assertEquals(LocalDate.of(2025, 9, 5), b.inicio)
+        assertEquals(LocalDate.of(2026, 9, 1), b.inicio)
         assertEquals(hoje, b.fim)
-        assertEquals(365, b.dias.size)
+        assertEquals(20, b.dias.size)
         assertEquals(b.inicio, b.dias.first().data)
         assertEquals(b.fim, b.dias.last().data)
+    }
+
+    @Test
+    fun `a grade nao passa de hoje nem alcanca o mes passado`() {
+        val b = BoardEngine.board(
+            input(
+                listOf(
+                    mov(LocalDate.of(2026, 8, 31), -9_000),
+                    mov(LocalDate.of(2026, 9, 25), -9_000),
+                ),
+            ),
+        )
+        assertTrue(b.dias.none { it.data < LocalDate.of(2026, 9, 1) })
+        assertTrue(b.dias.none { it.data > hoje })
+    }
+
+    @Test
+    fun `o que ainda vai vencer neste mes nao entra na grade`() {
+        // Recorrência do dia 25: existe, o ledger a projeta, mas ainda não aconteceu.
+        val rec = Recorrencia(
+            id = 1, descricao = "internet", valorCentavos = -12_000,
+            natureza = Natureza.DIARIO, diaDoMes = 25, inicio = YearMonth.of(2026, 1),
+        )
+        val b = BoardEngine.board(input(emptyList(), recorrencias = listOf(rec)))
+        assertEquals(hoje, b.dias.last().data)
+        assertEquals(0, b.unidadeCentavos)
     }
 
     @Test
@@ -51,9 +79,9 @@ class BoardEngineTest {
 
     @Test
     fun `dia anterior ao saldo inicial fica fora da janela`() {
-        val inicial = LocalDate.of(2026, 1, 10)
+        val inicial = LocalDate.of(2026, 9, 5)
         val b = BoardEngine.board(input(emptyList(), inicial = inicial))
-        assertFalse(b.dia(LocalDate.of(2026, 1, 9)).dentroDaJanela)
+        assertFalse(b.dia(LocalDate.of(2026, 9, 4)).dentroDaJanela)
         assertTrue(b.dia(inicial).dentroDaJanela)
     }
 
@@ -68,17 +96,17 @@ class BoardEngineTest {
 
     @Test
     fun `compra no cartao conta no dia da compra`() {
-        val compra = LocalDate.of(2026, 7, 12)
+        val compra = LocalDate.of(2026, 9, 12)
         val b = BoardEngine.board(input(listOf(mov(compra, -20_000, Natureza.CARTAO))))
         assertEquals(-20_000, b.dia(compra).valorCentavos)
     }
 
     @Test
     fun `fatura nao vira valor no dia do vencimento`() {
-        // Compra em 12/jul: ciclo jul (fecha 28/jul), vence 5/ago.
-        val compra = LocalDate.of(2026, 7, 12)
+        // Compra em 12/ago: ciclo ago (fecha 28/ago), vence 5/set.
+        val compra = LocalDate.of(2026, 8, 12)
         val b = BoardEngine.board(input(listOf(mov(compra, -20_000, Natureza.CARTAO))))
-        assertEquals(0, b.dia(LocalDate.of(2026, 8, 5)).valorCentavos)
+        assertEquals(0, b.dia(LocalDate.of(2026, 9, 5)).valorCentavos)
     }
 
     @Test
@@ -88,16 +116,28 @@ class BoardEngineTest {
             natureza = Natureza.DIARIO, diaDoMes = 10, inicio = YearMonth.of(2026, 1),
         )
         val b = BoardEngine.board(input(emptyList(), recorrencias = listOf(rec)))
-        assertEquals(-150_000, b.dia(LocalDate.of(2026, 8, 10)).valorCentavos)
+        assertEquals(-150_000, b.dia(LocalDate.of(2026, 9, 10)).valorCentavos)
     }
 
     // ---- anel de fatura ----
 
+    /**
+     * A compra que formou a fatura é do mês passado e não está mais na grade — o anel tem
+     * de sobreviver a isso, e é por ele que as faturas continuam vindo do histórico
+     * inteiro em vez de sair só das compras do mês.
+     */
     @Test
-    fun `vencimento da fatura marca o dia`() {
-        val compra = LocalDate.of(2026, 7, 12)
+    fun `vencimento da fatura marca o dia mesmo com a compra fora da grade`() {
+        val compra = LocalDate.of(2026, 8, 12)
         val b = BoardEngine.board(input(listOf(mov(compra, -20_000, Natureza.CARTAO))))
-        assertTrue(b.dia(LocalDate.of(2026, 8, 5)).venceFatura)
+        assertTrue(b.dias.none { it.data == compra })
+        assertTrue(b.dia(LocalDate.of(2026, 9, 5)).venceFatura)
+    }
+
+    @Test
+    fun `o dia da compra nao marca vencimento`() {
+        val compra = LocalDate.of(2026, 9, 12)
+        val b = BoardEngine.board(input(listOf(mov(compra, -20_000, Natureza.CARTAO))))
         assertFalse(b.dia(compra).venceFatura)
     }
 

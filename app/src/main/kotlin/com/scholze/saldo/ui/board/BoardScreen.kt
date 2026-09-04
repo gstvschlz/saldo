@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -62,7 +62,7 @@ const val TAG_BOARD_GRADE = "board:grade"
 /** A régua no rodapé — os testes leem o "dia típico" por aqui. */
 const val TAG_BOARD_LEGENDA = "board:legenda"
 
-/** Uma célula. Há 365 delas na tela; o dia é o que as distingue. */
+/** Uma célula. Há uma por dia do mês; o dia é o que as distingue. */
 fun tagCelula(data: LocalDate): String = "board:celula:${data.toEpochDay()}"
 
 /** A calha do mês, à esquerda da grade. */
@@ -77,13 +77,17 @@ private val DIAS_SEMANA = listOf("s", "t", "q", "q", "s", "s", "d")
 enum class VistaSaldos { BOARD, LISTA }
 
 /**
- * O board: os últimos 12 meses em sete colunas de dia da semana, semanas empilhadas,
- * rolando na vertical.
+ * O board: o mês corrente, do dia 1 até hoje, em sete colunas de dia da semana e semanas
+ * empilhadas.
  *
  * Em pé e não deitado como o do GitHub por uma razão prática: a raiz da aba `saldos` já
  * gasta o arrasto horizontal trocando de mês, e uma grade que rolasse para o lado
  * brigaria com esse gesto todo dia. Em pé ela também cabe num telefone sem espremer a
  * célula abaixo do que se lê.
+ *
+ * Um mês cabe em cinco ou seis linhas, então a grade quase nunca rola — a `LazyColumn`
+ * fica por causa da fonte grande, onde as células crescem e a última semana sairia da
+ * tela.
  */
 @Composable
 fun BoardScreen(
@@ -130,11 +134,11 @@ fun BoardScreen(
         BalanceHero(state.mes, onTogglePrivacidade)
         CabecalhoColunas()
         LazyColumn(Modifier.weight(1f).testTag(TAG_BOARD_GRADE), state = listState) {
-            itemsIndexed(
+            items(
                 semanas,
-                key = { _, semana -> semana.filterNotNull().first().data.toEpochDay() },
-            ) { i, semana ->
-                LinhaSemana(semana, state.hoje, primeiraLinha = i == 0, onDiaClick = onDiaClick)
+                key = { semana -> semana.filterNotNull().first().data.toEpochDay() },
+            ) { semana ->
+                LinhaSemana(semana, state.hoje, onDiaClick = onDiaClick)
             }
         }
         Legenda(board.unidadeCentavos)
@@ -185,13 +189,12 @@ private fun CabecalhoColunas() {
 private fun LinhaSemana(
     semana: List<DiaBoard?>,
     hoje: LocalDate,
-    primeiraLinha: Boolean,
     onDiaClick: (LocalDate) -> Unit,
 ) {
-    // O rótulo do mês aparece na semana que contém um dia 1 — e na primeira linha da
-    // grade, que quase nunca contém um e ficaria sem nome nenhum.
+    // A grade é de um mês só, e o dia 1 cai sempre na primeira linha: o rótulo nomeia o
+    // mês uma vez, no alto da calha. É o único lugar da tela que o diz — o hero mostra a
+    // data da projeção, não o mês.
     val marco = semana.filterNotNull().firstOrNull { it.data.dayOfMonth == 1 }
-        ?: semana.filterNotNull().firstOrNull().takeIf { primeiraLinha }
     val rotulo = marco?.data?.format(mesCurto)?.removeSuffix(".").orEmpty()
 
     Row(

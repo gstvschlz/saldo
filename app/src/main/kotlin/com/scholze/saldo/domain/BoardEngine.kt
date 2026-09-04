@@ -36,7 +36,11 @@ data class Board(
 )
 
 /**
- * O board: o saldo de cada dia dos últimos 12 meses, em sete tons.
+ * O board: o saldo de cada dia do mês corrente, do dia 1 até hoje, em sete tons.
+ *
+ * A janela para no dia de hoje de propósito. O resto do mês já está projetado — o ledger e
+ * o "a caminho" mostram isso —, mas aqui uma célula pintada quer dizer "este dia
+ * aconteceu": pintar o que ainda vai vencer faria a mesma cor significar duas coisas.
  *
  * Duas escolhas separam este motor do [ProjectionEngine], e as duas são deliberadas:
  *
@@ -53,22 +57,19 @@ data class Board(
  */
 object BoardEngine {
 
-    /** Quantos meses a grade cobre, terminando em `input.hoje`. */
-    private const val MESES = 12L
-
     fun board(input: LedgerInput): Board {
         val fim = input.hoje
-        val inicio = fim.minusMonths(MESES).plusDays(1)
-        val ateMes = YearMonth.from(fim)
+        val mes = YearMonth.from(fim)
+        val inicio = mes.atDay(1)
 
-        // Uma expansão só para os treze meses: `movimentacoesDoMes` chamada mês a mês
-        // reexpandiria as recorrências treze vezes.
-        val porDia = ProjectionEngine.movimentacoesAte(input, ateMes)
-            .filter { it.data >= inicio && it.data <= fim }
+        val porDia = ProjectionEngine.movimentacoesDoMes(input, mes)
+            .filter { it.data <= fim }
             .groupBy { it.data }
             .mapValues { (_, movs) -> movs.sumOf { it.valorCentavos } }
 
-        val vencimentos = ProjectionEngine.faturasAte(input, ateMes)
+        // As faturas ainda vêm do histórico inteiro: a que vence neste mês fechou no mês
+        // passado, e recortar as compras no dia 1 apagaria o anel.
+        val vencimentos = ProjectionEngine.faturasAte(input, mes)
             .map { it.vencimento }
             .filter { it >= inicio && it <= fim }
             .toSet()
