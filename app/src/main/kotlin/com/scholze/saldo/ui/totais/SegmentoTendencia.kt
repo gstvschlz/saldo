@@ -20,6 +20,7 @@ import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.totais.charts.PoupancaBars
 import com.scholze.saldo.ui.totais.charts.ReservaLine
 import com.scholze.saldo.ui.totais.charts.TrendChart
 import com.scholze.saldo.ui.totais.charts.coresTendencia
@@ -90,6 +91,13 @@ fun SegmentoTendencia(
                     anterior?.taxaPoupanca == null -> "${atual.taxaPoupanca}% este mês"
                     else -> "${atual.taxaPoupanca}% este mês (${anterior.mes.format(mesCurto).removeSuffix(".")} ${anterior.taxaPoupanca}%)"
                 },
+            )
+            // A taxa deixa de ser só o número deste mês e do anterior: seis barras mostram
+            // se ela está subindo ou se aquele mês bom foi um acidente.
+            PoupancaBars(
+                pontos,
+                mesDestacado,
+                Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
             )
         }
         Text(

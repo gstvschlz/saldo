@@ -168,6 +168,55 @@ fun TrendChart(
     }
 }
 
+/**
+ * A taxa de poupança de cada mês, uma barra por mês, com [destaque] na cor do saldo.
+ *
+ * A taxa, e não o "sobrou": o sobrou já é uma das três linhas do [TrendChart] logo acima, e
+ * repetir a mesma série em outra forma não acrescenta nada. A taxa é uma série que a tela só
+ * dizia em texto, e só dos dois últimos meses.
+ *
+ * Um mês sem entradas não tem taxa (divisão por zero): ele aparece como barra vazia, que é
+ * diferente de uma barra de taxa zero — daí o piso só valer para quem tem valor.
+ */
+private val mesCurtoChart =
+    java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale.forLanguageTag("pt-BR"))
+
+@Composable
+fun PoupancaBars(
+    pontos: List<PontoMes>,
+    destaque: YearMonth?,
+    modifier: Modifier = Modifier,
+    altura: Dp = 40.dp,
+) {
+    val colors = SaldoTheme.colors
+    val alturas = remember(pontos) {
+        ChartMath.alturas(pontos.map { (it.taxaPoupanca ?: 0).toLong() })
+    }
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+        pontos.forEachIndexed { i, ponto ->
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    ponto.taxaPoupanca?.let { "$it%" } ?: "—",
+                    style = SaldoTheme.type.caption,
+                    color = if (ponto.mes == destaque) colors.label else colors.secondaryLabel,
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(if (ponto.taxaPoupanca == null) 0.dp else pisoSeNaoZero(alturas[i], altura, 2.dp))
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (ponto.mes == destaque) colors.balance else colors.separator),
+                )
+                Text(
+                    ponto.mes.format(mesCurtoChart).removeSuffix("."),
+                    style = SaldoTheme.type.caption,
+                    color = colors.secondaryLabel,
+                )
+            }
+        }
+    }
+}
+
 /** Sete barrinhas seg…dom; [destaque] (o dia mais caro) na cor de saída, o resto neutro. */
 @Composable
 fun WeekdayBars(porDia: Map<DayOfWeek, Long>, destaque: DayOfWeek?, modifier: Modifier = Modifier, altura: Dp = 28.dp) {

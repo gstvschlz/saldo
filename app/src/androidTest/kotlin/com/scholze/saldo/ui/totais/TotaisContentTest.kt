@@ -4,6 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -283,7 +284,9 @@ class TotaisContentTest {
         // O controle segmentado empurrou esta linha ~480dp para baixo, fora da viewport inicial.
         rule.onNodeWithText("12% este mês (jun 11%)").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("para onde foi").assertDoesNotExist()
-        rule.onNodeWithText("mai").performClick()             // rótulo do mês no gráfico
+        // O mês do TrendChart é um botão; o rótulo da barra de poupança é texto puro, e
+        // desde as barras os dois existem com o mesmo texto.
+        rule.onNode(hasText("mai") and hasClickAction()).performClick()             // rótulo do mês no gráfico
         assertEquals(YearMonth.of(2026, 5), mesPedido)
         // Volta ao segmento "mês", mas com o offset de rolagem que a tendência deixou no scroll
         // state compartilhado — sem performScrollTo() aqui o teste depende de sorte de viewport.
@@ -313,13 +316,17 @@ class TotaisContentTest {
         rule.onNodeWithText("6 MESES").assertIsDisplayed()
     }
 
+    /**
+     * O "—" aparece duas vezes de propósito desde as barras: na linha "taxa de poupança" e
+     * na barra do mês sem entrada. As duas dizem a mesma coisa sobre o mesmo mês.
+     */
     @Test
     fun taxaPoupancaNulaMostraTraco() {
         val semTaxa = tendencia.dropLast(1) + tendencia.last().copy(taxaPoupanca = null)
         montar(TotaisUiState(YearMonth.of(2026, 7), totais, tendencia = semTaxa))
         segmento("tendência").performClick()
         rule.onNodeWithText("taxa de poupança").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("—").assertIsDisplayed()
+        rule.onAllNodesWithText("—").assertCountEquals(2)
     }
 
     @Test
@@ -428,5 +435,34 @@ class TotaisContentTest {
         rule.onAllNodesWithText("ritmo do mês").fetchSemanticsNodes().let {
             assertEquals(0, it.size)
         }
+    }
+
+    // ---- poupança mês a mês ----
+
+    /**
+     * A taxa deixou de ser só o número deste mês e do anterior: as seis aparecem em barra.
+     * O fixture vai de 7 % (seis meses atrás) a 12 % (o mês visto).
+     */
+    @Test
+    fun aPoupancaMostraATaxaDeCadaMes() {
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, tendencia = tendencia))
+        segmento("tendência").performClick()
+        rule.onNodeWithText("POUPANÇA").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("12%").assertIsDisplayed()
+        rule.onNodeWithText("7%").assertIsDisplayed()
+    }
+
+    /** Mês sem entrada não tem taxa: a barra dele fica vazia com um "—" no lugar do número. */
+    @Test
+    fun mesSemEntradaAparaceComTracoNaPoupanca() {
+        val comBuraco = tendencia.mapIndexed { i, p ->
+            if (i == 0) p.copy(entradas = 0, taxaPoupanca = null) else p
+        }
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, tendencia = comBuraco))
+        segmento("tendência").performClick()
+        rule.onNodeWithText("POUPANÇA").performScrollTo().assertIsDisplayed()
+        // O mês visto (o último) mantém a taxa, então a linha de texto NÃO mostra traço:
+        // o único "—" da tela é o da barra do mês sem entrada.
+        rule.onAllNodesWithText("—").assertCountEquals(1)
     }
 }
