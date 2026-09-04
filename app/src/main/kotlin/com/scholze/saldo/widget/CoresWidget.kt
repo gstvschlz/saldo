@@ -2,6 +2,7 @@ package com.scholze.saldo.widget
 
 import androidx.compose.ui.graphics.Color
 import androidx.glance.color.ColorProvider
+import androidx.glance.unit.ColorProvider as ProvedorDeCor
 import com.scholze.saldo.ui.theme.DarkSaldoColors
 import com.scholze.saldo.ui.theme.LightSaldoColors
 
@@ -28,6 +29,24 @@ internal object CoresWidget {
     /** A trilha cinza por trás de uma barra proporcional, e o "sem tag" dela. */
     val trilha = ColorProvider(day = LightSaldoColors.insightSemTag, night = DarkSaldoColors.insightSemTag)
     val outras = ColorProvider(day = LightSaldoColors.insightOutras, night = DarkSaldoColors.insightOutras)
+
+    /**
+     * Os sete tons do board, de −3 (saiu muito) a 3 (entrou muito), na mesma ordem que
+     * `SaldoColors.tomDoBoard` usa. O widget do board é a única coisa do app que pinta uma
+     * grade fora do Compose, e ele não pode inventar uma paleta própria.
+     */
+    val board: List<ProvedorDeCor> = listOf(
+        ColorProvider(day = LightSaldoColors.boardNeg3, night = DarkSaldoColors.boardNeg3),
+        ColorProvider(day = LightSaldoColors.boardNeg2, night = DarkSaldoColors.boardNeg2),
+        ColorProvider(day = LightSaldoColors.boardNeg1, night = DarkSaldoColors.boardNeg1),
+        ColorProvider(day = LightSaldoColors.boardZero, night = DarkSaldoColors.boardZero),
+        ColorProvider(day = LightSaldoColors.boardPos1, night = DarkSaldoColors.boardPos1),
+        ColorProvider(day = LightSaldoColors.boardPos2, night = DarkSaldoColors.boardPos2),
+        ColorProvider(day = LightSaldoColors.boardPos3, night = DarkSaldoColors.boardPos3),
+    )
+
+    /** O tom de um nível −3..3; fora da faixa, o neutro. */
+    fun tomDoBoard(nivel: Int): ProvedorDeCor = board[(nivel.coerceIn(-3, 3)) + 3]
 
     /**
      * A tinta que se lê SOBRE o [tint]. NÃO é branco fixo: com a semente verde do M3 o tint é

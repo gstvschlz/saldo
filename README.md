@@ -19,12 +19,21 @@ Exporte em `mais → exportar dados`, em csv ou json.
 Lançar cobra só o valor: a **descrição é opcional**, e a linha sem nome aparece como "sem
 descrição" nas listas. Os exports guardam o campo vazio como ele é.
 
-O app abre no **board**: o mês corrente em quadradinhos, um por dia — do dia 1 até hoje,
-sem passar disso, porque uma célula pintada quer dizer "este dia aconteceu". A cor é o saldo
-do dia: rosa saiu mais do que entrou, verde o contrário, e a intensidade sai de múltiplos de
-um dia típico (a mediana dos dias com movimento). Uma compra no cartão pinta o dia da compra;
-o anel marca o dia em que a fatura vence. Toque num dia para abrir o mês naquele dia, ou use
-o ícone de lista no cabeçalho para o ledger de sempre.
+A aba `saldos` é o **board**, e só ele: o mês em quadradinhos, um por dia — do dia 1 até
+hoje, sem passar disso, porque uma célula pintada quer dizer "este dia aconteceu". A cor é o
+saldo do dia: rosa saiu mais do que entrou, verde o contrário, e a intensidade sai de
+múltiplos de um dia típico (a mediana dos dias com movimento). Uma compra no cartão pinta o
+dia da compra; o anel marca o dia em que a fatura vence.
+
+Toque num dia e os lançamentos dele abrem embaixo da grade, com o swipe-pra-apagar de
+sempre; toque de novo e fecham. As setas do cabeçalho e o arrasto horizontal trocam de mês —
+um mês passado aparece inteiro, e a seta de avançar para no mês corrente, porque o que ainda
+vai acontecer tem tela própria em `totais → a caminho`. A lista do mês inteiro sobrou só como
+"os lançamentos desta etiqueta", que é onde a aba `tags` aterrissa.
+
+Três gráficos de performance em `totais`: **ritmo do mês** (quanto já saiu contra o costume
+dos três meses anteriores na mesma altura do mês), **poupança mês a mês** (a taxa dos seis
+meses em barra) e **para onde foi ao longo do tempo** (as tags empilhadas, seis colunas).
 
 Sugestão a partir de notificação, em `mais → notificações`, **desligada por padrão**: quando
 um app que você marcou emite uma notificação com valor em reais, o saldo manda a sua própria
@@ -35,6 +44,8 @@ diálogo para isso, e com ele ligado o sistema entrega ao app o texto de toda no
 aparelho. O saldo só lê os apps marcados, e não guarda o texto de nenhum — do que detecta,
 ficam só pacote, valor e hora, apagados em 24 h.
 
-Widget de tela inicial (saldo projetado + novo lançamento) mascarado por padrão — ligue em
-`mais → mostrar valores no widget`. Lembretes locais (fatura vence amanhã, recorrência hoje,
+**Sete widgets** de tela inicial: saldo, a caminho, para onde foi, lançar, board do mês,
+ritmo e poupança. Os que mostram dinheiro vêm mascarados por padrão — ligue em `mais →
+mostrar valores no widget`. O do board e o da poupança não têm o que mascarar: cor e
+porcentagem não são número de conta. Lembretes locais (fatura vence amanhã, recorrência hoje,
 registrar gastos, fechamento do mês) em `mais → lembretes`; todos desligados por padrão.

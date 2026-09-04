@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    4x1: uma linha de numero mais duas barras de 4dp. Nao precisa de altura -
+    precisa de LARGURA, senao o desvio nao cabe ao lado do valor.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="60dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="60dp"
+    android:maxResizeWidth="400dp"
+    android:maxResizeHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="21600000"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_ritmo_descricao"
+    android:initialLayout="@layout/glance_default_loading_layout" />
