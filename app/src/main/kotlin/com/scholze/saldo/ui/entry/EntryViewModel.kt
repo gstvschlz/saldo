@@ -108,9 +108,13 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
             .catch { Log.e(TAG, "fluxo do formulário falhou", it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EntryUiState())
 
-    fun iniciarNova(hoje: LocalDate) {
+    /**
+     * [centavos] e [descricao] chegam pré-preenchidos quando a sheet foi aberta por uma
+     * sugestão de notificação; nos outros casos são os zeros de sempre.
+     */
+    fun iniciarNova(hoje: LocalDate, centavos: Long = 0, descricao: String = "") {
         original.value = null
-        form.value = EntryUiState(data = hoje)
+        form.value = EntryUiState(data = hoje, centavos = centavos, descricao = descricao)
     }
 
     fun iniciarEdicao(mov: Movimentacao) {

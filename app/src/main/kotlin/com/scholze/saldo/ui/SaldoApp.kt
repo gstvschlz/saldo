@@ -160,7 +160,11 @@ fun SaldoApp(
                 tab = SaldoTab.SALDOS
             }
             is Destino.NovaMovimentacao -> {
-                entryVm.iniciarNova(LocalDate.now())
+                entryVm.iniciarNova(
+                    LocalDate.now(),
+                    centavos = destino.centavos ?: 0L,
+                    descricao = destino.descricao.orEmpty(),
+                )
                 // O widget "lançar" já diz de que lado é: pular esse toque é o ponto dele.
                 destino.saida?.let { entryVm.definirSaida(it) }
                 sheetAberto = true

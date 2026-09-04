@@ -17,6 +17,8 @@ class DestinoTest {
             p[Destino.EXTRA_ANO_MES] as Int?,
             p[Destino.EXTRA_DIA] as Int?,
             p[Destino.EXTRA_SAIDA] as Int?,
+            p[Destino.EXTRA_CENTAVOS] as String?,
+            p[Destino.EXTRA_DESCRICAO] as String?,
         )
     }
 
@@ -62,4 +64,34 @@ class DestinoTest {
     @Test
     fun diaForaDaFaixaEIgnorado() =
         assertEquals(Destino.Saldos(ago), Destino.de(Destino.TIPO_SALDOS, ago.toAnoMes(), 40))
+
+    /** A sugestão de notificação manda valor e descrição junto para a sheet abrir preenchida. */
+    @Test
+    fun novaMovimentacaoLevaValorEDescricao() {
+        val d = Destino.NovaMovimentacao(saida = true, centavos = 3_290, descricao = "Nubank")
+        assertEquals(d, volta(d))
+    }
+
+    /** Sem valor nem descrição as chaves nem são emitidas — nada muda para o widget "lançar". */
+    @Test
+    fun novaMovimentacaoSemValorNaoEmiteAsChavesNovas() {
+        val chaves = Destino.NovaMovimentacao(saida = true).paraPares().map { it.first }.toSet()
+        assertEquals(setOf(Destino.EXTRA_DESTINO, Destino.EXTRA_SAIDA), chaves)
+    }
+
+    /** Extra corrompido não pode virar crash: vira `null` e a sheet decide sozinha. */
+    @Test
+    fun valorCorrompidoViraNulo() {
+        val d = Destino.de(Destino.TIPO_NOVA, null, null, 1, centavos = "não é número", descricao = "  ")
+        assertEquals(Destino.NovaMovimentacao(saida = true), d)
+    }
+
+    /** Valor zero ou negativo não tem o que pré-preencher. */
+    @Test
+    fun valorNaoPositivoViraNulo() {
+        assertEquals(
+            Destino.NovaMovimentacao(saida = true),
+            Destino.de(Destino.TIPO_NOVA, null, null, 1, centavos = "0"),
+        )
+    }
 }

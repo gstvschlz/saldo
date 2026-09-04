@@ -21,7 +21,13 @@ sealed interface Destino {
      * [saida] `null` deixa a sheet no padrão dela; `true`/`false` já a abre como saída ou
      * entrada — é o que os dois botões do widget "lançar" usam para poupar um toque.
      */
-    data class NovaMovimentacao(val saida: Boolean? = null) : Destino
+    data class NovaMovimentacao(
+        val saida: Boolean? = null,
+        /** Valor a pré-preencher, em centavos — a sugestão de notificação já sabe quanto foi. */
+        val centavos: Long? = null,
+        /** Descrição a pré-preencher; hoje é o nome do app que emitiu a notificação. */
+        val descricao: String? = null,
+    ) : Destino
 
     /** Aba totais em [mes]. */
     data class Totais(val mes: YearMonth) : Destino
@@ -36,6 +42,9 @@ sealed interface Destino {
         is NovaMovimentacao -> listOfNotNull(
             EXTRA_DESTINO to TIPO_NOVA,
             saida?.let { EXTRA_SAIDA to if (it) 1 else 0 },
+            // Long e String viajam como extra de texto: `aplicarEm` só trata Int como int.
+            centavos?.let { EXTRA_CENTAVOS to it.toString() },
+            descricao?.let { EXTRA_DESCRICAO to it },
         )
         is Totais -> listOf(EXTRA_DESTINO to TIPO_TOTAIS, EXTRA_ANO_MES to mes.toAnoMes())
     }
@@ -54,6 +63,8 @@ sealed interface Destino {
         const val EXTRA_ANO_MES = "anoMes"
         const val EXTRA_DIA = "dia"
         const val EXTRA_SAIDA = "saida"
+        const val EXTRA_CENTAVOS = "centavos"
+        const val EXTRA_DESCRICAO = "descricao"
         const val TIPO_SALDOS = "saldos"
         const val TIPO_NOVA = "nova"
         const val TIPO_TOTAIS = "totais"
@@ -62,11 +73,24 @@ sealed interface Destino {
          * `null` para tipo desconhecido, mês ausente ou negativo; um dia fora de 1..31 é
          * ignorado, e um [saida] ausente vira `null` (a sheet decide sozinha).
          */
-        fun de(tipo: String?, anoMes: Int?, dia: Int?, saida: Int? = null): Destino? {
+        fun de(
+            tipo: String?,
+            anoMes: Int?,
+            dia: Int?,
+            saida: Int? = null,
+            centavos: String? = null,
+            descricao: String? = null,
+        ): Destino? {
             val mes = anoMes?.takeIf { it >= 0 }?.toYearMonth()
             return when (tipo) {
                 TIPO_SALDOS -> mes?.let { Saldos(it, dia?.takeIf { d -> d in 1..31 }) }
-                TIPO_NOVA -> NovaMovimentacao(saida?.let { it != 0 })
+                // Um extra corrompido vira `null` (a sheet decide sozinha), nunca crash:
+                // `toLongOrNull` engole o lixo e um valor <= 0 não tem o que pré-preencher.
+                TIPO_NOVA -> NovaMovimentacao(
+                    saida = saida?.let { it != 0 },
+                    centavos = centavos?.toLongOrNull()?.takeIf { it > 0 },
+                    descricao = descricao?.takeIf { it.isNotBlank() },
+                )
                 TIPO_TOTAIS -> mes?.let { Totais(it) }
                 else -> null
             }
@@ -79,6 +103,8 @@ sealed interface Destino {
                 anoMes = if (intent.hasExtra(EXTRA_ANO_MES)) intent.getIntExtra(EXTRA_ANO_MES, -1) else null,
                 dia = if (intent.hasExtra(EXTRA_DIA)) intent.getIntExtra(EXTRA_DIA, 0) else null,
                 saida = if (intent.hasExtra(EXTRA_SAIDA)) intent.getIntExtra(EXTRA_SAIDA, 0) else null,
+                centavos = intent.getStringExtra(EXTRA_CENTAVOS),
+                descricao = intent.getStringExtra(EXTRA_DESCRICAO),
             )
         }
     }
