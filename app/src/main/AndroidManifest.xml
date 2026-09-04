@@ -34,6 +34,26 @@
             </intent-filter>
         </activity>
 
+        <!--
+            A captura de notificações. O acesso NÃO se pede por diálogo: o usuário liga à
+            mão em Configurações > Acesso a notificações, e a tela `mais > notificações`
+            abre essa página do sistema e mostra o estado real.
+        -->
+        <service
+            android:name=".captura.EscutaNotificacoes"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Os botões "lançar" e "ignorar". Interno: ninguém de fora pode lançar por você. -->
+        <receiver
+            android:name=".captura.AcoesSugestao"
+            android:exported="false" />
+
         <receiver
             android:name=".widget.SaldoWidgetReceiver"
             android:exported="true"

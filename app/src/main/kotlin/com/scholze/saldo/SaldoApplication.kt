@@ -9,6 +9,7 @@ import com.scholze.saldo.data.RoomSaldoRepository
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.data.SettingsStore
 import com.scholze.saldo.data.db.SaldoDatabase
+import com.scholze.saldo.captura.NotificacaoSugestao
 import com.scholze.saldo.lembretes.LembretesScheduler
 import com.scholze.saldo.lembretes.Notificacoes
 import com.scholze.saldo.widget.WidgetRefresher
@@ -49,6 +50,7 @@ class SaldoApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         Notificacoes.criarCanal(this)
+        NotificacaoSugestao.criarCanal(this)
         // Rede de segurança (KEEP): normalmente os trabalhos já existem — o WorkManager sobrevive
         // ao reboot — mas depois de "limpar dados" ou de um restore eles precisam voltar.
         container.scope.launch {
