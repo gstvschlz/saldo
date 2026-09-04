@@ -4,6 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -110,6 +111,13 @@ class BoardScreenTest {
         celula(LocalDate.parse("2026-07-12")).assertExists()
     }
 
+    /** O hero fica fora da rolagem: a grade abre em hoje e ele não pode sumir junto. */
+    @Test
+    fun oHeroFicaVisivelComAGradeAbertaEmHoje() {
+        montar()
+        rule.onNodeWithText("saldo projetado", substring = true).assertIsDisplayed()
+    }
+
     @Test
     fun celulaDeGastoAnunciaOValorQueSaiu() {
         montar()
@@ -145,15 +153,15 @@ class BoardScreenTest {
     @Test
     fun aLegendaMostraODiaTipico() {
         montar()
-        rule.onNodeWithTag(TAG_BOARD_GRADE).performScrollToNode(hasTestTag(TAG_BOARD_LEGENDA))
-        rule.onNodeWithText("um dia típico =").assertExists()
+        // A régua não rola com a grade: está sempre na tela.
+        rule.onNodeWithTag(TAG_BOARD_LEGENDA).assertExists()
+        rule.onNodeWithText("um dia típico =").assertIsDisplayed()
     }
 
     @Test
     fun semNenhumMovimentoALegendaDizQueAindaNaoHaDiaTipico() {
         montar(input.copy(movimentacoes = emptyList()))
-        rule.onNodeWithTag(TAG_BOARD_GRADE).performScrollToNode(hasTestTag(TAG_BOARD_LEGENDA))
-        rule.onNodeWithText("ainda sem um dia típico").assertExists()
+        rule.onNodeWithText("ainda sem um dia típico").assertIsDisplayed()
     }
 
     @Test

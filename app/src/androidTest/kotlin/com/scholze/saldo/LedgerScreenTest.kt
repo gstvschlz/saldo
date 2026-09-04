@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,6 +49,8 @@ class LedgerScreenTest {
         rule.waitUntil(5_000) {
             rule.onAllNodesWithText("saldo projetado", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
+        // O app abre no board desde a board-1; este fluxo é sobre o ledger.
+        rule.onNodeWithContentDescription("ver como lista").performClick()
         // começa oculto por padrão. O hero inteiro é clicável, então o nó do valor só
         // existe na árvore não-mesclada.
         rule.onNodeWithTag(TAG_SALDO_PROJETADO, useUnmergedTree = true)

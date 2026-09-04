@@ -99,10 +99,8 @@ fun BoardScreen(
     val semanas = remember(board) { board?.let { semanasDe(it.dias) }.orEmpty() }
 
     // A grade abre no fim: hoje é a última linha, e é ela que interessa ao abrir o app.
-    // O alvo é o último item (a legenda), e a rolagem satura no fim do conteúdo — que é
-    // exatamente onde se quer parar.
     LaunchedEffect(semanas.size) {
-        if (semanas.isNotEmpty()) listState.scrollToItem(semanas.size + 2)
+        if (semanas.isNotEmpty()) listState.scrollToItem(semanas.size - 1)
     }
 
     Column(modifier.fillMaxSize().background(colors.background)) {
@@ -126,17 +124,20 @@ fun BoardScreen(
             return@Column
         }
 
-        LazyColumn(Modifier.fillMaxSize().testTag(TAG_BOARD_GRADE), state = listState) {
-            item(key = "hero") { BalanceHero(state.mes, onTogglePrivacidade) }
-            item(key = "cabecalho") { CabecalhoColunas() }
+        // Só a grade rola. O hero, o cabeçalho de colunas e a régua ficam parados: a
+        // grade abre no fim, e num LazyColumn único isso empurraria os três para fora da
+        // tela — o saldo projetado sumia justamente na abertura do app.
+        BalanceHero(state.mes, onTogglePrivacidade)
+        CabecalhoColunas()
+        LazyColumn(Modifier.weight(1f).testTag(TAG_BOARD_GRADE), state = listState) {
             itemsIndexed(
                 semanas,
                 key = { _, semana -> semana.filterNotNull().first().data.toEpochDay() },
             ) { i, semana ->
                 LinhaSemana(semana, state.hoje, primeiraLinha = i == 0, onDiaClick = onDiaClick)
             }
-            item(key = "legenda") { Legenda(board.unidadeCentavos) }
         }
+        Legenda(board.unidadeCentavos)
     }
 }
 
@@ -256,7 +257,7 @@ private fun Legenda(unidadeCentavos: Long) {
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 28.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)
             .testTag(TAG_BOARD_LEGENDA),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

@@ -5,6 +5,7 @@ import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -44,6 +45,8 @@ class SwipeDeleteTest {
         rule.waitUntil(5_000) {
             rule.onAllNodesWithText("saldo projetado", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
+        // O app abre no board desde a board-1; este fluxo é sobre o ledger.
+        rule.onNodeWithContentDescription("ver como lista").performClick()
 
         // revela valores (hero toggle)
         rule.onAllNodesWithText("saldo projetado", substring = true).onFirst().performClick()
