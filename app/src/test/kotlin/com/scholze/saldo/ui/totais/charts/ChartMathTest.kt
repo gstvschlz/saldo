@@ -200,4 +200,34 @@ class ChartMathTest {
         // (TrendChart(altura = 1.dp) ou WeekdayBars(altura = 1.dp) sem esse limite).
         assertEquals(1f, ChartMath.pisoSeNaoZero(0.001f, 1f, 2f), 1e-6f)
     }
+
+    // ---- linhasNaMesmaEscala ----
+
+    @Test
+    fun `duas series dividem a escala e a origem no zero`() {
+        val (a, b) = ChartMath.linhasNaMesmaEscala(listOf(0L, 50L, 100L), listOf(0L, 25L, 50L))
+        assertEquals(listOf(0f, 0.5f, 1f), a)
+        assertEquals(listOf(0f, 0.25f, 0.5f), b)
+    }
+
+    /** A série menor não pode ser reescalada para o próprio máximo: sumiria a diferença. */
+    @Test
+    fun `a serie menor fica embaixo`() {
+        val (a, b) = ChartMath.linhasNaMesmaEscala(listOf(100L), listOf(10L))
+        assertTrue(a.first() > b.first())
+    }
+
+    @Test
+    fun `tudo zero nao estoura`() {
+        val (a, b) = ChartMath.linhasNaMesmaEscala(listOf(0L, 0L), listOf(0L, 0L))
+        assertEquals(listOf(0f, 0f), a)
+        assertEquals(listOf(0f, 0f), b)
+    }
+
+    @Test
+    fun `referencia vazia nao atrapalha a outra`() {
+        val (a, b) = ChartMath.linhasNaMesmaEscala(listOf(0L, 100L), emptyList())
+        assertEquals(listOf(0f, 1f), a)
+        assertTrue(b.isEmpty())
+    }
 }

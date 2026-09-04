@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
@@ -197,6 +198,54 @@ private fun rotulo(d: DayOfWeek): String = when (d) {
     DayOfWeek.FRIDAY -> "s"
     DayOfWeek.SATURDAY -> "s"
     DayOfWeek.SUNDAY -> "d"
+}
+
+/**
+ * O ritmo do mês: o acumulado de saídas (linha cheia) contra o costume dos meses anteriores
+ * (tracejada).
+ *
+ * As duas dividem a escala e a origem no zero, senão as formas ficariam iguais e a
+ * comparação — que é o ponto — sumiria. A tracejada não aparece quando não há mês anterior
+ * com que comparar: uma linha de referência inventada é pior do que nenhuma.
+ */
+@Composable
+fun RitmoChart(
+    acumulado: List<Long>,
+    referencia: List<Long>,
+    modifier: Modifier = Modifier,
+    altura: Dp = 72.dp,
+) {
+    val colors = SaldoTheme.colors
+    val (ysMes, ysRef) = remember(acumulado, referencia) {
+        ChartMath.linhasNaMesmaEscala(acumulado, referencia)
+    }
+    Canvas(modifier.fillMaxWidth().height(altura)) {
+        if (ysMes.size < 2) return@Canvas
+        val passo = size.width / (ysMes.size - 1)
+        fun pontos(ys: List<Float>) = ys.mapIndexed { i, y ->
+            Offset(i * passo, size.height * 0.1f + size.height * 0.8f * (1f - y))
+        }
+
+        if (ysRef.size == ysMes.size) {
+            val ref = pontos(ysRef)
+            for (i in 0 until ref.size - 1) {
+                drawLine(
+                    colors.secondaryLabel,
+                    ref[i],
+                    ref[i + 1],
+                    strokeWidth = 1.5.dp.toPx(),
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())),
+                )
+            }
+        }
+
+        val mes = pontos(ysMes)
+        for (i in 0 until mes.size - 1) {
+            drawLine(colors.balance, mes[i], mes[i + 1], strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+        }
+        drawCircle(colors.balance, radius = 4.dp.toPx(), center = mes.last())
+    }
 }
 
 /** A reserva acumulada mês a mês: uma linha com o ponto final marcado. */

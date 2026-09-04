@@ -27,6 +27,7 @@ import com.scholze.saldo.domain.ParaOndeFoi
 import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.ResumoRecorrencias
+import com.scholze.saldo.domain.Ritmo
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.TotaisMes
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -128,6 +129,14 @@ class TotaisContentTest {
         encerradas = emptyList(),
         entramMes = 8_240_00,
         saemMes = 2_400_00,
+    )
+
+    // Dia 1..4 de setembro: saiu 15,00 no acumulado, contra um costume de 10,00.
+    private val ritmo = Ritmo(
+        mes = YearMonth.of(2026, 7),
+        acumulado = listOf(0L, 500L, 1_500L, 1_500L),
+        referencia = listOf(200L, 400L, 800L, 1_000L),
+        mesesComparados = 3,
     )
 
     private fun comACaminho(a: ACaminho) = TotaisUiState(
@@ -373,5 +382,51 @@ class TotaisContentTest {
         rule.onNodeWithText("ainda saem").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("−2.400,00").assertDoesNotExist()
         rule.onNodeWithText("+8.240,00").assertDoesNotExist()
+    }
+
+    // ---- ritmo do mês ----
+
+    @Test
+    fun oRitmoDizQuantoAcimaDoCostume() {
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, ritmo = ritmo))
+        rule.onNodeWithText("ritmo do mês").performScrollTo().assertIsDisplayed()
+        // 1.500 contra 1.000 = 50 % acima.
+        rule.onNodeWithText("50% acima do costume").assertIsDisplayed()
+    }
+
+    @Test
+    fun semMesAnteriorORitmoDizQueNaoHaComparacao() {
+        montar(
+            TotaisUiState(
+                YearMonth.of(2026, 7), totais,
+                ritmo = ritmo.copy(referencia = emptyList(), mesesComparados = 0),
+            ),
+        )
+        rule.onNodeWithText("ritmo do mês").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("sem mês anterior").assertIsDisplayed()
+    }
+
+    /** O valor do ritmo é dinheiro: some junto com o resto quando os valores estão ocultos. */
+    @Test
+    fun oRitmoRespeitaAPrivacidade() {
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, ritmo = ritmo), oculto = true)
+        rule.onNodeWithText("ritmo do mês").performScrollTo().assertIsDisplayed()
+        rule.onAllNodesWithText(MASCARA_PRIVACIDADE).fetchSemanticsNodes().let {
+            assertTrue("nenhum valor mascarado na tela", it.isNotEmpty())
+        }
+    }
+
+    /** Um mês com um dia só não tem linha para desenhar; o bloco simplesmente não aparece. */
+    @Test
+    fun noPrimeiroDiaDoMesORitmoNaoAparece() {
+        montar(
+            TotaisUiState(
+                YearMonth.of(2026, 7), totais,
+                ritmo = ritmo.copy(acumulado = listOf(500L), referencia = listOf(200L)),
+            ),
+        )
+        rule.onAllNodesWithText("ritmo do mês").fetchSemanticsNodes().let {
+            assertEquals(0, it.size)
+        }
     }
 }

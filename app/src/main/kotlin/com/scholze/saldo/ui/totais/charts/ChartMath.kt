@@ -74,6 +74,20 @@ object ChartMath {
     }
 
     /**
+     * Duas séries na MESMA escala, ancoradas no zero: 0 = nada, 1 = o maior ponto das duas.
+     *
+     * Normalizar cada uma pela própria variação, como [linha] faz, desenharia o mês e o
+     * costume com a MESMA forma — e é justamente a diferença de altura entre os dois que o
+     * gráfico do ritmo existe para mostrar. Ancorar no zero também é o certo aqui porque um
+     * acumulado começa em zero de verdade, não num mínimo qualquer.
+     */
+    fun linhasNaMesmaEscala(a: List<Long>, b: List<Long>): Pair<List<Float>, List<Float>> {
+        val max = maxOf(a.maxOrNull() ?: 0L, b.maxOrNull() ?: 0L)
+        if (max <= 0L) return a.map { 0f } to b.map { 0f }
+        return a.map { it.toFloat() / max } to b.map { it.toFloat() / max }
+    }
+
+    /**
      * Como [linha], mas com o intervalo sempre incluindo o zero — assim a posição também carrega o
      * SINAL do valor (um mês positivo sobe, um negativo desce), não só a variação entre os pontos.
      * Sem isso, uma série [-500, +500] e outra [+100, +900] desenhavam a mesma forma: as duas

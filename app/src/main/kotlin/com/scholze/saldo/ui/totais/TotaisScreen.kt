@@ -20,12 +20,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Ritmo
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.ui.components.FiltroChips
@@ -35,6 +37,7 @@ import com.scholze.saldo.ui.components.SaldoTopBar
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.totais.charts.RitmoChart
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -162,6 +165,8 @@ fun TotaisContent(
                         }
                     }
 
+                    state.ritmo?.let { BlocoRitmo(it) }
+
                     state.insights?.let { SegmentoMesInsights(it, onVerTag, onAbrirMovimentacao) }
                 }
 
@@ -197,5 +202,70 @@ private fun LinhaValor(rotulo: String, centavos: Long, cor: Color? = null) {
             color = cor ?: colors.label,
             formato = FormatoMoney.ASSINADO,
         )
+    }
+}
+
+/**
+ * "Estou indo rápido demais?" — o acumulado de saídas do mês contra o costume dos meses
+ * anteriores na mesma altura do mês.
+ *
+ * O número que responde a pergunta é o desvio; o gráfico está ali para mostrar ONDE a
+ * diferença apareceu. Sem mês anterior com que comparar, o bloco diz isso em vez de
+ * desenhar uma referência inventada.
+ */
+@Composable
+private fun BlocoRitmo(ritmo: Ritmo) {
+    val colors = SaldoTheme.colors
+    if (ritmo.acumulado.size < 2) return
+
+    InsetGroup {
+        Column(
+            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "ritmo do mês",
+                    Modifier.weight(1f),
+                    style = SaldoTheme.type.body,
+                    color = colors.label,
+                )
+                val desvio = ritmo.desvioPercentual
+                Text(
+                    text = when {
+                        desvio == null -> "sem mês anterior"
+                        desvio > 0 -> "$desvio% acima do costume"
+                        desvio < 0 -> "${-desvio}% abaixo do costume"
+                        else -> "no costume"
+                    },
+                    style = SaldoTheme.type.footnote,
+                    // Gastar mais que o costume não é erro, é informação: o tom forte fica
+                    // para o lado que pesa, e o resto é secundário.
+                    color = if (desvio != null && desvio > 0) colors.categoryVariable else colors.secondaryLabel,
+                )
+            }
+
+            RitmoChart(ritmo.acumulado, ritmo.referencia)
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("saiu até agora", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                MoneyText(
+                    centavos = ritmo.gastoAteAgora,
+                    modifier = Modifier.weight(1f).padding(start = 6.dp),
+                    style = SaldoTheme.type.footnote,
+                    color = colors.label,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (ritmo.referencia.isNotEmpty()) {
+                    Text("costume", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+                    MoneyText(
+                        centavos = ritmo.referenciaAteAgora,
+                        modifier = Modifier.padding(start = 6.dp),
+                        style = SaldoTheme.type.footnote,
+                        color = colors.secondaryLabel,
+                    )
+                }
+            }
+        }
     }
 }

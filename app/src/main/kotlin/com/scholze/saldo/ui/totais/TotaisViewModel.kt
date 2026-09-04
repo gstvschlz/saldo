@@ -14,6 +14,8 @@ import com.scholze.saldo.domain.InsightsEngine
 import com.scholze.saldo.domain.ParaOndeFoi
 import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.domain.Ritmo
+import com.scholze.saldo.domain.RitmoEngine
 import com.scholze.saldo.domain.ResumoRecorrencias
 import com.scholze.saldo.domain.TotaisMes
 import java.time.YearMonth
@@ -41,6 +43,8 @@ data class TotaisUiState(
     val aCaminho: ACaminho? = null,
     /** Só o resumo, para a linha de atalho; a tela própria tem seu ViewModel. */
     val recorrencias: ResumoRecorrencias? = null,
+    /** O acumulado de saídas do mês contra o costume dos anteriores; `null` junto com [totais]. */
+    val ritmo: Ritmo? = null,
 )
 
 class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
@@ -56,6 +60,7 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
             tendencia = InsightsEngine.tendencia(input, mes),
             aCaminho = InsightsEngine.aCaminho(input, mes),
             recorrencias = InsightsEngine.recorrencias(input, mes),
+            ritmo = RitmoEngine.ritmo(input, mes),
         )
     }
         // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma mais
