@@ -1290,3 +1290,27 @@ Task 1 (`nivelDe`, `mediana`); janela de 12 meses → Task 1; privacidade → Ta
 
 **Fora de escopo confirmado:** widget do board, comparação ano a ano, células de futuro, e
 a captura de notificações (spec 2, interview ainda por fazer).
+
+---
+
+## Execução (2026-09-04)
+
+Executado direto nesta sessão, em vez de subagente por task, e as tasks foram agrupadas em
+seis commits em vez de oito — o ciclo do Gradle nesta máquina é de minutos, e um build por
+task pagaria mais em espera do que renderia em granularidade. O conteúdo saiu como
+planejado, com três desvios que valem registro:
+
+1. **Task 3 encolheu.** O `acao` da `SaldoTopBar` já era invocado dentro da `Row`, então
+   duas ações lado a lado sempre funcionaram: a mudança real foi só o `mostrarSetas` e o
+   nome do parâmetro.
+2. **O hero não podia ser item da `LazyColumn`.** O plano o punha como item 0 e mandava a
+   grade abrir no fim — as duas coisas juntas empurram o saldo projetado para fora da tela
+   na abertura do app. Hero, cabeçalho de colunas e régua ficaram fora da rolagem. Foi o
+   `EntryFlowTest`, o `LedgerScreenTest` e o `SwipeDeleteTest` que pegaram, ao esperar por
+   "saldo projetado" depois do onboarding; os três passaram a trocar para a lista antes de
+   exercitar o ledger.
+3. **O anel da fatura precisou de uma saída.** Num dia que já é o rosa mais forte o anel
+   seria da cor do próprio fundo e sumiria; nesse caso ele vira a cor de fundo da tela.
+
+Verde ao fim: **176 testes JVM**, **100 instrumentados**, `lintDebug` com 0 erros. Capturas
+dos dois temas em `docs/superpowers/screenshots/2026-09-04-board/`.
