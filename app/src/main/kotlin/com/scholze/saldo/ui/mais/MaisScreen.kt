@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
+import com.scholze.saldo.domain.CapturaConfig
 import com.scholze.saldo.domain.LembretesConfig
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
@@ -39,6 +40,13 @@ private fun rotulo(t: Tema) = when (t) {
     Tema.SISTEMA -> "sistema"
     Tema.CLARO -> "claro"
     Tema.ESCURO -> "escuro"
+}
+
+private fun resumoCaptura(c: CapturaConfig): String = when {
+    !c.ligada -> "desligado"
+    c.marcados.isEmpty() -> "ligado · nenhum app"
+    c.marcados.size == 1 -> "1 app"
+    else -> "${c.marcados.size} apps"
 }
 
 private fun resumo(l: LembretesConfig): String = when (l.ativos) {
@@ -57,6 +65,18 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
     var editandoCartao by remember { mutableStateOf(false) }
     var escolhendoTema by remember { mutableStateOf(false) }
     var abrindoLembretes by rememberSaveable { mutableStateOf(false) }
+    var abrindoNotificacoes by rememberSaveable { mutableStateOf(false) }
+
+    if (abrindoNotificacoes) {
+        CapturaScreen(
+            config = s.captura,
+            onLigar = vm::definirCapturaLigada,
+            onMarcarApp = vm::definirAppMarcado,
+            onVoltar = { abrindoNotificacoes = false },
+            modifier = modifier,
+        )
+        return
+    }
 
     if (abrindoLembretes) {
         LembretesScreen(
@@ -134,6 +154,11 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
 
             InsetGroup {
                 InsetRow(label = "lembretes", value = resumo(s.lembretes), onClick = { abrindoLembretes = true })
+                InsetRow(
+                    label = "notificações",
+                    value = resumoCaptura(s.captura),
+                    onClick = { abrindoNotificacoes = true },
+                )
             }
 
             InsetGroup {

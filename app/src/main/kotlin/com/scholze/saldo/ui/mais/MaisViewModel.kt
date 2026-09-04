@@ -43,6 +43,12 @@ class MaisViewModel(
     fun definirWidgetMostrarValores(v: Boolean) =
         escrever("definirWidgetMostrarValores") { settingsStore.definirWidgetMostrarValores(v) }
 
+    fun definirCapturaLigada(v: Boolean) =
+        escrever("definirCapturaLigada") { settingsStore.definirCapturaLigada(v) }
+
+    fun definirAppMarcado(pacote: String, marcado: Boolean) =
+        escrever("definirAppMarcado") { settingsStore.definirAppMarcado(pacote, marcado) }
+
     /** Grava e (re)agenda: os toggles e as horas só valem quando o WorkManager sabe deles. */
     fun definirLembretes(config: LembretesConfig) = escrever("definirLembretes") {
         settingsStore.definirLembretes(config)
