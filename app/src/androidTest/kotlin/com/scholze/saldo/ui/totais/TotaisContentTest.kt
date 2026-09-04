@@ -21,6 +21,7 @@ import com.scholze.saldo.domain.Fatura
 import com.scholze.saldo.domain.GrupoGasto
 import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.ItemFuturo
+import com.scholze.saldo.domain.MesPorTag
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Padroes
@@ -30,6 +31,7 @@ import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.ResumoRecorrencias
 import com.scholze.saldo.domain.Ritmo
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.domain.TagsNoTempo
 import com.scholze.saldo.domain.TotaisMes
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
@@ -138,6 +140,14 @@ class TotaisContentTest {
         acumulado = listOf(0L, 500L, 1_500L, 1_500L),
         referencia = listOf(200L, 400L, 800L, 1_000L),
         mesesComparados = 3,
+    )
+
+    private val noTempo = TagsNoTempo(
+        grupos = listOf(GrupoGasto.DeTag(comida), GrupoGasto.SemTag),
+        meses = (5 downTo 0).map { k ->
+            val m = YearMonth.of(2026, 7).minusMonths(k.toLong())
+            MesPorTag(m, listOf(300_00L - k * 20_00L, 50_00L), 350_00L - k * 20_00L)
+        },
     )
 
     private fun comACaminho(a: ACaminho) = TotaisUiState(
@@ -464,5 +474,30 @@ class TotaisContentTest {
         // O mês visto (o último) mantém a taxa, então a linha de texto NÃO mostra traço:
         // o único "—" da tela é o da barra do mês sem entrada.
         rule.onAllNodesWithText("—").assertCountEquals(1)
+    }
+
+    // ---- para onde foi ao longo do tempo ----
+
+    @Test
+    fun paraOndeFoiMostraOsSeisMeses() {
+        montar(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights, tagsNoTempo = noTempo))
+        rule.onNodeWithText("nos últimos 6 meses").performScrollTo().assertIsDisplayed()
+        // Os rótulos de mês das colunas — fev é o primeiro da janela que termina em julho.
+        // O cabeçalho da seção rola para dentro da tela, mas as colunas ficam abaixo dele.
+        rule.onNodeWithText("fev").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Sem grupo nenhum na janela não há o que empilhar, e a seção não aparece. */
+    @Test
+    fun semGrupoNaJanelaNaoDesenhaAsColunas() {
+        montar(
+            TotaisUiState(
+                YearMonth.of(2026, 7), totais, insights = insights,
+                tagsNoTempo = TagsNoTempo(emptyList(), emptyList()),
+            ),
+        )
+        rule.onAllNodesWithText("nos últimos 6 meses").fetchSemanticsNodes().let {
+            assertEquals(0, it.size)
+        }
     }
 }

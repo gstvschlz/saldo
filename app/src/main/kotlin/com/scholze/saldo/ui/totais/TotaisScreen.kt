@@ -167,7 +167,9 @@ fun TotaisContent(
                         }
                     }
 
-                    state.insights?.let { SegmentoMesInsights(it, onVerTag, onAbrirMovimentacao) }
+                    state.insights?.let {
+                        SegmentoMesInsights(it, onVerTag, onAbrirMovimentacao, noTempo = state.tagsNoTempo)
+                    }
                 }
 
                 SegmentoTotais.TENDENCIA -> state.tendencia?.let { pontos ->

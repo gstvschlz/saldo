@@ -369,4 +369,113 @@ class InsightsEngineTest {
         assertEquals(8_240_00L, r.entramMes)
         assertEquals(2_400_00L, r.saemMes)                                                           // academia só começa em setembro
     }
+
+    // ---- para onde foi ao longo do tempo ----
+
+    private fun serie(movs: List<Movimentacao>, meses: Int = 3) =
+        InsightsEngine.tagsAoLongoDoTempo(
+            input(movs, materializados = setOf(jun, jul, ago), saldoInicialData = "2026-05-01"),
+            jul,
+            meses = meses,
+        )
+
+    @Test
+    fun `a serie tem um ponto por mes, na ordem`() {
+        val s = serie(emptyList())
+        assertEquals(listOf(YearMonth.of(2026, 5), jun, jul), s.meses.map { it.mes })
+    }
+
+    @Test
+    fun `cada mes segue a mesma ordem de grupos`() {
+        val s = serie(
+            listOf(
+                mov("2026-06-10", -100_00, tags = listOf(comida)),
+                mov("2026-07-10", -300_00, tags = listOf(moradia)),
+            ),
+        )
+        // Os dois meses têm valores nas MESMAS posições, mesmo que um deles seja zero ali.
+        s.meses.forEach { assertEquals(s.grupos.size, it.valores.size) }
+        val iComida = s.grupos.indexOfFirst { it is GrupoGasto.DeTag && it.tag.id == comida.id }
+        assertEquals(100_00L, s.meses.first { it.mes == jun }.valores[iComida])
+        assertEquals(0L, s.meses.first { it.mes == jul }.valores[iComida])
+    }
+
+    @Test
+    fun `o total do mes e a soma dos grupos`() {
+        val s = serie(
+            listOf(
+                mov("2026-07-10", -100_00, tags = listOf(comida)),
+                mov("2026-07-12", -50_00, tags = listOf(moradia)),
+                mov("2026-07-15", -25_00),
+            ),
+        )
+        val julho = s.meses.first { it.mes == jul }
+        assertEquals(175_00L, julho.total)
+        assertEquals(julho.valores.sum(), julho.total)
+    }
+
+    /** Cada movimentação conta uma vez, pela primeira etiqueta — senão a coluna passaria do total. */
+    @Test
+    fun `movimentacao com duas tags conta so na primeira`() {
+        val s = serie(listOf(mov("2026-07-10", -100_00, tags = listOf(comida, moradia))))
+        assertEquals(100_00L, s.meses.first { it.mes == jul }.total)
+    }
+
+    @Test
+    fun `sem tag vira um grupo proprio`() {
+        val s = serie(listOf(mov("2026-07-10", -80_00)))
+        assertTrue(s.grupos.contains(GrupoGasto.SemTag))
+        val i = s.grupos.indexOf(GrupoGasto.SemTag)
+        assertEquals(80_00L, s.meses.first { it.mes == jul }.valores[i])
+    }
+
+    /** As maiores saem do total da JANELA, não de um mês: senão a cor trocaria de dono. */
+    @Test
+    fun `as maiores etiquetas saem da janela inteira`() {
+        val s = InsightsEngine.tagsAoLongoDoTempo(
+            input(
+                listOf(
+                    // comida é pequena em julho, mas a maior somando os três meses.
+                    mov("2026-05-10", -900_00, tags = listOf(comida)),
+                    mov("2026-06-10", -900_00, tags = listOf(comida)),
+                    mov("2026-07-10", -10_00, tags = listOf(comida)),
+                    mov("2026-07-11", -500_00, tags = listOf(moradia)),
+                ),
+                materializados = setOf(jun, jul, ago),
+                saldoInicialData = "2026-05-01",
+            ),
+            jul,
+            meses = 3,
+            maioresTags = 1,
+        )
+        assertEquals(1, s.grupos.count { it is GrupoGasto.DeTag })
+        assertTrue((s.grupos.first() as GrupoGasto.DeTag).tag.id == comida.id)
+        // moradia não coube nas maiores e virou "outras".
+        assertTrue(s.grupos.contains(GrupoGasto.Outras))
+    }
+
+    @Test
+    fun `sem gasto nenhum a serie existe mas nao tem grupo`() {
+        val s = serie(emptyList())
+        assertTrue(s.grupos.isEmpty())
+        assertTrue(s.meses.all { it.total == 0L })
+    }
+
+    /** A etiqueta é agrupada por id: renomear no meio da janela não parte a série em duas. */
+    @Test
+    fun `etiqueta renomeada continua a mesma serie`() {
+        val comidaVelha = Tag(comida.id, "rango", comida.cor)
+        val s = serie(
+            listOf(
+                mov("2026-06-10", -100_00, tags = listOf(comidaVelha)),
+                mov("2026-07-10", -200_00, tags = listOf(comida)),
+            ),
+        )
+        assertEquals(1, s.grupos.count { it is GrupoGasto.DeTag })
+        val i = s.grupos.indexOfFirst { it is GrupoGasto.DeTag }
+        assertEquals(100_00L, s.meses.first { it.mes == jun }.valores[i])
+        assertEquals(200_00L, s.meses.first { it.mes == jul }.valores[i])
+        // O nome exibido é o da aparição mais recente.
+        assertEquals("comida", (s.grupos[i] as GrupoGasto.DeTag).tag.nome)
+    }
 }

@@ -24,6 +24,7 @@ import com.scholze.saldo.domain.GrupoGasto
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Padroes
 import com.scholze.saldo.domain.ParaOndeFoi
+import com.scholze.saldo.domain.TagsNoTempo
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.InsetGroup
@@ -33,6 +34,7 @@ import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoColors
 import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.totais.charts.SegmentedBar
+import com.scholze.saldo.ui.totais.charts.TagsStack
 import com.scholze.saldo.ui.totais.charts.WeekdayBars
 import java.time.DayOfWeek
 
@@ -48,6 +50,7 @@ fun SegmentoMesInsights(
     onVerTag: (Tag) -> Unit,
     onAbrirMovimentacao: (Movimentacao) -> Unit,
     modifier: Modifier = Modifier,
+    noTempo: TagsNoTempo? = null,
 ) {
     val colors = SaldoTheme.colors
 
@@ -70,6 +73,21 @@ fun SegmentoMesInsights(
                 )
                 p.fatias.forEach { f ->
                     LinhaFatia(f, onClick = (f.grupo as? GrupoGasto.DeTag)?.let { g -> { onVerTag(g.tag) } })
+                }
+                // A barra acima é a composição DESTE mês; as colunas são a mesma pergunta
+                // ao longo de seis, que é onde uma categoria crescendo aparece.
+                if (noTempo != null && noTempo.grupos.isNotEmpty()) {
+                    Text(
+                        "nos últimos ${noTempo.meses.size} meses",
+                        Modifier.padding(start = 16.dp, top = 14.dp),
+                        style = SaldoTheme.type.caption,
+                        color = colors.secondaryLabel,
+                    )
+                    TagsStack(
+                        serie = noTempo,
+                        cores = noTempo.grupos.map { corDe(it, colors) },
+                        modifier = Modifier.padding(horizontal = 16.dp).padding(top = 6.dp, bottom = 12.dp),
+                    )
                 }
             }
         }

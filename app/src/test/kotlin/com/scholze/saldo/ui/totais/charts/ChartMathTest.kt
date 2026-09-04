@@ -230,4 +230,30 @@ class ChartMathTest {
         assertEquals(listOf(0f, 1f), a)
         assertTrue(b.isEmpty())
     }
+
+    // ---- empilhado ----
+
+    @Test
+    fun `a coluna maior enche a altura e as outras ficam proporcionais`() {
+        val r = ChartMath.empilhado(listOf(listOf(50L, 50L), listOf(25L, 25L)))
+        assertEquals(1f, r[0].sum(), 0.0001f)
+        assertEquals(0.5f, r[1].sum(), 0.0001f)
+    }
+
+    @Test
+    fun `cada segmento e a sua fatia da coluna maior`() {
+        val r = ChartMath.empilhado(listOf(listOf(75L, 25L)))
+        assertEquals(listOf(0.75f, 0.25f), r.single())
+    }
+
+    @Test
+    fun `tudo zero nao estoura no empilhado`() {
+        val r = ChartMath.empilhado(listOf(listOf(0L, 0L), listOf(0L, 0L)))
+        assertTrue(r.all { coluna -> coluna.all { it == 0f } })
+    }
+
+    @Test
+    fun `sem coluna nenhuma devolve vazio`() {
+        assertTrue(ChartMath.empilhado(emptyList()).isEmpty())
+    }
 }

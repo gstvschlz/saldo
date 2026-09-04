@@ -74,6 +74,20 @@ object ChartMath {
     }
 
     /**
+     * Frações da MAIOR coluna, para barras empilhadas: cada segmento vira a sua altura, e a
+     * soma de uma coluna vira a altura dela.
+     *
+     * Sem piso por segmento, ao contrário de [pisoSeNaoZero]: aqui um piso somaria altura que
+     * a coluna não tem, e duas colunas deixariam de ser comparáveis — que é a única coisa que
+     * este gráfico faz. Uma fatia minúscula somer é o preço.
+     */
+    fun empilhado(colunas: List<List<Long>>): List<List<Float>> {
+        val max = colunas.maxOfOrNull { coluna -> coluna.sum() } ?: 0L
+        if (max <= 0L) return colunas.map { coluna -> coluna.map { 0f } }
+        return colunas.map { coluna -> coluna.map { it.toFloat() / max } }
+    }
+
+    /**
      * Duas séries na MESMA escala, ancoradas no zero: 0 = nada, 1 = o maior ponto das duas.
      *
      * Normalizar cada uma pela própria variação, como [linha] faz, desenharia o mês e o

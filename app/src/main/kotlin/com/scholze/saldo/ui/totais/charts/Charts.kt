@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.PontoMes
+import com.scholze.saldo.domain.TagsNoTempo
 import com.scholze.saldo.ui.theme.SaldoColors
 import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.totais.mesCurto
@@ -178,6 +179,52 @@ fun TrendChart(
  * Um mês sem entradas não tem taxa (divisão por zero): ele aparece como barra vazia, que é
  * diferente de uma barra de taxa zero — daí o piso só valer para quem tem valor.
  */
+/**
+ * "Para onde foi" ao longo do tempo: uma coluna empilhada por mês, na ordem de [TagsNoTempo].
+ *
+ * A altura da coluna é o total do mês contra o maior da janela, e cada faixa dentro dela é o
+ * que aquele grupo levou. Assim a mesma imagem responde as duas perguntas: se o mês foi mais
+ * caro, e o que dentro dele cresceu.
+ */
+@Composable
+fun TagsStack(
+    serie: TagsNoTempo,
+    cores: List<Color>,
+    modifier: Modifier = Modifier,
+    altura: Dp = 96.dp,
+) {
+    val colors = SaldoTheme.colors
+    val fracoes = remember(serie) { ChartMath.empilhado(serie.meses.map { it.valores }) }
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+        serie.meses.forEachIndexed { i, mes ->
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.height(altura), contentAlignment = Alignment.BottomCenter) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp))) {
+                        // De cima para baixo, na ordem inversa: o primeiro grupo — o maior da
+                        // janela — assenta na base, onde o olho compara colunas.
+                        fracoes[i].indices.reversed().forEach { g ->
+                            val h = altura * fracoes[i][g]
+                            if (h > 0.dp) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(h)
+                                        .background(cores.getOrElse(g) { colors.separator }),
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    mes.mes.format(mesCurtoChart).removeSuffix("."),
+                    style = SaldoTheme.type.caption,
+                    color = colors.secondaryLabel,
+                )
+            }
+        }
+    }
+}
+
 private val mesCurtoChart =
     java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale.forLanguageTag("pt-BR"))
 

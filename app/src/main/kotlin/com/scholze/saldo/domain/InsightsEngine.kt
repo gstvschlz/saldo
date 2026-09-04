@@ -50,6 +50,25 @@ data class ParaOndeFoi(
 )
 
 /**
+ * Um mês da série de tags: [valores] segue exatamente a ordem de [TagsNoTempo.grupos], com
+ * zero onde aquele grupo não teve saída no mês.
+ */
+data class MesPorTag(val mes: YearMonth, val valores: List<Long>, val total: Long)
+
+/**
+ * "Para onde foi" ao longo do tempo: as mesmas fatias, mês a mês.
+ *
+ * [grupos] é decidido pela janela INTEIRA, não mês a mês, e é a mesma lista em todos os
+ * meses — é isso que deixa a cor de uma etiqueta querer dizer a mesma coisa da primeira
+ * coluna à última. Uma etiqueta que só apareceu num mês entra em `outras` se não estiver
+ * entre as maiores da janela.
+ *
+ * Cada movimentação conta UMA vez, pela primeira etiqueta, como na barra do mês: assim as
+ * colunas somam o total de saídas daquele mês em vez de mais que ele.
+ */
+data class TagsNoTempo(val grupos: List<GrupoGasto>, val meses: List<MesPorTag>)
+
+/**
  * Um mês da tendência: totais fechados (ou projetados, para o mês corrente) e a reserva acumulada até ali.
  *
  * [entradas]/[saidas] e [sobrou] vêm de bases de data diferentes e não fecham entre si —
@@ -135,6 +154,69 @@ object InsightsEngine {
             maioresGastos = saidas.sortedBy { it.valorCentavos }.take(5),
             padroes = padroes(input, mes),
         )
+    }
+
+    /**
+     * As fatias de "para onde foi" repetidas nos últimos [meses] meses até [ateMes].
+     *
+     * As etiquetas são agrupadas por **id**, e não pelo objeto: renomear ou recolorir uma
+     * etiqueta no meio da janela partiria a série em duas se a igualdade fosse a do data
+     * class. O nome exibido é o do mês mais recente em que ela apareceu.
+     */
+    fun tagsAoLongoDoTempo(
+        input: LedgerInput,
+        ateMes: YearMonth,
+        meses: Int = 6,
+        maioresTags: Int = 4,
+    ): TagsNoTempo {
+        val janela = (meses - 1 downTo 0).map { ateMes.minusMonths(it.toLong()) }
+
+        // Por mês: id da primeira etiqueta -> centavos, e o que não tem etiqueta nenhuma.
+        val porMes = janela.map { mes ->
+            val saidas = ProjectionEngine.movimentacoesDoMes(input, mes).filter { it.valorCentavos < 0 }
+            val porTag = saidas.filter { it.tags.isNotEmpty() }
+                .groupBy { it.tags.first().id }
+                .mapValues { (_, movs) -> -movs.sumOf { it.valorCentavos } }
+            val semTag = -saidas.filter { it.tags.isEmpty() }.sumOf { it.valorCentavos }
+            Triple(mes, porTag, semTag)
+        }
+
+        // O nome e a cor vêm da aparição mais recente: a janela é percorrida em ordem, então
+        // o último put é o mais novo.
+        val etiquetas = mutableMapOf<Long, Tag>()
+        janela.forEach { mes ->
+            ProjectionEngine.movimentacoesDoMes(input, mes)
+                .filter { it.valorCentavos < 0 }
+                .forEach { mov -> mov.tags.firstOrNull()?.let { etiquetas[it.id] = it } }
+        }
+
+        val totalPorId = mutableMapOf<Long, Long>()
+        porMes.forEach { (_, porTag, _) ->
+            porTag.forEach { (id, centavos) -> totalPorId[id] = (totalPorId[id] ?: 0L) + centavos }
+        }
+
+        val maiores = totalPorId.entries.sortedByDescending { it.value }.take(maioresTags).map { it.key }
+        val temOutras = totalPorId.keys.any { it !in maiores }
+        val temSemTag = porMes.any { (_, _, semTag) -> semTag > 0 }
+
+        val grupos = buildList {
+            maiores.forEach { id -> etiquetas[id]?.let { add(GrupoGasto.DeTag(it)) } }
+            if (temOutras) add(GrupoGasto.Outras)
+            if (temSemTag) add(GrupoGasto.SemTag)
+        }
+
+        val serie = porMes.map { (mes, porTag, semTag) ->
+            val valores = grupos.map { grupo ->
+                when (grupo) {
+                    is GrupoGasto.DeTag -> porTag[grupo.tag.id] ?: 0L
+                    GrupoGasto.Outras -> porTag.filterKeys { it !in maiores }.values.sum()
+                    GrupoGasto.SemTag -> semTag
+                }
+            }
+            MesPorTag(mes, valores, valores.sum())
+        }
+
+        return TagsNoTempo(grupos, serie)
     }
 
     // ---- tendência ----
