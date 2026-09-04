@@ -152,6 +152,8 @@ fun TotaisContent(
                         LinhaValor("reserva acumulada", t.economiaBucketCentavos, colors.balance)
                     }
 
+                    state.ritmo?.let { BlocoRitmo(it) }
+
                     InsetGroup {
                         val fatura = t.faturaAtual
                         if (fatura == null) {
@@ -164,8 +166,6 @@ fun TotaisContent(
                             )
                         }
                     }
-
-                    state.ritmo?.let { BlocoRitmo(it) }
 
                     state.insights?.let { SegmentoMesInsights(it, onVerTag, onAbrirMovimentacao) }
                 }

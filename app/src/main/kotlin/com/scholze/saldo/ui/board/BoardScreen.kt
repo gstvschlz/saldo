@@ -154,10 +154,10 @@ fun BoardScreen(
                     LinhaSemana(semana, state.hoje, state.diaAberto, onDiaClick)
                 }
 
-                // Ou os lançamentos do dia aberto, ou a régua. Os dois ao mesmo tempo
-                // empurrariam o painel para fora da primeira dobra num telefone.
-                val linha = state.linhaDoDia
-                if (linha != null) {
+                // O painel do dia entra acima da régua, e não no lugar dela: no começo do
+                // mês a grade tem quatro células e a tela ficava com meio telefone vazio
+                // embaixo — e a régua é o que explica a cor de todas elas.
+                state.linhaDoDia?.let { linha ->
                     DayRow(
                         dia = linha,
                         faixa = mes.faixaSaldos(),
@@ -166,9 +166,8 @@ fun BoardScreen(
                         onExcluir = onExcluir,
                         onFaturaClick = { faturaAberta = it },
                     )
-                } else {
-                    Legenda(board.unidadeCentavos)
                 }
+                Legenda(board.unidadeCentavos)
             }
         }
 

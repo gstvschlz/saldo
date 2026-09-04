@@ -226,12 +226,18 @@ class BoardScreenTest {
         assertEquals(0, mesesAndados)
     }
 
-    /** Sem dia aberto o rodapé é a régua; com um dia aberto, são os lançamentos dele. */
     @Test
     fun oPainelMostraOsLancamentosDoDiaAberto() {
         montar(diaAberto = diaDoGasto)
         rule.onNodeWithText("mercado").assertIsDisplayed()
         rule.onNodeWithText("uber").assertIsDisplayed()
+    }
+
+    /** A régua não some quando um dia abre: é ela que explica a cor de toda a grade. */
+    @Test
+    fun aReguaFicaMesmoComODiaAberto() {
+        montar(diaAberto = diaDoGasto)
+        rule.onNodeWithTag(TAG_BOARD_LEGENDA).assertExists()
     }
 
     @Test
