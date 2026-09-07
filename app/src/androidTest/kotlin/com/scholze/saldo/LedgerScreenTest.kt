@@ -2,14 +2,33 @@ package com.scholze.saldo
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.RepetirOpcao
+import com.scholze.saldo.ui.board.TAG_BOARD_GRADE
+import com.scholze.saldo.ui.components.TAG_CAMPO_BUSCA
+import com.scholze.saldo.ui.ledger.TAG_RESULTADOS
 import com.scholze.saldo.ui.ledger.TAG_SALDO_PROJETADO
 import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlinx.coroutines.runBlocking
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -52,5 +71,56 @@ class LedgerScreenTest {
         // existe na árvore não-mesclada.
         rule.onNodeWithTag(TAG_SALDO_PROJETADO, useUnmergedTree = true)
             .assertTextEquals(MASCARA_PRIVACIDADE)
+    }
+
+    /** Semeia direto no repositório da activity — é o mesmo objeto que a tela lê. */
+    private fun semear(descricao: String, centavos: Long, data: LocalDate) = runBlocking {
+        ApplicationProvider.getApplicationContext<SaldoApplication>().container.repository.criar(
+            Movimentacao(descricao = descricao, valorCentavos = centavos, data = data, natureza = Natureza.DIARIO),
+            RepetirOpcao.Nao,
+        )
+    }
+
+    /** Onboarding (R$ 1.000,00), o board, e o toggle para a lista. */
+    private fun abrirLista() {
+        rule.onNodeWithText("qual seu saldo hoje?").assertIsDisplayed()
+        "100000".forEach { rule.onNodeWithText(it.toString()).performClick() }
+        rule.onNodeWithText("começar").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag(TAG_BOARD_GRADE).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription("ver como lista").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("buscar").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    @Ignore("liga na Task 9")
+    fun aLupaAbreOCampoEOsResultadosVemAgrupadosPorMes() {
+        val cincoMesesAtras = LocalDate.now().minusMonths(5).withDayOfMonth(3)
+        semear("uber", -23_90, LocalDate.now())
+        semear("uber", -31_00, cincoMesesAtras)
+        abrirLista()
+        rule.onNodeWithContentDescription("buscar").performClick()
+        rule.onNodeWithTag(TAG_CAMPO_BUSCA).performTextInput("uber")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("uber").fetchSemanticsNodes().size == 2 }
+        val titulo = YearMonth.from(cincoMesesAtras).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("pt-BR")))
+        rule.onNodeWithTag(TAG_RESULTADOS).performScrollToNode(hasText(titulo))
+        rule.onNodeWithText(titulo).assertIsDisplayed()
+    }
+
+    @Test
+    @Ignore("liga na Task 9")
+    fun buscaSemResultadoDizQueNaoAchou() {
+        abrirLista()
+        rule.onNodeWithContentDescription("buscar").performClick()
+        rule.onNodeWithTag(TAG_CAMPO_BUSCA).performTextInput("zzz")
+        rule.onNodeWithText("nada com \"zzz\"").assertIsDisplayed()
+    }
+
+    @Test
+    @Ignore("liga na Task 9")
+    fun fecharABuscaVoltaAoMes() {
+        abrirLista()
+        rule.onNodeWithContentDescription("buscar").performClick()
+        rule.onNodeWithContentDescription("fechar busca").performClick()
+        rule.onNodeWithText(YearMonth.now().format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("pt-BR")))).assertIsDisplayed()
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -57,6 +58,7 @@ import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.descricaoVisivel
+import com.scholze.saldo.ui.components.BuscaTopBar
 import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.components.DiaBadge
@@ -71,6 +73,7 @@ import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
@@ -83,6 +86,9 @@ private val diaSemanaCurto = DateTimeFormatter.ofPattern("EEE", ptBr)
 
 /** O hero, para os testes: há vários nós de dinheiro mascarados na tela. */
 const val TAG_SALDO_PROJETADO = "ledger:saldoProjetado"
+
+/** A lista de resultados da busca (ou o "nada com …"). */
+const val TAG_RESULTADOS = "ledger:resultados"
 
 /** A coluna de saldo de um dia — mesma razão do hero: vários nós iguais na tela. */
 fun tagSaldoDoDia(dia: Int): String = "ledger:saldoDia:$dia"
@@ -100,6 +106,11 @@ fun LedgerScreen(
     onLimparTag: () -> Unit,
     alvo: AlvoLedger? = null,
     onAlvoConsumido: () -> Unit = {},
+    busca: String? = null,
+    onAbrirBusca: () -> Unit = {},
+    onFecharBusca: () -> Unit = {},
+    onBusca: (String) -> Unit = {},
+    onAbrirResultado: (Movimentacao) -> Unit = onItemClick,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -149,7 +160,9 @@ fun LedgerScreen(
                 titulo = state.mesAtual.format(tituloMes),
                 onAnterior = onMesAnterior,
                 onProximo = onProximoMes,
+                busca = busca?.let { BuscaTopBar(it, onBusca, onFecharBusca) },
                 acoes = {
+                    IconeRedondo(SaldoIcon.LUPA, "buscar", onAbrirBusca)
                     IconeRedondo(SaldoIcon.GRADE, "ver como grade", onVerBoard)
                     IconeRedondo(
                         if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
@@ -158,6 +171,21 @@ fun LedgerScreen(
                     )
                 },
             )
+
+            // Busca com texto: os resultados tomam o lugar do mês. A pill de "hoje" e o
+            // diálogo da fatura ficam no Box de fora e não atrapalham — a pill depende da
+            // lista do mês, que não está composta.
+            if (busca != null && busca.isNotBlank()) {
+                ResultadosBusca(
+                    consulta = busca,
+                    resultados = state.resultados.orEmpty(),
+                    hoje = state.hoje,
+                    onItemClick = onAbrirResultado,
+                    onExcluir = onExcluir,
+                    contentPadding = contentPadding,
+                )
+                return@Column
+            }
 
             if (mes == null) {
                 Box(Modifier.fillMaxSize())
@@ -355,6 +383,7 @@ internal fun DayRow(
     onItemClick: (Movimentacao) -> Unit,
     onExcluir: (Movimentacao) -> Unit,
     onFaturaClick: (Fatura) -> Unit,
+    mostrarSaldo: Boolean = true,
 ) {
     val colors = SaldoTheme.colors
     val ehHoje = dia.data == hoje
@@ -460,11 +489,13 @@ internal fun DayRow(
             }
         }
 
-        SaldoPill(
-            centavos = dia.saldoCentavos,
-            nivel = nivelDeCalor(dia.saldoCentavos, faixa),
-            modifier = Modifier.testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
-        )
+        if (mostrarSaldo) {
+            SaldoPill(
+                centavos = dia.saldoCentavos,
+                nivel = nivelDeCalor(dia.saldoCentavos, faixa),
+                modifier = Modifier.testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
+            )
+        }
     }
 }
 
@@ -520,5 +551,53 @@ private fun nivelDeCalor(saldo: Long, faixa: ClosedRange<Long>): Int {
         ratio < 0.34 -> 0
         ratio < 0.67 -> 1
         else -> 2
+    }
+}
+
+/**
+ * Os resultados da busca: um cabeçalho por mês, mais recentes primeiro, e as mesmas linhas
+ * do ledger dentro. Sem saldo do dia — um resultado é uma linha solta, não um dia.
+ */
+@Composable
+private fun ResultadosBusca(
+    consulta: String,
+    resultados: List<Movimentacao>,
+    hoje: LocalDate,
+    onItemClick: (Movimentacao) -> Unit,
+    onExcluir: (Movimentacao) -> Unit,
+    contentPadding: PaddingValues,
+) {
+    val colors = SaldoTheme.colors
+    if (resultados.isEmpty()) {
+        Column(
+            Modifier.fillMaxWidth().padding(32.dp).testTag(TAG_RESULTADOS),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("nada com \"$consulta\"", style = SaldoTheme.type.row, color = colors.secondaryLabel)
+        }
+        return
+    }
+    val porMes = remember(resultados) { resultados.groupBy { YearMonth.from(it.data) } }
+    LazyColumn(Modifier.fillMaxSize().testTag(TAG_RESULTADOS), contentPadding = contentPadding) {
+        porMes.forEach { (mes, itens) ->
+            item(key = "mes-$mes") {
+                Text(
+                    mes.format(tituloMes),
+                    Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp),
+                    style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel,
+                )
+            }
+            items(itens, key = { "${it.id}-${it.data.toEpochDay()}-${it.recorrenciaId}" }) { mov ->
+                DayRow(
+                    dia = DiaRow(data = mov.data, itens = listOf(ItemDia.Mov(mov)), saldoCentavos = 0L),
+                    faixa = 0L..0L,
+                    hoje = hoje,
+                    onItemClick = onItemClick,
+                    onExcluir = onExcluir,
+                    onFaturaClick = {},
+                    mostrarSaldo = false,
+                )
+            }
+        }
     }
 }

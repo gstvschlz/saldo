@@ -146,6 +146,7 @@ fun SaldoApp(
     }
 
     val alvoLedger by ledgerVm.alvo.collectAsState()
+    val buscaLedger by ledgerVm.busca.collectAsState()
 
     // Deep link (widget, lembrete): aplicado uma vez e devolvido como consumido, para que uma
     // recomposição — ou o mesmo Intent reentregue — não o reaplique.
@@ -271,6 +272,11 @@ fun SaldoApp(
                             onVerBoard = { abrindoTag = false },
                             alvo = alvoLedger,
                             onAlvoConsumido = ledgerVm::limparAlvo,
+                            busca = buscaLedger,
+                            onAbrirBusca = ledgerVm::abrirBusca,
+                            onFecharBusca = ledgerVm::fecharBusca,
+                            onBusca = ledgerVm::definirBusca,
+                            onAbrirResultado = { ledgerVm.abrirResultado(it, abrirMovimentacao) },
                             contentPadding = PaddingValues(bottom = 24.dp),
                         )
                     }
