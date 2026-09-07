@@ -96,7 +96,9 @@ fun RecorrenciasScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(fixas(r.ativas.size), style = SaldoTheme.type.sectionHeader, color = colors.label)
+                // Uma pausada continua na lista de "ativas" (ver InsightsEngine.recorrencias),
+                // mas não é uma "fixa" ligada — a contagem só soma as que realmente rodam.
+                Text(fixas(r.ativas.count { it.ativa }), style = SaldoTheme.type.sectionHeader, color = colors.label)
                 InsetGroup {
                     LinhaMes("entram por mês", r.entramMes, colors.positive)
                     LinhaMes("saem por mês", -r.saemMes)
@@ -173,8 +175,10 @@ private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> U
             DescricaoTexto(rec.descricao)
             val nota = when {
                 rec.inicio > mes -> "começa em " + rec.inicio.rotuloCurto()
-                !rec.ativa -> "pausada"
+                // `fim` antes de `!ativa`: uma pausada listada em "encerradas" (`fim` já
+                // passou) tem de ler "até …", não "pausada" — encerrada é o que ela é ali.
                 rec.fim != null -> "até " + rec.fim.rotuloCurto()
+                !rec.ativa -> "pausada"
                 else -> null
             }
             if (nota != null) {

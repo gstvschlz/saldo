@@ -146,11 +146,23 @@ interface TagDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertComId(tag: TagEntity)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertMovCross(cross: MovimentacaoTagCross)
+    /**
+     * Religa só as movimentações de [ids] que ainda existem — um `@Insert` direto do cross
+     * violaria a FK e derrubaria a transação inteira se uma delas tivesse sido apagada
+     * enquanto a tag estava excluída (o "desfazer" chegou tarde para aquela linha).
+     */
+    @Query(
+        "INSERT OR IGNORE INTO movimentacao_tags (movimentacaoId, tagId) " +
+            "SELECT id, :tagId FROM movimentacoes WHERE id IN (:ids)",
+    )
+    suspend fun religarMovimentacoes(tagId: Long, ids: List<Long>)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertRecCross(cross: RecorrenciaTagCross)
+    /** Mesma razão de [religarMovimentacoes], para recorrências. */
+    @Query(
+        "INSERT OR IGNORE INTO recorrencia_tags (recorrenciaId, tagId) " +
+            "SELECT id, :tagId FROM recorrencias WHERE id IN (:ids)",
+    )
+    suspend fun religarRecorrencias(tagId: Long, ids: List<Long>)
 }
 
 @Dao

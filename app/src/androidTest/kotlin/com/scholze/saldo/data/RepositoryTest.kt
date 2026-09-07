@@ -558,6 +558,44 @@ class RepositoryTest {
         assertEquals(YearMonth.of(2026, 8), templates().single().fim)
     }
 
+    /**
+     * Achado da revisão: numa pausada, a linha do mês corrente é real (`pausar` a congela ANTES
+     * de desligar — ver comentário lá). O código antigo de `DAQUI_EM_DIANTE` apagava essa linha
+     * (não editada) e contava com o re-semeio para trazê-la de volta — mas `templateNovo.ativa`
+     * continua `false`, então `ocorrenciaNoMes` devolve `null` e a linha simplesmente sumia.
+     */
+    @Test
+    fun editarDaquiEmDiantePausadaNaoApagaALinhaDoMesCorrente() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.pausar(templates().single().id, hoje)              // hoje = 2026-07-20
+        val julho = linhas().single()
+
+        repo.editar(julho.copy(valorCentavos = -99_00), EscopoEdicao.DAQUI_EM_DIANTE)
+
+        val julhoDepois = linhas().single()
+        assertEquals(julho.id, julhoDepois.id)                  // a mesma linha, não sumiu
+        assertEquals(-99_00L, julhoDepois.valorCentavos)
+        val t = templates().single()
+        assertEquals(-99_00L, t.valorCentavos)
+        assertEquals(false, t.ativa)                            // continua pausada
+    }
+
+    /** Mesmo achado, caso não pausado: a linha do mês de início tem de manter o próprio id. */
+    @Test
+    fun editarDaquiEmDianteMantemOIdDaLinhaDoMesDeInicio() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.abrirMes(YearMonth.of(2026, 8))
+        val julho = linhas().first { it.data == LocalDate.parse("2026-07-15") }
+
+        repo.editar(julho.copy(valorCentavos = -70_00), EscopoEdicao.DAQUI_EM_DIANTE)
+
+        val julhoDepois = linhas().first { it.data == LocalDate.parse("2026-07-15") }
+        assertEquals(julho.id, julhoDepois.id)
+        assertEquals(-70_00L, julhoDepois.valorCentavos)
+        val agosto = linhas().first { it.data == LocalDate.parse("2026-08-15") }
+        assertEquals(-70_00L, agosto.valorCentavos)
+    }
+
     // ---- tags: desfazer e cor (uso-diario-1) ----
 
     @Test
@@ -598,5 +636,29 @@ class RepositoryTest {
         val id = repo.criarTag("mercado", 0xFF112233L)
         repo.recolorirTag(id, 0xFF445566L)
         assertEquals(Tag(id = id, nome = "mercado", cor = 0xFF445566L), repo.tags.first().single())
+    }
+
+    /**
+     * Achado da revisão: `restaurarTag` religava com `@Insert` direto do cross — se a linha
+     * ligada tivesse sido apagada enquanto a tag estava excluída (o "desfazer" chegou depois de
+     * outro delete), a FK estourava e a transação inteira voltava, perdendo até o vínculo da
+     * linha que sobreviveu.
+     */
+    @Test
+    fun restaurarTagComUmaLinhaApagadaNoMeioReligaSoAQueSobrou() = runBlocking {
+        val id = repo.criarTag("mercado", 0xFF112233L)
+        val tag = Tag(id = id, nome = "mercado", cor = 0xFF112233L)
+        repo.criar(mov("2026-07-10", -80_00).copy(tags = listOf(tag)), RepetirOpcao.Nao)
+        repo.criar(mov("2026-07-11", -30_00).copy(tags = listOf(tag)), RepetirOpcao.Nao)
+        val snapshot = repo.excluirTag(id)
+        val sobrevivente = linhas().first { it.data == LocalDate.parse("2026-07-11") }
+        val apagada = linhas().first { it.data == LocalDate.parse("2026-07-10") }
+        repo.excluir(apagada)
+
+        repo.restaurarTag(snapshot)                             // não pode lançar
+
+        assertEquals(listOf(tag), repo.tags.first())
+        assertEquals(listOf(tag), linhas().single { it.id == sobrevivente.id }.tags)
+        assertEquals(1, linhas().size)                          // a apagada continua apagada
     }
 }

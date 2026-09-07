@@ -113,4 +113,37 @@ class RecorrenciasScreenTest {
             rule.onAllNodesWithText("encerradas", substring = true).assertCountEquals(0)
         }
     }
+
+    /**
+     * Achado da revisão: `fixas(r.ativas.size)` contava a pausada também — `ativas` inclui
+     * templates pausados (ver `InsightsEngine.recorrencias`), então o cabeçalho continuava
+     * dizendo "2 fixas" com uma delas parada.
+     */
+    @Test
+    fun umaPausadaNaoContaComoFixaNoCabecalho() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        runBlocking {
+            app.container.settings.definirSaldoInicial(100_000_00, hoje)
+            app.container.repository.criar(
+                Movimentacao(descricao = "academia", valorCentavos = -120_00, data = hoje.withDayOfMonth(5), natureza = Natureza.DIARIO),
+                RepetirOpcao.TodoMes(5),
+            )
+            app.container.repository.criar(
+                Movimentacao(descricao = "aluguel", valorCentavos = -2_400_00, data = hoje.withDayOfMonth(28), natureza = Natureza.DIARIO),
+                RepetirOpcao.TodoMes(28),
+            )
+        }
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.from(hoje)))).use {
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("a caminho").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("a caminho").performClick()
+            rule.onNodeWithText("recorrências").performScrollTo().performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("pausar academia").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("2 fixas").assertIsDisplayed()
+
+            rule.onNodeWithContentDescription("pausar academia").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("pausada").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("1 fixa").assertIsDisplayed()
+        }
+    }
 }

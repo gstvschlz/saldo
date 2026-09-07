@@ -109,6 +109,9 @@ fun SegmentoTendencia(
                     )
                 },
             )
+            if (!poucosMeses) {
+                ReservaLine(pontos.map { it.reservaAcumulada }, Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp))
+            }
             val anterior = pontos.getOrNull(pontos.size - 2)
             InsetRow(
                 label = "taxa de poupança",
@@ -119,7 +122,6 @@ fun SegmentoTendencia(
                 },
             )
             if (!poucosMeses) {
-                ReservaLine(pontos.map { it.reservaAcumulada }, Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp))
                 // A taxa deixa de ser só o número deste mês e do anterior: seis barras mostram
                 // se ela está subindo ou se aquele mês bom foi um acidente.
                 PoupancaBars(

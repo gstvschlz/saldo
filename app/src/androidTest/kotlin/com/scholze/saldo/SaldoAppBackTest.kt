@@ -142,4 +142,28 @@ class SaldoAppBackTest {
             assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
         }
     }
+
+    /**
+     * A busca escondida não sobrevivia a uma troca de aba que NÃO fosse para "saldos": tocar em
+     * "totais" com a lista e a busca abertas devolvia a vista ao board (bem) mas deixava a
+     * busca aberta atrás dele (mal) — o Voltar seguinte gastava um toque fechando-a sem nada
+     * mudar na tela, e o board só aparecia no terceiro toque. Corrigido, dois toques bastam.
+     */
+    @Test
+    fun daListaComABuscaAbertaTocarTotaisEDoisVoltaresSaiDoApp() {
+        app()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            esperarBoard()
+            rule.onNodeWithContentDescription("ver como lista").performClick()
+            esperarTexto("todas")
+            rule.onNodeWithContentDescription("buscar").performClick()
+            rule.onNodeWithText("totais").performClick()
+            esperarTexto("totais")
+            assertEquals(true, voltar())
+            esperarBoard()
+            voltar()
+            rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
+            assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
+        }
+    }
 }

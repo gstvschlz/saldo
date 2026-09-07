@@ -2,8 +2,6 @@ package com.scholze.saldo.data
 
 import androidx.room.withTransaction
 import com.scholze.saldo.data.db.MesMaterializadoEntity
-import com.scholze.saldo.data.db.MovimentacaoTagCross
-import com.scholze.saldo.data.db.RecorrenciaTagCross
 import com.scholze.saldo.data.db.SaldoDatabase
 import com.scholze.saldo.data.db.toAnoMes
 import com.scholze.saldo.data.db.toDomain
@@ -214,10 +212,34 @@ class RoomSaldoRepository(
                 )
                 recDao.update(templateNovo.toEntity())
                 recDao.setTags(recId, mov.tags.map { it.id })
-                movDao.deleteInstanciasNaoEditadasAPartirDe(recId, mesInicio.atDay(1).toEpochDay())
-                // Re-semeia meses materializados >= mesInicio que ficaram sem instância.
+                // Um template pausado (`ativa = false`) não expande: se `mesInicio` já tem uma
+                // linha real (mensal ainda ativa, ou pausada com a instância do mês corrente —
+                // ver `pausar`), apagá-la e contar com o re-semeio abaixo a traria de volta só
+                // se o template estivesse ativo. Atualiza-a no lugar em vez disso, e o
+                // delete-e-re-semeio corre só do mês SEGUINTE em diante. Ocorrência virtual
+                // (`mov.id == 0`) não tem linha para atualizar: o comportamento a partir de
+                // `mesInicio` continua o de sempre.
+                val aPartirDe = if (mov.id != 0L) {
+                    movDao.updateCampos(
+                        id = mov.id,
+                        descricao = mov.descricao,
+                        valorCentavos = mov.valorCentavos,
+                        dataEpochDay = mov.data.toEpochDay(),
+                        natureza = mov.natureza.name,
+                        // A linha passa a ser exatamente o que o template novo diz — não é mais
+                        // um desvio dele, é o próprio template — então não fica marcada como
+                        // editada à mão, igual a uma instância re-semeada abaixo.
+                        editadaManualmente = false,
+                    )
+                    movDao.setTags(mov.id, mov.tags.map { it.id })
+                    mesInicio.plusMonths(1)
+                } else {
+                    mesInicio
+                }
+                movDao.deleteInstanciasNaoEditadasAPartirDe(recId, aPartirDe.atDay(1).toEpochDay())
+                // Re-semeia meses materializados >= aPartirDe que ficaram sem instância.
                 mesDao.todos().map { it.toYearMonth() }
-                    .filter { it >= mesInicio }
+                    .filter { it >= aPartirDe }
                     .forEach { m ->
                         val existentes = movDao.countInstancias(
                             recId, m.atDay(1).toEpochDay(), m.atEndOfMonth().toEpochDay(),
@@ -405,8 +427,11 @@ class RoomSaldoRepository(
 
     override suspend fun restaurarTag(snapshot: TagSnapshot) = db.withTransaction {
         tagDao.insertComId(snapshot.tag.toEntity())
-        snapshot.movimentacaoIds.forEach { tagDao.insertMovCross(MovimentacaoTagCross(it, snapshot.tag.id)) }
-        snapshot.recorrenciaIds.forEach { tagDao.insertRecCross(RecorrenciaTagCross(it, snapshot.tag.id)) }
+        // `IN ()` vazio é erro de sintaxe no SQLite — só chama quando há algo para religar.
+        // O `INSERT OR IGNORE ... SELECT` do DAO pula, sem violar FK nem derrubar a transação,
+        // qualquer id que tenha sido apagado enquanto a tag estava excluída.
+        if (snapshot.movimentacaoIds.isNotEmpty()) tagDao.religarMovimentacoes(snapshot.tag.id, snapshot.movimentacaoIds)
+        if (snapshot.recorrenciaIds.isNotEmpty()) tagDao.religarRecorrencias(snapshot.tag.id, snapshot.recorrenciaIds)
     }
 
     override suspend fun recolorirTag(id: Long, cor: Long) = tagDao.recolor(id, cor)
