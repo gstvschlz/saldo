@@ -232,7 +232,7 @@ object InsightsEngine {
                 saidas = t.saidasPorNatureza.values.sum(),
                 sobrou = t.sobrouCentavos,
                 reservaAcumulada = t.economiaBucketCentavos,
-                taxaPoupanca = if (t.entradasCentavos > 0) (economia * 100 / t.entradasCentavos).toInt() else null,
+                taxaPoupanca = ProjectionEngine.taxaGuardada(t.entradasCentavos, economia),
             )
         }
 

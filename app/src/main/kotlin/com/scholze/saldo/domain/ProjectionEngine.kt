@@ -46,6 +46,8 @@ data class MesLedger(
     val estimativaCentavos: Long,
     val deltaNoMesCentavos: Long,
     val projetadoEm: LocalDate,
+    /** Quanto do que entrou no mês foi para economia, em %; `null` num mês sem entrada. */
+    val taxaGuardada: Int? = null,
 )
 
 data class TotaisMes(
@@ -68,6 +70,17 @@ object ProjectionEngine {
      */
     fun mes(input: LedgerInput, mes: YearMonth, filtro: FiltroLedger, tagId: Long? = null): MesLedger =
         mes(input, mes, filtro, tagId, efetivas(input, mes))
+
+    /**
+     * A leitura "guardou N%": as saídas de natureza economia do mês sobre tudo que entrou.
+     * Arredonda; sem entrada não há proporção (nulo, não zero); guardar mais do que entrou
+     * — de saldo antigo — passa de cem, porque é verdade. É a única conta desta razão: a
+     * tendência e o hero leem daqui e não podem discordar por um por cento.
+     */
+    fun taxaGuardada(entradasCentavos: Long, economiaCentavos: Long): Int? {
+        if (entradasCentavos <= 0) return null
+        return Math.round(economiaCentavos * 100.0 / entradasCentavos).toInt()
+    }
 
     /** [efetivas] tem de ser exatamente `efetivas(input, mes)` — [totais] a reaproveita em vez de expandir de novo. */
     private fun mes(
@@ -116,6 +129,11 @@ object ProjectionEngine {
         val projetado = projetadoDoMes(input, efetivas, faturas, mes)
         val projetadoAnterior = projetadoDoMes(input, efetivas, faturas, mes.minusMonths(1))
 
+        // Sempre sobre o mês inteiro (sem filtro): a pill do hero não muda com os chips.
+        val doMes = efetivas.filter { YearMonth.from(it.data) == mes }
+        val entradas = doMes.filter { it.natureza != Natureza.CARTAO && it.valorCentavos > 0 }.sumOf { it.valorCentavos }
+        val economia = -doMes.filter { it.natureza == Natureza.ECONOMIA && it.valorCentavos < 0 }.sumOf { it.valorCentavos }
+
         return MesLedger(
             mes = mes,
             dias = dias,
@@ -123,6 +141,7 @@ object ProjectionEngine {
             estimativaCentavos = estimativa,
             deltaNoMesCentavos = projetado - projetadoAnterior,
             projetadoEm = fimMes,
+            taxaGuardada = taxaGuardada(entradas, economia),
         )
     }
 

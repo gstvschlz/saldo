@@ -226,4 +226,37 @@ class ProjectionEngineTest {
         assertEquals(semTag.saldoProjetadoCentavos, comTag.saldoProjetadoCentavos)
         assertEquals(semTag.estimativaCentavos, comTag.estimativaCentavos)
     }
+
+    @Test
+    fun `taxaGuardada e nula sem entrada`() {
+        assertNull(ProjectionEngine.taxaGuardada(0, 200_00))
+        assertNull(ProjectionEngine.taxaGuardada(-10, 200_00))
+    }
+
+    @Test
+    fun `taxaGuardada arredonda e passa de cem`() {
+        assertEquals(20, ProjectionEngine.taxaGuardada(1_000_00, 200_00))
+        assertEquals(21, ProjectionEngine.taxaGuardada(1_000_00, 205_00))   // 20,5 → 21
+        assertEquals(120, ProjectionEngine.taxaGuardada(1_000_00, 1_200_00))
+        assertEquals(0, ProjectionEngine.taxaGuardada(1_000_00, 0))
+    }
+
+    @Test
+    fun `mes carrega a taxa guardada do proprio mes`() {
+        val set = YearMonth.of(2026, 9)
+        val input = LedgerInput(
+            saldoInicialCentavos = 0, saldoInicialData = LocalDate.parse("2026-01-01"),
+            movimentacoes = listOf(
+                Movimentacao(id = 1, descricao = "salário", valorCentavos = 5_000_00, data = LocalDate.parse("2026-09-05"), natureza = Natureza.DIARIO),
+                Movimentacao(id = 2, descricao = "cdb", valorCentavos = -1_000_00, data = LocalDate.parse("2026-09-06"), natureza = Natureza.ECONOMIA),
+                Movimentacao(id = 3, descricao = "mercado", valorCentavos = -300_00, data = LocalDate.parse("2026-09-07"), natureza = Natureza.DIARIO),
+                Movimentacao(id = 4, descricao = "cdb", valorCentavos = -500_00, data = LocalDate.parse("2026-08-06"), natureza = Natureza.ECONOMIA),
+            ),
+            recorrencias = emptyList(), mesesMaterializados = emptySet(), cartao = CartaoConfig(),
+            hoje = LocalDate.parse("2026-09-07"),
+        )
+        assertEquals(20, ProjectionEngine.mes(input, set, FiltroLedger.TODAS).taxaGuardada)
+        // agosto: economia sem entrada → nulo, não 0
+        assertNull(ProjectionEngine.mes(input, YearMonth.of(2026, 8), FiltroLedger.TODAS).taxaGuardada)
+    }
 }

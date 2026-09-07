@@ -276,13 +276,14 @@ class InsightsEngineTest {
     }
 
     @Test
-    fun taxaTruncaParaBaixo() {
+    fun taxaArredonda() {
         val movs = listOf(
             mov("2026-07-05", 1_000_00),
             mov("2026-07-10", -666_67, Natureza.ECONOMIA),
         )
-        // Uma divisão inteira 66,667 % trunca para 66; arredondar daria 67.
-        assertEquals(66, InsightsEngine.tendencia(input(movs), jul).last().taxaPoupanca)
+        // 66,667 % arredonda para 67 — taxaPoupanca passa a usar ProjectionEngine.taxaGuardada,
+        // que arredonda em vez de truncar.
+        assertEquals(67, InsightsEngine.tendencia(input(movs), jul).last().taxaPoupanca)
     }
 
     @Test
