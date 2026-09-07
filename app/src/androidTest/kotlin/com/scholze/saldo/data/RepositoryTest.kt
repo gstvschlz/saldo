@@ -8,6 +8,7 @@ import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.domain.Tag
 import java.io.File
@@ -315,5 +316,113 @@ class RepositoryTest {
         val depois = repo.ledger.first().movimentacoes.single()
         assertEquals(-50_00L, depois.valorCentavos)
         assertEquals(emptyList<Tag>(), depois.tags)
+    }
+
+    // ---- converter / encerrar / pausar / retomar (uso-diario-1) ----
+
+    private suspend fun linhas() = repo.ledger.first().movimentacoes.sortedBy { it.data }
+    private suspend fun templates() = repo.ledger.first().recorrencias
+
+    @Test
+    fun converterEmRecorrenciaLigaALinhaESemeiaOsMesesAbertosDepois() = runBlocking {
+        repo.criar(mov("2026-07-10", -80_00), RepetirOpcao.Nao)
+        repo.abrirMes(YearMonth.of(2026, 8))   // agosto aberto ANTES de converter
+        val avulsa = linhas().single()
+        repo.converterEmRecorrencia(avulsa, diaDoMes = 10)
+
+        val t = templates().single()
+        assertEquals(10, t.diaDoMes)
+        assertEquals(YearMonth.of(2026, 7), t.inicio)
+        val julho = linhas().first { it.data == LocalDate.parse("2026-07-10") }
+        assertEquals(t.id, julho.recorrenciaId)
+        assertEquals(avulsa.id, julho.id)                       // a mesma linha, não uma cópia
+        assertEquals(
+            listOf("2026-07-10", "2026-08-10"),
+            linhas().map { it.data.toString() },
+        )
+    }
+
+    @Test
+    fun converterComDiaDiferenteDaDataMarcaALinhaComoEditada() = runBlocking {
+        repo.criar(mov("2026-07-10", -80_00), RepetirOpcao.Nao)
+        repo.converterEmRecorrencia(linhas().single(), diaDoMes = 31)
+        val julho = linhas().single()
+        assertEquals(true, julho.editadaManualmente)
+        assertEquals(31, templates().single().diaDoMes)
+    }
+
+    @Test
+    fun encerrarRecorrenciaDesligaALinhaEApagaAsFuturas() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.abrirMes(YearMonth.of(2026, 8))
+        repo.abrirMes(YearMonth.of(2026, 9))
+        val agosto = linhas().first { it.data == LocalDate.parse("2026-08-15") }
+        repo.encerrarRecorrencia(agosto)
+
+        val t = templates().single()
+        assertEquals(YearMonth.of(2026, 7), t.fim)
+        val restantes = linhas()
+        assertEquals(listOf("2026-07-15", "2026-08-15"), restantes.map { it.data.toString() })
+        val ago = restantes.first { it.data == LocalDate.parse("2026-08-15") }
+        assertEquals(null, ago.recorrenciaId)                   // virou avulsa
+        assertEquals(false, ago.editadaManualmente)
+    }
+
+    @Test
+    fun encerrarNoPrimeiroMesApagaOTemplate() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.encerrarRecorrencia(linhas().single())
+        assertEquals(0, templates().size)
+        val unica = linhas().single()
+        assertEquals(null, unica.recorrenciaId)
+    }
+
+    @Test
+    fun pausarMantemOMesCorrenteEApagaAsFuturasNaoEditadas() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.abrirMes(YearMonth.of(2026, 8))
+        repo.abrirMes(YearMonth.of(2026, 9))
+        // setembro editada à mão: sobrevive à pausa
+        val set = linhas().first { it.data == LocalDate.parse("2026-09-15") }
+        repo.editar(set.copy(valorCentavos = -99_00), EscopoEdicao.SO_ESTE_MES)
+
+        repo.pausar(templates().single().id, hoje)              // hoje = 2026-07-20
+
+        assertEquals(false, templates().single().ativa)
+        assertEquals(listOf("2026-07-15", "2026-09-15"), linhas().map { it.data.toString() })
+    }
+
+    @Test
+    fun pausarCongelaOsMesesNuncaAbertosAntesDeDesligar() = runBlocking {
+        repo.criar(mov("2026-04-15", -50_00), RepetirOpcao.TodoMes(15))
+        // maio e junho nunca abertos: hoje só existem como expansão virtual
+        repo.pausar(templates().single().id, hoje)              // hoje = 2026-07-20
+        val input = repo.ledger.first()
+        assertEquals(
+            listOf("2026-04-15", "2026-05-15", "2026-06-15", "2026-07-15"),
+            input.movimentacoes.map { it.data.toString() }.sorted(),
+        )
+        assertEquals(true, YearMonth.of(2026, 5) in input.mesesMaterializados)
+    }
+
+    @Test
+    fun retomarDeixaOIntervaloVazioESemeiaOMesCorrente() = runBlocking {
+        repo.criar(mov("2026-05-15", -50_00), RepetirOpcao.TodoMes(15))
+        val id = templates().single().id
+        repo.pausar(id, LocalDate.parse("2026-05-20"))
+        // julho aberto enquanto pausada: nada da recorrência entra
+        repo.abrirMes(YearMonth.of(2026, 7))
+        assertEquals(listOf("2026-05-15"), linhas().map { it.data.toString() })
+
+        repo.retomar(id, hoje)                                  // hoje = 2026-07-20
+
+        assertEquals(true, templates().single().ativa)
+        val input = repo.ledger.first()
+        // junho ficou materializado (vazio para esta recorrência) e julho ganhou a instância
+        assertEquals(true, YearMonth.of(2026, 6) in input.mesesMaterializados)
+        assertEquals(listOf("2026-05-15", "2026-07-15"), linhas().map { it.data.toString() })
+        // e a projeção não inventa junho
+        val junho = ProjectionEngine.movimentacoesDoMes(input, YearMonth.of(2026, 6))
+        assertEquals(0, junho.size)
     }
 }

@@ -71,6 +71,13 @@ interface MovimentacaoDao {
             "AND dataEpochDay BETWEEN :fromEpochDay AND :toEpochDay",
     )
     suspend fun countInstancias(recorrenciaId: Long, fromEpochDay: Long, toEpochDay: Long): Int
+
+    /** A linha vira avulsa: sem template e sem a marca de editada (que só faz sentido numa instância). */
+    @Query("UPDATE movimentacoes SET recorrenciaId = NULL, editadaManualmente = 0 WHERE id = :id")
+    suspend fun desligarDaRecorrencia(id: Long)
+
+    @Query("UPDATE movimentacoes SET recorrenciaId = :recorrenciaId, editadaManualmente = :editada WHERE id = :id")
+    suspend fun ligarARecorrencia(id: Long, recorrenciaId: Long, editada: Boolean)
 }
 
 @Dao
@@ -78,6 +85,14 @@ interface RecorrenciaDao {
     @Transaction
     @Query("SELECT * FROM recorrencias ORDER BY diaDoMes")
     fun observeAll(): Flow<List<RecorrenciaComTags>>
+
+    /** Leitura única para dentro de transações — um Flow não participa da transação. */
+    @Transaction
+    @Query("SELECT * FROM recorrencias ORDER BY diaDoMes")
+    suspend fun todos(): List<RecorrenciaComTags>
+
+    @Query("UPDATE recorrencias SET ativa = :ativa WHERE id = :id")
+    suspend fun definirAtiva(id: Long, ativa: Boolean)
 
     @Insert suspend fun insert(rec: RecorrenciaEntity): Long
     @Update suspend fun update(rec: RecorrenciaEntity)
