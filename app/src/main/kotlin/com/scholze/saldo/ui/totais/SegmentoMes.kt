@@ -88,6 +88,13 @@ fun SegmentoMesInsights(
                         cores = noTempo.grupos.map { corDe(it, colors) },
                         modifier = Modifier.padding(horizontal = 16.dp).padding(top = 6.dp, bottom = 12.dp),
                     )
+                } else if (noTempo != null) {
+                    Text(
+                        "sem tags neste período",
+                        Modifier.padding(start = 16.dp, top = 14.dp, bottom = 12.dp),
+                        style = SaldoTheme.type.caption,
+                        color = colors.secondaryLabel,
+                    )
                 }
             }
         }

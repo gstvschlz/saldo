@@ -1,5 +1,6 @@
 package com.scholze.saldo.ui.totais
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -9,6 +10,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
@@ -515,5 +517,44 @@ class TotaisContentTest {
         rule.onAllNodesWithText("nos últimos 6 meses").fetchSemanticsNodes().let {
             assertEquals(0, it.size)
         }
+        rule.onNodeWithText("sem tags neste período").performScrollTo().assertIsDisplayed()
+    }
+
+    // ---- tendência: "precisa de mais um mês" ----
+
+    private fun montarTendencia(pontosComMovimentoEm: Int) {
+        val pontos = (5 downTo 0).map { k ->
+            val m = YearMonth.now().minusMonths(k.toLong())
+            val comMovimento = k < pontosComMovimentoEm
+            PontoMes(
+                mes = m,
+                entradas = if (comMovimento) 1_000_00 else 0,
+                saidas = if (comMovimento) 600_00 else 0,
+                sobrou = if (comMovimento) 400_00 else 0,
+                reservaAcumulada = 0,
+                taxaPoupanca = null,
+            )
+        }
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                Column {
+                    SegmentoTendencia(pontos, YearMonth.now(), onMes = {})
+                }
+            }
+        }
+    }
+
+    @Test
+    fun comUmMesSoATendenciaPedeMaisUmMes() {
+        montarTendencia(pontosComMovimentoEm = 1)
+        rule.onAllNodesWithTag(TAG_PRECISA_MAIS_UM_MES).assertCountEquals(2)
+        rule.onAllNodesWithText("saídas").assertCountEquals(0)
+    }
+
+    @Test
+    fun comDoisMesesOsGraficosVoltam() {
+        montarTendencia(pontosComMovimentoEm = 2)
+        rule.onAllNodesWithTag(TAG_PRECISA_MAIS_UM_MES).assertCountEquals(0)
+        rule.onNodeWithText("saídas").assertIsDisplayed()
     }
 }

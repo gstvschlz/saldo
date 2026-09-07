@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -13,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.ui.components.InsetGroup
@@ -27,6 +31,22 @@ import com.scholze.saldo.ui.totais.charts.coresTendencia
 import java.time.YearMonth
 
 // `ptBr`/`mesCurto` vêm de Formatos.kt (mesmo pacote, sem import).
+
+/** O aviso que ocupa o lugar de um gráfico sem dois meses para comparar. */
+const val TAG_PRECISA_MAIS_UM_MES = "totais:precisaMaisUmMes"
+
+/** Meses com alguma movimentação; abaixo de dois, nenhuma tendência é uma tendência. */
+private fun List<PontoMes>.mesesComMovimento(): Int = count { it.entradas != 0L || it.saidas != 0L }
+
+@Composable
+private fun PrecisaDeMaisUmMes(altura: Dp) {
+    Box(
+        Modifier.fillMaxWidth().height(altura).padding(horizontal = 16.dp).testTag(TAG_PRECISA_MAIS_UM_MES),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("precisa de mais um mês", style = SaldoTheme.type.row, color = SaldoTheme.colors.secondaryLabel)
+    }
+}
 
 /**
  * Segmento "tendência": os 6 meses (entradas, saídas, sobrou) e a poupança (reserva + taxa).
@@ -45,19 +65,26 @@ fun SegmentoTendencia(
     // Mesmo mapeamento série → cor usado dentro do Canvas de TrendChart — uma fonte só, para a
     // legenda nunca poder descrever cores que o gráfico já não está mais desenhando.
     val cores = coresTendencia(colors)
+    // Sem dois meses com movimento não há tendência nenhuma para comparar: os dois gráficos
+    // (e a legenda, que descreveria cores que não estão mais sendo desenhadas) dão lugar ao aviso.
+    val poucosMeses = pontos.mesesComMovimento() < 2
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("6 MESES", style = SaldoTheme.type.sectionHeader, color = colors.secondaryLabel)
         InsetGroup {
-            TrendChart(pontos, mesDestacado, onMes, Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 6.dp))
-            Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Legenda(cores.saidas, "saídas")
-                Legenda(cores.entradas, "entradas")
-                Legenda(cores.sobrou, "sobrou")
+            if (poucosMeses) {
+                PrecisaDeMaisUmMes(120.dp)
+            } else {
+                TrendChart(pontos, mesDestacado, onMes, Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 6.dp))
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Legenda(cores.saidas, "saídas")
+                    Legenda(cores.entradas, "entradas")
+                    Legenda(cores.sobrou, "sobrou")
+                }
             }
         }
     }
@@ -82,7 +109,6 @@ fun SegmentoTendencia(
                     )
                 },
             )
-            ReservaLine(pontos.map { it.reservaAcumulada }, Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp))
             val anterior = pontos.getOrNull(pontos.size - 2)
             InsetRow(
                 label = "taxa de poupança",
@@ -92,13 +118,18 @@ fun SegmentoTendencia(
                     else -> "${atual.taxaPoupanca}% este mês (${anterior.mes.format(mesCurto).removeSuffix(".")} ${anterior.taxaPoupanca}%)"
                 },
             )
-            // A taxa deixa de ser só o número deste mês e do anterior: seis barras mostram
-            // se ela está subindo ou se aquele mês bom foi um acidente.
-            PoupancaBars(
-                pontos,
-                mesDestacado,
-                Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
-            )
+            if (!poucosMeses) {
+                ReservaLine(pontos.map { it.reservaAcumulada }, Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp))
+                // A taxa deixa de ser só o número deste mês e do anterior: seis barras mostram
+                // se ela está subindo ou se aquele mês bom foi um acidente.
+                PoupancaBars(
+                    pontos,
+                    mesDestacado,
+                    Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                )
+            } else {
+                PrecisaDeMaisUmMes(96.dp)
+            }
         }
         Text(
             "taxa = economia do mês ÷ entradas do mês",
