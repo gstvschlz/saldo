@@ -14,10 +14,15 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.ui.board.TAG_BOARD_GRADE
 import com.scholze.saldo.ui.board.tagCelula
+import com.scholze.saldo.ui.ledger.TAG_PILL_GUARDADO
 import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.nav.TAG_ADD
+import com.scholze.saldo.ui.totais.TAG_SEGMENTO_TOTAIS
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -162,6 +167,25 @@ class VistaSaldosTest {
             rule.waitUntil(5_000) { rule.onAllNodesWithText(rotulo, substring = true).fetchSemanticsNodes().isNotEmpty() }
             // Duas ocorrências legítimas: a linha "data" e o rodapé "saldo de … ficará em".
             rule.onAllNodesWithText(rotulo, substring = true).onFirst().assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun aPillDoHeroAbreTotaisNaTendencia() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        runBlocking {
+            app.container.settings.definirSaldoInicial(100_000_00, LocalDate.now().withDayOfMonth(1))
+            app.container.repository.criar(Movimentacao(descricao = "salário", valorCentavos = 5_000_00, data = LocalDate.now(), natureza = Natureza.DIARIO), RepetirOpcao.Nao)
+            app.container.repository.criar(Movimentacao(descricao = "cdb", valorCentavos = -1_000_00, data = LocalDate.now(), natureza = Natureza.ECONOMIA), RepetirOpcao.Nao)
+        }
+        ActivityScenario.launch(MainActivity::class.java).use {
+            esperarBoard()
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag(TAG_PILL_GUARDADO).fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithTag(TAG_PILL_GUARDADO).performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag(TAG_SEGMENTO_TOTAIS).fetchSemanticsNodes().isNotEmpty() }
+            // FiltroChips não expõe semântica `Selected` (é só cor de fundo): "6 MESES" só
+            // aparece no segmento tendência, então é a prova de que a pill levou até lá.
+            rule.onNodeWithText("6 MESES").assertIsDisplayed()
         }
     }
 }

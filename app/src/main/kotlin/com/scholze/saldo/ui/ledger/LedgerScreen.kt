@@ -47,6 +47,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -87,6 +89,9 @@ private val diaSemanaCurto = DateTimeFormatter.ofPattern("EEE", ptBr)
 /** O hero, para os testes: há vários nós de dinheiro mascarados na tela. */
 const val TAG_SALDO_PROJETADO = "ledger:saldoProjetado"
 
+/** A pill "guardou N%" do hero. */
+const val TAG_PILL_GUARDADO = "hero:guardado"
+
 /** A lista de resultados da busca (ou o "nada com …"). */
 const val TAG_RESULTADOS = "ledger:resultados"
 
@@ -104,6 +109,7 @@ fun LedgerScreen(
     onTogglePrivacidade: () -> Unit,
     onVerBoard: () -> Unit,
     onLimparTag: () -> Unit,
+    onVerGuardado: () -> Unit = {},
     alvo: AlvoLedger? = null,
     onAlvoConsumido: () -> Unit = {},
     busca: String? = null,
@@ -194,7 +200,7 @@ fun LedgerScreen(
                 Box(Modifier.fillMaxSize())
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
-                    item(key = "hero") { BalanceHero(mes, onTogglePrivacidade) }
+                    item(key = "hero") { BalanceHero(mes, onTogglePrivacidade, onVerGuardado) }
                     item(key = "filtro") {
                         FiltroChips(
                             opcoes = FiltroLedger.entries.map { it.rotulo },
@@ -300,7 +306,7 @@ internal fun MesLedger.faixaSaldos(): ClosedRange<Long> {
 
 /** O card do saldo projetado. `internal` porque o board mostra exatamente o mesmo. */
 @Composable
-internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
+internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit, onVerGuardado: () -> Unit = {}) {
     val colors = SaldoTheme.colors
     Column(
         Modifier
@@ -329,22 +335,37 @@ internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit) {
             modifier = Modifier.testTag(TAG_SALDO_PROJETADO),
             style = SaldoTheme.type.largeTitle, color = colors.onPrimaryContainer,
         )
-        Row(
-            Modifier
-                .padding(top = 6.dp)
-                .clip(RoundedCornerShape(percent = 50))
-                .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
-                .padding(horizontal = 11.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            MoneyText(
-                centavos = mes.deltaNoMesCentavos,
-                style = SaldoTheme.type.subhead,
-                color = colors.onPrimaryContainer,
-                formato = FormatoMoney.ASSINADO_COM_SIMBOLO,
-            )
-            Text("no mês", style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer)
+        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
+                    .padding(horizontal = 11.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MoneyText(
+                    centavos = mes.deltaNoMesCentavos,
+                    style = SaldoTheme.type.subhead,
+                    color = colors.onPrimaryContainer,
+                    formato = FormatoMoney.ASSINADO_COM_SIMBOLO,
+                )
+                Text("no mês", style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer)
+            }
+            // Do que entrou, quanto foi guardado. Não é dinheiro: a privacidade não a esconde.
+            mes.taxaGuardada?.let { taxa ->
+                Text(
+                    "guardou $taxa%",
+                    Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
+                        .clickable(onClick = onVerGuardado)
+                        .padding(horizontal = 11.dp, vertical = 5.dp)
+                        .testTag(TAG_PILL_GUARDADO)
+                        .semantics { contentDescription = "guardou $taxa% do que entrou" },
+                    style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer,
+                )
+            }
         }
         if (mes.estimativaCentavos > 0) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

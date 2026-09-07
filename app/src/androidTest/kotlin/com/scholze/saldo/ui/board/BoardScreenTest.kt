@@ -26,6 +26,7 @@ import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.ui.ledger.TAG_PILL_GUARDADO
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.PrivacyState
 import com.scholze.saldo.ui.theme.SaldoTheme
@@ -93,6 +94,7 @@ class BoardScreenTest {
     private var clicado: LocalDate? = null
     private var mesesAndados = 0
     private var pediuLista = false
+    private var pediuGuardado = false
 
     private fun montar(
         entrada: LedgerInput = input,
@@ -117,6 +119,7 @@ class BoardScreenTest {
                         onExcluir = {},
                         onTogglePrivacidade = {},
                         onVerLista = { pediuLista = true },
+                        onVerGuardado = { pediuGuardado = true },
                     )
                 }
             }
@@ -303,5 +306,49 @@ class BoardScreenTest {
         // Saldo inicial no dia 3: o dia 2 está na grade, mas não há registro dele.
         montar(input.copy(saldoInicialData = LocalDate.parse("2026-09-03")))
         celula(LocalDate.parse("2026-09-02")).assertContentDescriptionEquals("2 de setembro, sem registro")
+    }
+
+    // ---- pill "guardou N%" ----
+
+    @Test
+    fun oHeroDizQuantoGuardouDoQueEntrou() {
+        val comEconomia = input.copy(
+            movimentacoes = input.movimentacoes + Movimentacao(
+                id = 5, descricao = "cdb", valorCentavos = -1_480_00,
+                data = LocalDate.parse("2026-09-02"), natureza = Natureza.ECONOMIA,
+            ),
+        )
+        montar(entrada = comEconomia)
+        rule.onNodeWithTag(TAG_PILL_GUARDADO).assertIsDisplayed()
+        rule.onNodeWithText("guardou 20%").assertIsDisplayed()
+    }
+
+    @Test
+    fun semEntradaNoMesNaoHaPill() {
+        montar(entrada = input.copy(movimentacoes = input.movimentacoes.filter { it.valorCentavos < 0 }))
+        rule.onAllNodesWithTag(TAG_PILL_GUARDADO).assertCountEquals(0)
+    }
+
+    @Test
+    fun aPillFicaVisivelComAPrivacidadeLigada() {
+        val comEconomia = input.copy(
+            movimentacoes = input.movimentacoes + Movimentacao(
+                id = 5, descricao = "cdb", valorCentavos = -1_480_00,
+                data = LocalDate.parse("2026-09-02"), natureza = Natureza.ECONOMIA,
+            ),
+        )
+        montar(entrada = comEconomia, oculto = true)
+        rule.onNodeWithText("guardou 20%").assertIsDisplayed()
+    }
+
+    @Test
+    fun tocarNaPillPedeATendencia() {
+        pediuGuardado = false
+        montar(entrada = input.copy(movimentacoes = input.movimentacoes + Movimentacao(
+            id = 5, descricao = "cdb", valorCentavos = -1_480_00,
+            data = LocalDate.parse("2026-09-02"), natureza = Natureza.ECONOMIA,
+        )))
+        rule.onNodeWithTag(TAG_PILL_GUARDADO).performClick()
+        assertEquals(true, pediuGuardado)
     }
 }

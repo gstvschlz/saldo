@@ -66,6 +66,7 @@ import com.scholze.saldo.ui.tags.TagsViewModel
 import com.scholze.saldo.ui.theme.SaldoTheme
 import com.scholze.saldo.ui.totais.RecorrenciasScreen
 import com.scholze.saldo.ui.totais.RecorrenciasViewModel
+import com.scholze.saldo.ui.totais.SegmentoTotais
 import com.scholze.saldo.ui.totais.TotaisScreen
 import com.scholze.saldo.ui.totais.TotaisViewModel
 import java.time.LocalDate
@@ -160,6 +161,14 @@ fun SaldoApp(
         ledgerVm.definirTagFiltro(null)
         boardVm.sincronizarMes(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
         vistaSaldos = VistaSaldos.BOARD
+    }
+
+    // A pill "guardou N%" leva à poupança mês a mês, que mora em totais → tendência.
+    val verGuardado: (YearMonth) -> Unit = { mes ->
+        totaisVm.irPara(mes)
+        totaisVm.selecionarSegmento(SegmentoTotais.TENDENCIA)
+        abrindoRecorrencias = false
+        tab = SaldoTab.TOTAIS
     }
 
     // Voltar: subtela → aba → saldos → sair. Um handler só, aqui, porque é aqui que as vistas
@@ -316,6 +325,7 @@ fun SaldoApp(
                             // "desfazer" duplicar a linha.
                             onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
                             onTogglePrivacidade = privacidade::alternar,
+                            onVerGuardado = { verGuardado(boardVm.mesAtualAgora) },
                         )
                     } else {
                         LedgerScreen(
@@ -343,6 +353,7 @@ fun SaldoApp(
                             onBusca = ledgerVm::definirBusca,
                             onAbrirResultado = { ledgerVm.abrirResultado(it, abrirMovimentacao) },
                             contentPadding = PaddingValues(bottom = 24.dp),
+                            onVerGuardado = { verGuardado(ledgerVm.mesAtualAgora) },
                         )
                     }
                     SaldoTab.TOTAIS -> if (abrindoRecorrencias) {

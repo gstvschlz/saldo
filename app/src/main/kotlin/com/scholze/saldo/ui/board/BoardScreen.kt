@@ -112,6 +112,7 @@ fun BoardScreen(
     onItemClick: (Movimentacao) -> Unit,
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
+    onVerGuardado: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = SaldoTheme.colors
@@ -148,7 +149,7 @@ fun BoardScreen(
                 return@Column
             }
 
-            BalanceHero(mes, onTogglePrivacidade)
+            BalanceHero(mes, onTogglePrivacidade, onVerGuardado)
             CabecalhoColunas()
 
             Column(
