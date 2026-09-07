@@ -51,6 +51,8 @@ import com.scholze.saldo.ui.theme.tabular
  */
 const val TAG_TECLADO = "teclado"
 
+private const val TETO = 99_999_999_99L
+
 @Composable
 fun AmountKeypadScreen(
     onContinue: (centavos: Long) -> Unit,
@@ -86,7 +88,10 @@ fun AmountKeypadScreen(
         }
 
         Keypad(
-            onDigit = { d -> centavos = (centavos * 10 + d).coerceAtMost(99_999_999_99L) },
+            onDigit = { d -> centavos = (centavos * 10 + d).coerceAtMost(TETO) },
+            // "00" é a tecla do ponto de venda: com os centavos sempre nos dois últimos
+            // dígitos, é ela que faz R$ 50 sair em três toques. No zero não faz nada.
+            onDuploZero = { centavos = (centavos * 100).coerceAtMost(TETO) },
             onBackspace = { centavos /= 10 },
         )
 
@@ -100,12 +105,12 @@ fun AmountKeypadScreen(
 }
 
 @Composable
-private fun Keypad(onDigit: (Long) -> Unit, onBackspace: () -> Unit) {
+private fun Keypad(onDigit: (Long) -> Unit, onDuploZero: () -> Unit, onBackspace: () -> Unit) {
     val rows = listOf(
         listOf(Key.Digit(1), Key.Digit(2), Key.Digit(3)),
         listOf(Key.Digit(4), Key.Digit(5), Key.Digit(6)),
         listOf(Key.Digit(7), Key.Digit(8), Key.Digit(9)),
-        listOf(Key.Comma, Key.Digit(0), Key.Backspace),
+        listOf(Key.DuploZero, Key.Digit(0), Key.Backspace),
     )
 
     Column(
@@ -122,9 +127,7 @@ private fun Keypad(onDigit: (Long) -> Unit, onBackspace: () -> Unit) {
                             when (key) {
                                 is Key.Digit -> onDigit(key.value.toLong())
                                 Key.Backspace -> onBackspace()
-                                // The comma is implicit: centavos are always
-                                // the last two digits, so it is inert here.
-                                Key.Comma -> Unit
+                                Key.DuploZero -> onDuploZero()
                             }
                         },
                     )
@@ -136,7 +139,7 @@ private fun Keypad(onDigit: (Long) -> Unit, onBackspace: () -> Unit) {
 
 private sealed interface Key {
     data class Digit(val value: Int) : Key
-    data object Comma : Key
+    data object DuploZero : Key
     data object Backspace : Key
 }
 
@@ -164,7 +167,7 @@ private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifi
         ) {
             when (key) {
                 is Key.Digit -> KeyLabel(key.value.toString())
-                Key.Comma -> KeyLabel(",")
+                Key.DuploZero -> KeyLabel("00")
                 Key.Backspace -> SaldoGlyph(
                     SaldoIcon.BACKSPACE,
                     colors.label,

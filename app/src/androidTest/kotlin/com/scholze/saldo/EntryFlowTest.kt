@@ -1,5 +1,6 @@
 package com.scholze.saldo
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -110,5 +111,18 @@ class EntryFlowTest {
         rule.onNode(hasSetTextAction()).performTextInput("mer")
         rule.onNode(hasSetTextAction()).performTextInput("cado")
         rule.onNode(hasSetTextAction()).assertTextEquals("mercado")
+    }
+
+    /** `5`, `0`, `00` = R$ 50,00: a tecla do ponto de venda que a vírgula inerte ocupava. */
+    @Test
+    fun aTeclaDuploZeroAnexaDoisZeros() {
+        abrirBoardRevelado()
+        rule.onNodeWithTag(TAG_ADD).performClick()
+        rule.onNodeWithText("0,00").performClick()
+        listOf("5", "0", "00").forEach { d ->
+            rule.onNode(hasAnyAncestor(hasTestTag(TAG_TECLADO)) and hasText(d)).performClick()
+        }
+        rule.onNodeWithText("R$ 50,00").assertIsDisplayed()
+        rule.onAllNodesWithText(",").assertCountEquals(0)
     }
 }
