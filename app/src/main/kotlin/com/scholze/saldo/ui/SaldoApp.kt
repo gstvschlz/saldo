@@ -2,6 +2,7 @@ package com.scholze.saldo.ui
 
 import android.net.Uri
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -58,6 +59,7 @@ import com.scholze.saldo.ui.nav.ALTURA_BARRA
 import com.scholze.saldo.ui.nav.ALTURA_FAIXA_FAB
 import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
+import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.tags.TagsScreen
 import com.scholze.saldo.ui.tags.TagsViewModel
@@ -73,6 +75,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * O que a aba `saldos` mostra. O board é a home; a lista é o mesmo mês em linhas (o
+ * ledger com os chips); a tag é a lista filtrada por uma etiqueta, onde a aba tags e o
+ * "ver tag" de totais aterrissam.
+ */
+private enum class VistaSaldos { BOARD, LISTA, TAG }
 
 /**
  * The shell: onboarding gate, tabbed content, undo snackbar and the
@@ -132,9 +141,32 @@ fun SaldoApp(
     // A aba `saldos` é o board, e só. O ledger sobreviveu como UMA subtela: "os
     // lançamentos desta etiqueta", que é onde a aba tags e o "ver tag" de totais
     // aterrissam — sem ele, tocar numa tag não teria para onde ir.
-    var abrindoTag by rememberSaveable { mutableStateOf(false) }
+    var vistaSaldos by rememberSaveable { mutableStateOf(VistaSaldos.BOARD) }
     var abrindoRecorrencias by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(tab) { if (tab != SaldoTab.TOTAIS) abrindoRecorrencias = false }
+
+    val alvoLedger by ledgerVm.alvo.collectAsState()
+    val buscaLedger by ledgerVm.busca.collectAsState()
+
+    // Voltar: subtela → aba → saldos → sair. Um handler só, aqui, porque é aqui que as vistas
+    // moram; a sheet e as subtelas de `mais` têm os seus e ganham por estarem mais fundo na
+    // composição. Desabilitado no board para o sistema fechar o app — e só ele.
+    val buscaAberta = buscaLedger != null
+    BackHandler(
+        enabled = !sheetAberto &&
+            (abrindoRecorrencias || buscaAberta || vistaSaldos != VistaSaldos.BOARD || tab != SaldoTab.SALDOS),
+    ) {
+        when {
+            abrindoRecorrencias -> abrindoRecorrencias = false
+            buscaAberta -> ledgerVm.fecharBusca()
+            vistaSaldos != VistaSaldos.BOARD -> {
+                ledgerVm.definirTagFiltro(null)
+                boardVm.irPara(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
+                vistaSaldos = VistaSaldos.BOARD
+            }
+            else -> tab = SaldoTab.SALDOS
+        }
+    }
 
     // A rota de edição é usada de dois lugares (o ledger e a tela de recorrências), então mora
     // aqui: mesma guarda de sempre, ocorrência virtual (id 0) não abre o editor.
@@ -145,9 +177,6 @@ fun SaldoApp(
         }
     }
 
-    val alvoLedger by ledgerVm.alvo.collectAsState()
-    val buscaLedger by ledgerVm.busca.collectAsState()
-
     // Deep link (widget, lembrete): aplicado uma vez e devolvido como consumido, para que uma
     // recomposição — ou o mesmo Intent reentregue — não o reaplique.
     LaunchedEffect(destino) {
@@ -155,7 +184,7 @@ fun SaldoApp(
             null -> return@LaunchedEffect
             // Quem chega por widget ou lembrete pediu um dia, não um panorama.
             is Destino.Saldos -> {
-                abrindoTag = false
+                vistaSaldos = VistaSaldos.BOARD
                 boardVm.irPara(destino.mes, destino.dia)
                 tab = SaldoTab.SALDOS
             }
@@ -193,7 +222,7 @@ fun SaldoApp(
     // ---- exportar dados (SAF) ----
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var escolhendoFormato by remember { mutableStateOf(false) }
+    var escolhendoFormato by rememberSaveable { mutableStateOf(false) }
 
     // O conteúdo é montado e gravado fora da main thread; o Uri vem do seletor do sistema,
     // então o app nunca pede permissão de armazenamento nem escolhe pasta por conta própria.
@@ -237,7 +266,7 @@ fun SaldoApp(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Box(Modifier.weight(1f)) {
                 when (tab) {
-                    SaldoTab.SALDOS -> if (!abrindoTag) {
+                    SaldoTab.SALDOS -> if (vistaSaldos == VistaSaldos.BOARD) {
                         BoardScreen(
                             state = boardState,
                             // Tocar num dia abre os lançamentos dele embaixo da grade;
@@ -245,7 +274,10 @@ fun SaldoApp(
                             onDiaClick = boardVm::alternarDia,
                             onMesAnterior = boardVm::mesAnterior,
                             onProximoMes = boardVm::proximoMes,
-                            onVerLista = {},
+                            onVerLista = {
+                                ledgerVm.irPara(boardVm.mesAtualAgora)
+                                vistaSaldos = VistaSaldos.LISTA
+                            },
                             onItemClick = abrirMovimentacao,
                             // Mesmas guardas do ledger: ocorrência virtual (id 0) não abre o
                             // editor nem passa pelo delete, que a recusaria e faria o
@@ -268,8 +300,12 @@ fun SaldoApp(
                             // uma IllegalArgumentException engolida pelo ViewModel.
                             onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
                             onTogglePrivacidade = privacidade::alternar,
-                            onLimparTag = { ledgerVm.definirTagFiltro(null); abrindoTag = false },
-                            onVerBoard = { abrindoTag = false },
+                            onLimparTag = { ledgerVm.definirTagFiltro(null); vistaSaldos = VistaSaldos.LISTA },
+                            onVerBoard = {
+                                ledgerVm.definirTagFiltro(null)
+                                boardVm.irPara(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
+                                vistaSaldos = VistaSaldos.BOARD
+                            },
                             alvo = alvoLedger,
                             onAlvoConsumido = ledgerVm::limparAlvo,
                             busca = buscaLedger,
@@ -290,10 +326,10 @@ fun SaldoApp(
                     } else {
                         TotaisScreen(
                             totaisVm,
-                            onVerTag = { ledgerVm.definirTagFiltro(it); abrindoTag = true; tab = SaldoTab.SALDOS },
+                            onVerTag = { ledgerVm.definirTagFiltro(it); vistaSaldos = VistaSaldos.TAG; tab = SaldoTab.SALDOS },
                             onAbrirMovimentacao = abrirMovimentacao,
                             onIrParaDia = { mes, dia ->
-                                abrindoTag = false
+                                vistaSaldos = VistaSaldos.BOARD
                                 boardVm.irPara(mes, dia)
                                 tab = SaldoTab.SALDOS
                             },
@@ -302,7 +338,7 @@ fun SaldoApp(
                     }
                     SaldoTab.TAGS -> TagsScreen(
                         vm = viewModel(factory = tagsFactory),
-                        onTagClick = { ledgerVm.definirTagFiltro(it); abrindoTag = true; tab = SaldoTab.SALDOS },
+                        onTagClick = { ledgerVm.definirTagFiltro(it); vistaSaldos = VistaSaldos.TAG; tab = SaldoTab.SALDOS },
                     )
                     SaldoTab.MAIS -> MaisScreen(
                         vm = viewModel(factory = maisFactory),
@@ -314,10 +350,16 @@ fun SaldoApp(
                 selected = tab,
                 // Tocar em `saldos` na barra é pedir a home: fecha a subtela da etiqueta.
                 onSelect = { novo ->
-                    if (novo == SaldoTab.SALDOS) abrindoTag = false
+                    if (novo == SaldoTab.SALDOS) vistaSaldos = VistaSaldos.BOARD
                     tab = novo
                 },
-                onAdd = { entryVm.iniciarNova(LocalDate.now()); sheetAberto = true },
+                // O `+` lança no dia aberto do board — é o dia que o usuário está olhando.
+                // Fora do board (lista, outras abas) é hoje, como sempre foi.
+                onAdd = {
+                    val dia = if (tab == SaldoTab.SALDOS && vistaSaldos == VistaSaldos.BOARD) boardVm.diaAbertoAgora else null
+                    entryVm.iniciarNova(dia ?: LocalDate.now())
+                    sheetAberto = true
+                },
             )
         }
 
@@ -361,19 +403,24 @@ fun SaldoApp(
             AlertDialog(
                 onDismissRequest = { escolhendoFormato = false },
                 title = { Text("exportar dados") },
-                text = { Text("csv abre em planilha; json é o dump completo (settings, tags, recorrências).") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        escolhendoFormato = false
-                        exportarCsv.launch("saldo-export.csv")
-                    }) { Text("csv") }
+                // Os dois formatos no corpo, como linhas: "json" no slot de cancelar lia como
+                // cancelar, e não havia cancelar de verdade.
+                text = {
+                    Column {
+                        InsetRow(
+                            label = "csv",
+                            value = "abre em planilha",
+                            onClick = { escolhendoFormato = false; exportarCsv.launch("saldo-export.csv") },
+                        )
+                        InsetRow(
+                            label = "json",
+                            value = "o dump completo",
+                            onClick = { escolhendoFormato = false; exportarJson.launch("saldo-export.json") },
+                        )
+                    }
                 },
-                dismissButton = {
-                    TextButton(onClick = {
-                        escolhendoFormato = false
-                        exportarJson.launch("saldo-export.json")
-                    }) { Text("json") }
-                },
+                confirmButton = {},
+                dismissButton = { TextButton(onClick = { escolhendoFormato = false }) { Text("cancelar") } },
             )
         }
     }

@@ -2,6 +2,8 @@ package com.scholze.saldo
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -28,7 +30,6 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.runBlocking
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,23 +92,38 @@ class LedgerScreenTest {
         rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("buscar").fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /**
+     * Empurra o saldo inicial para antes de [data]. O onboarding do teclado grava o saldo
+     * inicial em hoje; sem isto, uma movimentação semeada num mês passado ficaria fora das
+     * "efetivas" (`ProjectionEngine.efetivas` só olha `data >= saldoInicialData`) e a busca
+     * nunca a acharia.
+     */
+    private fun garantirSaldoInicialAntesDe(data: LocalDate) = runBlocking {
+        ApplicationProvider.getApplicationContext<SaldoApplication>()
+            .container.settings.definirSaldoInicial(100_000_00, data.minusDays(1))
+    }
+
     @Test
-    @Ignore("liga na Task 9")
     fun aLupaAbreOCampoEOsResultadosVemAgrupadosPorMes() {
         val cincoMesesAtras = LocalDate.now().minusMonths(5).withDayOfMonth(3)
         semear("uber", -23_90, LocalDate.now())
         semear("uber", -31_00, cincoMesesAtras)
         abrirLista()
+        garantirSaldoInicialAntesDe(cincoMesesAtras)
         rule.onNodeWithContentDescription("buscar").performClick()
         rule.onNodeWithTag(TAG_CAMPO_BUSCA).performTextInput("uber")
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("uber").fetchSemanticsNodes().size == 2 }
+        // Escopado dentro de TAG_RESULTADOS: sem isso, o próprio campo de busca (cujo texto
+        // digitado também é "uber") entra na contagem como um terceiro nó.
+        rule.waitUntil(5_000) {
+            rule.onAllNodes(hasText("uber") and hasAnyAncestor(hasTestTag(TAG_RESULTADOS)))
+                .fetchSemanticsNodes().size == 2
+        }
         val titulo = YearMonth.from(cincoMesesAtras).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("pt-BR")))
         rule.onNodeWithTag(TAG_RESULTADOS).performScrollToNode(hasText(titulo))
         rule.onNodeWithText(titulo).assertIsDisplayed()
     }
 
     @Test
-    @Ignore("liga na Task 9")
     fun buscaSemResultadoDizQueNaoAchou() {
         abrirLista()
         rule.onNodeWithContentDescription("buscar").performClick()
@@ -116,7 +132,6 @@ class LedgerScreenTest {
     }
 
     @Test
-    @Ignore("liga na Task 9")
     fun fecharABuscaVoltaAoMes() {
         abrirLista()
         rule.onNodeWithContentDescription("buscar").performClick()

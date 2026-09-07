@@ -1,18 +1,23 @@
 package com.scholze.saldo
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.ui.board.TAG_BOARD_GRADE
+import com.scholze.saldo.ui.board.tagCelula
 import com.scholze.saldo.ui.nav.Destino
+import com.scholze.saldo.ui.nav.TAG_ADD
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -125,6 +130,32 @@ class VistaSaldosTest {
             rule.waitUntil(5_000) {
                 rule.onAllNodesWithText("sem movimentações").fetchSemanticsNodes().isNotEmpty()
             }
+        }
+    }
+
+    /**
+     * Com um dia aberto na grade, o `+` lança naquele dia — e a sheet diz a data.
+     *
+     * A janela do board nunca passa de hoje, e o piso dela é o dia do saldo inicial — o
+     * `app()` compartilhado grava esse saldo EM hoje, o que deixaria o dia 1 (e qualquer
+     * outro dia antes de hoje) desabilitado, sem como abrir um dia diferente para testar o
+     * `+`. Este teste grava o saldo inicial antes do mês corrente, só para si.
+     */
+    @Test
+    fun oMaisLancaNoDiaAbertoDoBoard() {
+        val appCtx = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        runBlocking {
+            appCtx.container.settings.definirSaldoInicial(100_000_00, YearMonth.now().atDay(1).minusDays(1))
+        }
+        ActivityScenario.launch(MainActivity::class.java).use {
+            esperarBoard()
+            val dia1 = LocalDate.now().withDayOfMonth(1)
+            rule.onNodeWithTag(TAG_BOARD_GRADE).performScrollToNode(hasTestTag(tagCelula(dia1)))
+            rule.onNodeWithTag(tagCelula(dia1), useUnmergedTree = true).performClick()
+            rule.onNodeWithTag(TAG_ADD).performClick()
+            val rotulo = dia1.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.forLanguageTag("pt-BR"))).replace(".", "")
+            // Duas ocorrências legítimas: a linha "data" e o rodapé "saldo de … ficará em".
+            rule.onAllNodesWithText(rotulo, substring = true).onFirst().assertIsDisplayed()
         }
     }
 }
