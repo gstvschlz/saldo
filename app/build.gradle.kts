@@ -47,6 +47,9 @@ android {
 
     buildFeatures {
         compose = true
+        // A linha "versão" da tela `mais` lê `BuildConfig.VERSION_NAME`: o número mora no
+        // `defaultConfig` acima e em lugar nenhum mais.
+        buildConfig = true
     }
 
     // runGlanceAppWidgetUnitTest (glance-appwidget-testing) builds a real android.os.Bundle

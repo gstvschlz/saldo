@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.scholze.saldo.BuildConfig
 import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.CapturaConfig
@@ -167,6 +168,7 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
 
             InsetGroup {
                 InsetRow(label = "sobre", value = "saldo · 100% local")
+                InsetRow(label = "versão", value = BuildConfig.VERSION_NAME)
             }
         }
     }
