@@ -13,6 +13,7 @@ import com.scholze.saldo.domain.EscopoExclusao
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.PaletaTags
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.domain.Tag
@@ -32,7 +33,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 private const val TAG = "saldo"
-private val CORES_TAG = listOf(0xFFA6486BL, 0xFFB95A2EL, 0xFF2A7A86L, 0xFF4B4BC4L, 0xFF14663AL)
 
 data class EntryUiState(
     val editandoId: Long? = null,
@@ -156,7 +156,7 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
             try {
                 // A cor só rotaciona sobre as tags já existentes; se o state ainda não emitiu,
                 // a primeira cor é uma escolha tão boa quanto qualquer outra.
-                val cor = CORES_TAG[state.value.todasTags.size % CORES_TAG.size]
+                val cor = PaletaTags.proxima(state.value.todasTags.map { it.cor })
                 val id = repo.criarTag(nome, cor)
                 onCriada(Tag(id = id, nome = nome, cor = cor))
             } catch (e: CancellationException) {

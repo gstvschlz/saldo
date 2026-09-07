@@ -28,13 +28,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.scholze.saldo.domain.PaletaTags
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
-
-private val CORES = listOf(0xFFA6486BL, 0xFFB95A2EL, 0xFF2A7A86L, 0xFF4B4BC4L, 0xFF14663AL, 0xFFE58A5AL)
 
 @Composable
 fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier = Modifier) {
@@ -116,7 +115,7 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
                 TextButton(onClick = {
                     // A cor sai da paleta em rodízio pelo tamanho da lista — sem seletor,
                     // que o design não pede, e sem duas tags seguidas iguais.
-                    if (nome.isNotBlank()) vm.criar(nome.trim(), CORES[state.tags.size % CORES.size])
+                    if (nome.isNotBlank()) vm.criar(nome.trim(), PaletaTags.proxima(state.tags.map { it.first.cor }))
                     criando = false
                 }) { Text("criar") }
             },
