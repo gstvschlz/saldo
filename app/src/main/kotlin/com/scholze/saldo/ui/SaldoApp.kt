@@ -172,7 +172,9 @@ fun SaldoApp(
     // aqui: mesma guarda de sempre, ocorrência virtual (id 0) não abre o editor.
     val abrirMovimentacao: (Movimentacao) -> Unit = {
         if (it.id != 0L) {
-            entryVm.iniciarEdicao(it)
+            // O dia do template, não o da data: a data pode estar clamped (31 → 28 em fevereiro).
+            val dia = it.recorrenciaId?.let { id -> ledgerState.recorrencias.firstOrNull { r -> r.id == id }?.diaDoMes }
+            entryVm.iniciarEdicao(it, diaDoTemplate = dia)
             sheetAberto = true
         }
     }

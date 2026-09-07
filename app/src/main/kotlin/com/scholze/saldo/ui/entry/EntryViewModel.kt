@@ -43,6 +43,8 @@ data class EntryUiState(
     val descricao: String = "",
     val data: LocalDate = LocalDate.now(),
     val repetir: RepetirOpcao = RepetirOpcao.Nao,
+    /** O que a linha era ao abrir a edição; é a diferença para [repetir] que decide a escrita. */
+    val repetirOriginal: RepetirOpcao = RepetirOpcao.Nao,
     val tagsSelecionadas: List<Tag> = emptyList(),
     val todasTags: List<Tag> = emptyList(),
     val saldoResultanteCentavos: Long? = null,
@@ -53,6 +55,10 @@ data class EntryUiState(
      */
     val podeSalvar: Boolean get() = centavos > 0
     val valorAssinado: Long get() = if (saida) -centavos else centavos
+
+    /** Editando uma instância que CONTINUA mensal: só aí "só este mês / daqui em diante" faz sentido. */
+    val precisaEscopo: Boolean
+        get() = editandoId != null && recorrenciaId != null && repetir is RepetirOpcao.TodoMes
 }
 
 /**
@@ -121,8 +127,17 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
         form.value = EntryUiState(data = hoje, centavos = centavos, descricao = descricao)
     }
 
-    fun iniciarEdicao(mov: Movimentacao) {
+    /** O formulário como está — a shell decide o escopo por ele, e os testes o leem. */
+    val formAgora: EntryUiState get() = form.value
+
+    /**
+     * [diaDoTemplate] é o dia da recorrência, quando a linha é uma instância: a data da linha
+     * pode estar clamped (dia 31 num mês de 30) e ler o dia dela devolveria o dia errado ao
+     * template na primeira edição de fevereiro.
+     */
+    fun iniciarEdicao(mov: Movimentacao, diaDoTemplate: Int? = null) {
         original.value = Original(mov.valorCentavos, mov.data, mov.natureza)
+        val repetir = if (mov.recorrenciaId != null) RepetirOpcao.TodoMes(diaDoTemplate ?: mov.data.dayOfMonth) else RepetirOpcao.Nao
         form.value = EntryUiState(
             editandoId = mov.id,
             recorrenciaId = mov.recorrenciaId,
@@ -131,7 +146,8 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
             centavos = kotlin.math.abs(mov.valorCentavos),
             descricao = mov.descricao,
             data = mov.data,
-            repetir = if (mov.recorrenciaId != null) RepetirOpcao.TodoMes(mov.data.dayOfMonth) else RepetirOpcao.Nao,
+            repetir = repetir,
+            repetirOriginal = repetir,
             tagsSelecionadas = mov.tags,
         )
     }
@@ -167,7 +183,7 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
         }
     }
 
-    /** [escopo] só é consultado quando se edita uma instância de recorrência. */
+    /** [escopo] só é consultado quando se edita uma instância que continua mensal. */
     fun salvar(escopo: EscopoEdicao, onDone: () -> Unit) {
         val f = form.value
         if (!f.podeSalvar) return
@@ -181,7 +197,20 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
                 recorrenciaId = f.recorrenciaId,
                 tags = f.tagsSelecionadas,
             )
-            if (f.editandoId == null) repo.criar(mov, f.repetir) else repo.editar(mov, escopo)
+            when {
+                f.editandoId == null -> repo.criar(mov, f.repetir)
+                // Os campos gravam primeiro, sempre SÓ nesta linha; depois a recorrência muda
+                // de estado. Uma avulsa que vira mensal leva os valores novos para o template.
+                f.repetirOriginal is RepetirOpcao.Nao && f.repetir is RepetirOpcao.TodoMes -> {
+                    repo.editar(mov, EscopoEdicao.SO_ESTE_MES)
+                    repo.converterEmRecorrencia(mov, f.repetir.dia)
+                }
+                f.repetirOriginal is RepetirOpcao.TodoMes && f.repetir is RepetirOpcao.Nao -> {
+                    repo.editar(mov, EscopoEdicao.SO_ESTE_MES)
+                    repo.encerrarRecorrencia(mov)
+                }
+                else -> repo.editar(mov, escopo)
+            }
         }
     }
 

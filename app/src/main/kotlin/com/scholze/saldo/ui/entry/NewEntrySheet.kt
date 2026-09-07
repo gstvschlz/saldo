@@ -79,12 +79,12 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
     val state by vm.state.collectAsState()
 
     var editandoValor by rememberSaveable { mutableStateOf(false) }
-    var pedindoEscopo by remember { mutableStateOf(false) }
-    var pedindoExclusao by remember { mutableStateOf(false) }
-    var escolhendoData by remember { mutableStateOf(false) }
-    var escolhendoRepetir by remember { mutableStateOf(false) }
-    var escolhendoTags by remember { mutableStateOf(false) }
-    var editandoDescricao by remember { mutableStateOf(false) }
+    var pedindoEscopo by rememberSaveable { mutableStateOf(false) }
+    var pedindoExclusao by rememberSaveable { mutableStateOf(false) }
+    var escolhendoData by rememberSaveable { mutableStateOf(false) }
+    var escolhendoRepetir by rememberSaveable { mutableStateOf(false) }
+    var escolhendoTags by rememberSaveable { mutableStateOf(false) }
+    var editandoDescricao by rememberSaveable { mutableStateOf(false) }
 
     if (editandoValor) {
         // O teclado substitui o conteúdo da sheet e não tem "cancelar": sem isto, o back
@@ -103,7 +103,7 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
 
     val ehRecorrente = state.recorrenciaId != null
     val salvar: () -> Unit = {
-        if (state.editandoId != null && ehRecorrente) pedindoEscopo = true
+        if (state.precisaEscopo) pedindoEscopo = true
         else vm.salvar(EscopoEdicao.SO_ESTE_MES) { onFechar() }
     }
 
@@ -246,18 +246,11 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                     )
                 }
                 InsetRow(label = "data", value = rotuloData(state.data), onClick = { escolhendoData = true })
-                // Numa edição a recorrência não se liga nem desliga por aqui: `criar` é quem lê
-                // `repetir`, e `editar` só conhece SO_ESTE_MES / DAQUI_EM_DIANTE. A linha vira
-                // rótulo — um controle que não faz nada é pior do que nenhum controle.
-                if (state.editandoId == null) {
-                    InsetRow(
-                        label = "repetir",
-                        value = rotuloRepetir(state.repetir),
-                        onClick = { escolhendoRepetir = true },
-                    )
-                } else {
-                    InsetRow(label = "repetir", value = rotuloRepetir(state.repetir))
-                }
+                InsetRow(
+                    label = "repetir",
+                    value = rotuloRepetir(state.repetir),
+                    onClick = { escolhendoRepetir = true },
+                )
                 InsetRow(
                     label = "tags",
                     onClick = { escolhendoTags = true },
@@ -348,7 +341,7 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
             text = {
                 Column {
                     Text(
-                        "não repete",
+                        if (state.repetirOriginal is RepetirOpcao.TodoMes) "parar de repetir a partir deste mês" else "não repete",
                         Modifier
                             .fillMaxWidth()
                             .clickable {
@@ -370,6 +363,7 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                 }
             },
             confirmButton = {},
+            dismissButton = { TextButton(onClick = { escolhendoRepetir = false }) { Text("cancelar") } },
         )
     }
 
@@ -415,6 +409,7 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                 }
             },
             confirmButton = { TextButton(onClick = { escolhendoTags = false }) { Text("ok") } },
+            dismissButton = { TextButton(onClick = { escolhendoTags = false }) { Text("cancelar") } },
         )
     }
 
