@@ -244,6 +244,7 @@ fun SaldoApp(
                             onDiaClick = boardVm::alternarDia,
                             onMesAnterior = boardVm::mesAnterior,
                             onProximoMes = boardVm::proximoMes,
+                            onVerLista = {},
                             onItemClick = abrirMovimentacao,
                             // Mesmas guardas do ledger: ocorrência virtual (id 0) não abre o
                             // editor nem passa pelo delete, que a recusaria e faria o

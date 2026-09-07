@@ -4,7 +4,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -79,22 +82,24 @@ class BoardScreenTest {
         hoje = hoje,
     )
 
-    private fun estado(entrada: LedgerInput = input, diaAberto: LocalDate? = null) = BoardUiState(
-        board = BoardEngine.board(entrada, YearMonth.from(entrada.hoje)),
-        mes = ProjectionEngine.mes(entrada, YearMonth.from(entrada.hoje), FiltroLedger.TODAS),
+    private fun estado(entrada: LedgerInput = input, diaAberto: LocalDate? = null, mesVisto: YearMonth) = BoardUiState(
+        board = BoardEngine.board(entrada, mesVisto),
+        mes = ProjectionEngine.mes(entrada, mesVisto, FiltroLedger.TODAS),
         hoje = entrada.hoje,
-        mesAtual = YearMonth.from(entrada.hoje),
+        mesAtual = mesVisto,
         diaAberto = diaAberto,
     )
 
     private var clicado: LocalDate? = null
     private var mesesAndados = 0
+    private var pediuLista = false
 
     private fun montar(
         entrada: LedgerInput = input,
         oculto: Boolean = false,
         escalaFonte: Float = 1f,
         diaAberto: LocalDate? = null,
+        mesVisto: YearMonth = YearMonth.from(input.hoje),
     ) {
         rule.setContent {
             val densidade = LocalDensity.current
@@ -104,13 +109,14 @@ class BoardScreenTest {
             ) {
                 SaldoTheme {
                     BoardScreen(
-                        state = estado(entrada, diaAberto),
+                        state = estado(entrada, diaAberto, mesVisto),
                         onDiaClick = { clicado = it },
                         onMesAnterior = { mesesAndados-- },
                         onProximoMes = { mesesAndados++ },
                         onItemClick = {},
                         onExcluir = {},
                         onTogglePrivacidade = {},
+                        onVerLista = { pediuLista = true },
                     )
                 }
             }
@@ -187,11 +193,10 @@ class BoardScreenTest {
         rule.onNodeWithText("um dia típico =").assertIsDisplayed()
     }
 
-    @Test
-    fun semNenhumMovimentoALegendaDizQueAindaNaoHaDiaTipico() {
-        montar(input.copy(movimentacoes = emptyList()))
-        rule.onNodeWithText("ainda sem um dia típico").assertIsDisplayed()
-    }
+    // `semNenhumMovimentoALegendaDizQueAindaNaoHaDiaTipico` foi substituído por
+    // `semMovimentacaoNoMesAGradeConvidaALancarOPrimeiro` (uso-diario-1, Task 7): um mês
+    // sem NENHUMA movimentação agora troca a régua inteira pelo convite — a régua não
+    // teria o que explicar sem uma célula colorida sequer.
 
     @Test
     fun toqueNumDiaDevolveADataDaquelaCelula() {
@@ -217,13 +222,53 @@ class BoardScreenTest {
     }
 
     @Test
-    fun asSetasPedemOMesVizinho() {
+    fun aSetaEsquerdaPedeOMesAnterior() {
         mesesAndados = 0
         montar()
         rule.onNodeWithContentDescription("mês anterior").performClick()
         assertEquals(-1, mesesAndados)
+    }
+
+    /** No mês corrente a seta direita está lá, esmaecida, e não faz nada. */
+    @Test
+    fun noMesCorrenteASetaDireitaEstaDesabilitada() {
+        mesesAndados = 0
+        montar()
+        rule.onNodeWithContentDescription("próximo mês").assertIsNotEnabled()
         rule.onNodeWithContentDescription("próximo mês").performClick()
         assertEquals(0, mesesAndados)
+    }
+
+    @Test
+    fun numMesPassadoASetaDireitaAvanca() {
+        mesesAndados = 0
+        montar(mesVisto = YearMonth.of(2026, 8))
+        rule.onNodeWithContentDescription("próximo mês").assertIsEnabled()
+        rule.onNodeWithContentDescription("próximo mês").performClick()
+        assertEquals(1, mesesAndados)
+    }
+
+    @Test
+    fun verComoListaAvisaQuemMontou() {
+        pediuLista = false
+        montar()
+        rule.onNodeWithContentDescription("ver como lista").performClick()
+        assertEquals(true, pediuLista)
+    }
+
+    @Test
+    fun semMovimentacaoNoMesAGradeConvidaALancarOPrimeiro() {
+        montar(entrada = input.copy(movimentacoes = emptyList()))
+        rule.onNodeWithTag(TAG_BOARD_GRADE).performScrollToNode(hasTestTag(TAG_BOARD_VAZIO))
+        rule.onNodeWithText("toque em + para lançar o primeiro").assertIsDisplayed()
+        rule.onAllNodesWithTag(TAG_BOARD_LEGENDA).assertCountEquals(0)
+    }
+
+    @Test
+    fun comMovimentacaoALegendaVoltaNoLugarDoConvite() {
+        montar()
+        rule.onNodeWithTag(TAG_BOARD_GRADE).performScrollToNode(hasTestTag(TAG_BOARD_LEGENDA))
+        rule.onAllNodesWithTag(TAG_BOARD_VAZIO).assertCountEquals(0)
     }
 
     @Test

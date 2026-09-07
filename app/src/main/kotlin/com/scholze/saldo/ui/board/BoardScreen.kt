@@ -73,6 +73,9 @@ const val TAG_BOARD_GRADE = "board:grade"
 /** A régua no rodapé — os testes leem o "dia típico" por aqui. */
 const val TAG_BOARD_LEGENDA = "board:legenda"
 
+/** O convite do mês sem nada — no lugar da régua, que não teria o que explicar. */
+const val TAG_BOARD_VAZIO = "board:vazio"
+
 /** Uma célula. Há uma por dia do mês; o dia é o que as distingue. */
 fun tagCelula(data: LocalDate): String = "board:celula:${data.toEpochDay()}"
 
@@ -105,6 +108,7 @@ fun BoardScreen(
     onDiaClick: (LocalDate) -> Unit,
     onMesAnterior: () -> Unit,
     onProximoMes: () -> Unit,
+    onVerLista: () -> Unit,
     onItemClick: (Movimentacao) -> Unit,
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
@@ -126,7 +130,9 @@ fun BoardScreen(
                 titulo = state.mesAtual.format(tituloMes),
                 onAnterior = onMesAnterior,
                 onProximo = onProximoMes,
+                podeAvancar = state.podeAvancar,
                 acoes = {
+                    IconeRedondo(SaldoIcon.LISTA, "ver como lista", onVerLista)
                     IconeRedondo(
                         if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
                         "alternar privacidade",
@@ -167,7 +173,9 @@ fun BoardScreen(
                         onFaturaClick = { faturaAberta = it },
                     )
                 }
-                Legenda(board.unidadeCentavos)
+                // Mês sem uma movimentação sequer: a régua explicaria a cor de células que
+                // não têm cor. No lugar dela, o convite — some com o primeiro lançamento.
+                if (mes.dias.all { it.itens.isEmpty() }) BoardVazio() else Legenda(board.unidadeCentavos)
             }
         }
 
@@ -296,6 +304,19 @@ private fun Celula(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun BoardVazio() {
+    val colors = SaldoTheme.colors
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp).testTag(TAG_BOARD_VAZIO),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("nada lançado neste mês", style = SaldoTheme.type.row, color = colors.secondaryLabel)
+        Text("toque em + para lançar o primeiro", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
     }
 }
 

@@ -1,8 +1,10 @@
 package com.scholze.saldo.ui.board
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -14,6 +16,8 @@ import com.scholze.saldo.domain.DiaRow
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.ui.toLongChave
+import com.scholze.saldo.ui.toYearMonth
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
@@ -56,12 +60,25 @@ data class BoardUiState(
     val podeAvancar: Boolean get() = mesAtual < YearMonth.from(hoje)
 }
 
-class BoardViewModel(private val repo: SaldoRepository) : ViewModel() {
+class BoardViewModel(
+    private val repo: SaldoRepository,
+    private val savedState: SavedStateHandle = SavedStateHandle(),
+) : ViewModel() {
 
-    private val mesAtual = MutableStateFlow(YearMonth.now())
+    // Mês e dia aberto no SavedStateHandle: sobrevivem à morte do processo, e não só à
+    // rotação. `YearMonth`/`LocalDate` como Long (o handle só aceita o que vai num Bundle).
+    private val mesAtual = MutableStateFlow(savedState.get<Long>(KEY_MES)?.toYearMonth() ?: YearMonth.now())
 
     // O app abre respondendo "o que eu gastei hoje": no mês corrente, hoje já vem aberto.
-    private val diaAberto = MutableStateFlow<LocalDate?>(LocalDate.now())
+    // `contains` distingue "nunca gravado" (primeira abertura) de "gravado como nenhum".
+    private val diaAberto = MutableStateFlow<LocalDate?>(
+        if (savedState.contains(KEY_DIA)) savedState.get<Long>(KEY_DIA)?.let { LocalDate.ofEpochDay(it) }
+        else LocalDate.now(),
+    )
+
+    /** Leitura síncrona: o `+` da barra lança no dia aberto, e os testes conferem o saved state. */
+    val mesAtualAgora: YearMonth get() = mesAtual.value
+    val diaAbertoAgora: LocalDate? get() = diaAberto.value
 
     val state: StateFlow<BoardUiState> =
         combine(repo.ledger, mesAtual, diaAberto) { input, mes, dia ->
@@ -86,6 +103,8 @@ class BoardViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     init {
         abrir(mesAtual.value)
+        viewModelScope.launch { mesAtual.collect { savedState[KEY_MES] = it.toLongChave() } }
+        viewModelScope.launch { diaAberto.collect { savedState[KEY_DIA] = it?.toEpochDay() } }
     }
 
     fun mesAnterior() = irPara(mesAtual.value.minusMonths(1))
@@ -115,10 +134,6 @@ class BoardViewModel(private val repo: SaldoRepository) : ViewModel() {
         diaAberto.value = if (diaAberto.value == data) null else data
     }
 
-    fun fecharDia() {
-        diaAberto.value = null
-    }
-
     /**
      * Materializa as recorrências do mês, como o ledger fazia ao trocar de mês. A projeção
      * já mostra as ocorrências virtuais sem isto; o que isto compra é poder editá-las.
@@ -137,9 +152,11 @@ class BoardViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     companion object {
         private const val TAG = "saldo"
+        private const val KEY_MES = "board.mes"
+        private const val KEY_DIA = "board.dia"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { BoardViewModel(container.repository) }
+            initializer { BoardViewModel(container.repository, createSavedStateHandle()) }
         }
     }
 }
