@@ -33,6 +33,7 @@ class SaldoWidget : GlanceAppWidget() {
                     saldoProjetadoCentavos = mes.saldoProjetadoCentavos,
                     deltaNoMesCentavos = mes.deltaNoMesCentavos,
                     mostrarValores = carga.mostrarValores,
+                    taxaGuardada = mes.taxaGuardada,
                 )
             }
         }

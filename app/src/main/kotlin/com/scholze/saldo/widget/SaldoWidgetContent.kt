@@ -32,6 +32,7 @@ import java.util.Locale
 const val TAG_WIDGET_LEGENDA = "widget:legenda"
 const val TAG_WIDGET_SALDO = "widget:saldo"
 const val TAG_WIDGET_DELTA = "widget:delta"
+const val TAG_WIDGET_GUARDADO = "widget:guardado"
 
 private val ptBr = Locale.forLanguageTag("pt-BR")
 private val diaCurto = DateTimeFormatter.ofPattern("d MMM", ptBr)
@@ -89,6 +90,17 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
                                 color = if (estado.deltaNoMesCentavos < 0) CoresWidget.negativo else CoresWidget.positivo,
                                 fontSize = 12.sp,
                             ),
+                            maxLines = 1,
+                        )
+                    }
+                    // Do que entrou, quanto foi guardado. Mascarado junto com o valor: o
+                    // usuário escolheu esconder o percentual no widget, ao contrário do hero.
+                    val taxa = estado.taxaGuardada
+                    if (largo && taxa != null) {
+                        Text(
+                            if (estado.mostrarValores) "guardou $taxa%" else "guardou ••%",
+                            modifier = GlanceModifier.semantics { testTag = TAG_WIDGET_GUARDADO },
+                            style = TextStyle(color = CoresWidget.secundario, fontSize = 12.sp),
                             maxLines = 1,
                         )
                     }

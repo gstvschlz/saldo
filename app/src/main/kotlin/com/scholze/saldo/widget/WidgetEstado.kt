@@ -13,6 +13,8 @@ sealed interface WidgetEstado {
         val deltaNoMesCentavos: Long,
         /** `false` = mascarado (`R$ •••••`, sem delta). É o padrão — ver "mostrar valores no widget". */
         val mostrarValores: Boolean,
+        /** Quanto do que entrou no mês foi para economia; nulo sem entrada. */
+        val taxaGuardada: Int? = null,
     ) : WidgetEstado
 
     /** Qualquer exceção ao carregar: mostra o convite a abrir o app em vez de um número velho. */

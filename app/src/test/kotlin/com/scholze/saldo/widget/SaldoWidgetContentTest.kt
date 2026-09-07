@@ -19,6 +19,7 @@ class SaldoWidgetContentTest {
         saldoProjetadoCentavos = 4_738_72,
         deltaNoMesCentavos = -61_28,
         mostrarValores = false,
+        taxaGuardada = 20,
     )
 
     @Test
@@ -60,6 +61,34 @@ class SaldoWidgetContentTest {
         provideComposable { SaldoWidgetContent(WidgetEstado.Falha) }
         onNode(hasText("não foi possível carregar")).assertExists()
         onNode(hasText("toque para abrir")).assertExists()
+    }
+
+    @Test
+    fun largoReveladoDizQuantoGuardou() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(SaldoWidget.LARGO)
+        provideComposable { SaldoWidgetContent(pronto.copy(mostrarValores = true)) }
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou 20%")
+    }
+
+    @Test
+    fun largoMascaradoEscondeOPercentual() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(SaldoWidget.LARGO)
+        provideComposable { SaldoWidgetContent(pronto) }
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou ••%")
+    }
+
+    @Test
+    fun semTaxaNaoHaLinha() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(SaldoWidget.LARGO)
+        provideComposable { SaldoWidgetContent(pronto.copy(mostrarValores = true, taxaGuardada = null)) }
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertDoesNotExist()
+    }
+
+    @Test
+    fun compactoNaoTemALinha() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(SaldoWidget.COMPACTO)
+        provideComposable { SaldoWidgetContent(pronto.copy(mostrarValores = true)) }
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertDoesNotExist()
     }
 
     /** Pina os extras que o widget manda contra o que `MainActivity`/`Destino.de` esperam ler. */
