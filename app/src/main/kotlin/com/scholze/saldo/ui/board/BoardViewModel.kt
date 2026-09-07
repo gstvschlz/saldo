@@ -103,8 +103,6 @@ class BoardViewModel(
 
     init {
         abrir(mesAtual.value)
-        viewModelScope.launch { mesAtual.collect { savedState[KEY_MES] = it.toLongChave() } }
-        viewModelScope.launch { diaAberto.collect { savedState[KEY_DIA] = it?.toEpochDay() } }
     }
 
     fun mesAnterior() = irPara(mesAtual.value.minusMonths(1))
@@ -121,17 +119,31 @@ class BoardViewModel(
      */
     fun irPara(mes: YearMonth, dia: Int? = null) {
         mesAtual.value = mes
+        savedState[KEY_MES] = mes.toLongChave()
         diaAberto.value = when {
             dia != null -> mes.atDay(dia.coerceIn(1, mes.lengthOfMonth()))
             mes == YearMonth.now() -> LocalDate.now()
             else -> null
         }
+        savedState[KEY_DIA] = diaAberto.value?.toEpochDay()
         abrir(mes)
+    }
+
+    /**
+     * Traz o board de volta a [mes] sem perder o dia aberto — ao contrário de [irPara], que
+     * sempre reaplica a regra do dia (reabre hoje ou fecha o painel). Usado por quem só quer
+     * "garantir que o board mostra este mês" (sair da lista, o botão Voltar), não navegar
+     * para lá: se o mês já é este, não há nada a fazer.
+     */
+    fun sincronizarMes(mes: YearMonth) {
+        if (mesAtual.value == mes) return
+        irPara(mes)
     }
 
     /** Tocar no dia já aberto fecha o painel — é o mesmo toque desfazendo o que fez. */
     fun alternarDia(data: LocalDate) {
         diaAberto.value = if (diaAberto.value == data) null else data
+        savedState[KEY_DIA] = diaAberto.value?.toEpochDay()
     }
 
     /**

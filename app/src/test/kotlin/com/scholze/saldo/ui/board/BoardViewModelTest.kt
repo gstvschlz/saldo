@@ -9,9 +9,7 @@ import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -32,11 +30,10 @@ class BoardViewModelTest {
     @After fun resetMainDispatcher() = Dispatchers.resetMain()
 
     @Test
-    fun oMesEODiaAbertoSobrevivemNoSavedState() = runTest(dispatcher) {
+    fun oMesEODiaAbertoSobrevivemNoSavedState() {
         val saved = SavedStateHandle()
         val vm = BoardViewModel(RepositorioFixo(input), saved)
-        vm.irPara(YearMonth.of(2026, 5), dia = 12)
-        advanceUntilIdle()                                      // os coletores gravam no handle
+        vm.irPara(YearMonth.of(2026, 5), dia = 12)              // grava direto no handle (Task 9)
 
         val outro = BoardViewModel(RepositorioFixo(input), saved)   // "processo novo", mesmo handle
         assertEquals(YearMonth.of(2026, 5), outro.mesAtualAgora)
@@ -44,11 +41,10 @@ class BoardViewModelTest {
     }
 
     @Test
-    fun fecharODiaTambemSobrevive() = runTest(dispatcher) {
+    fun fecharODiaTambemSobrevive() {
         val saved = SavedStateHandle()
         val vm = BoardViewModel(RepositorioFixo(input), saved)
         vm.alternarDia(LocalDate.now())                         // hoje estava aberto: fecha
-        advanceUntilIdle()
         val outro = BoardViewModel(RepositorioFixo(input), saved)
         assertEquals(null, outro.diaAbertoAgora)
     }
@@ -58,5 +54,13 @@ class BoardViewModelTest {
         val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle())
         assertEquals(YearMonth.now(), vm.mesAtualAgora)
         assertEquals(LocalDate.now(), vm.diaAbertoAgora)
+    }
+
+    @Test
+    fun sincronizarMesComOMesmoMesPreservaODiaAberto() {
+        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle())
+        vm.alternarDia(LocalDate.now().withDayOfMonth(5))
+        vm.sincronizarMes(YearMonth.now())
+        assertEquals(LocalDate.now().withDayOfMonth(5), vm.diaAbertoAgora)
     }
 }

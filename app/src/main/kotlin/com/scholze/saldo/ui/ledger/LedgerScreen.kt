@@ -107,6 +107,7 @@ fun LedgerScreen(
     alvo: AlvoLedger? = null,
     onAlvoConsumido: () -> Unit = {},
     busca: String? = null,
+    resultados: List<Movimentacao>? = null,
     onAbrirBusca: () -> Unit = {},
     onFecharBusca: () -> Unit = {},
     onBusca: (String) -> Unit = {},
@@ -153,7 +154,9 @@ fun LedgerScreen(
         modifier
             .fillMaxSize()
             .background(colors.background)
-            .arrastoDeMes(state.mesAtual, onMesAnterior, onProximoMes)
+            // O arrasto de mês desliga com a busca aberta: um gesto horizontal sobre os
+            // resultados não tem "mês" para trocar, e brigaria com o scroll da lista.
+            .then(if (busca == null) Modifier.arrastoDeMes(state.mesAtual, onMesAnterior, onProximoMes) else Modifier)
     ) {
         Column(Modifier.fillMaxSize()) {
             SaldoTopBar(
@@ -178,7 +181,7 @@ fun LedgerScreen(
             if (busca != null && busca.isNotBlank()) {
                 ResultadosBusca(
                     consulta = busca,
-                    resultados = state.resultados.orEmpty(),
+                    resultados = resultados.orEmpty(),
                     hoje = state.hoje,
                     onItemClick = onAbrirResultado,
                     onExcluir = onExcluir,
@@ -236,7 +239,9 @@ fun LedgerScreen(
         }
 
         AnimatedVisibility(
-            visible = mostraPillHoje,
+            // Sem isto a pill flutuava por cima dos resultados da busca, apontando para um
+            // "hoje" que nem está na tela.
+            visible = mostraPillHoje && busca == null,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 18.dp),

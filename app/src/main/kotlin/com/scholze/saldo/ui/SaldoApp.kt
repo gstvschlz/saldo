@@ -147,24 +147,31 @@ fun SaldoApp(
 
     val alvoLedger by ledgerVm.alvo.collectAsState()
     val buscaLedger by ledgerVm.busca.collectAsState()
+    val resultadosBusca by ledgerVm.resultados.collectAsState()
 
     // Voltar: subtela → aba → saldos → sair. Um handler só, aqui, porque é aqui que as vistas
     // moram; a sheet e as subtelas de `mais` têm os seus e ganham por estarem mais fundo na
     // composição. Desabilitado no board para o sistema fechar o app — e só ele.
+    //
+    // A busca e a lista/etiqueta só contam enquanto a aba saldos está na tela: por isso o
+    // "aba diferente de saldos" vem ANTES delas no `when` — sem essa guarda, uma busca ou
+    // lista deixada aberta ao trocar de aba fazia Voltar precisar de dois toques para sair
+    // da outra aba (o primeiro só fechava a subtela escondida).
     val buscaAberta = buscaLedger != null
     BackHandler(
         enabled = !sheetAberto &&
-            (abrindoRecorrencias || buscaAberta || vistaSaldos != VistaSaldos.BOARD || tab != SaldoTab.SALDOS),
+            (abrindoRecorrencias || tab != SaldoTab.SALDOS || buscaAberta || vistaSaldos != VistaSaldos.BOARD),
     ) {
         when {
             abrindoRecorrencias -> abrindoRecorrencias = false
+            tab != SaldoTab.SALDOS -> tab = SaldoTab.SALDOS
             buscaAberta -> ledgerVm.fecharBusca()
             vistaSaldos != VistaSaldos.BOARD -> {
                 ledgerVm.definirTagFiltro(null)
-                boardVm.irPara(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
+                boardVm.sincronizarMes(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
                 vistaSaldos = VistaSaldos.BOARD
             }
-            else -> tab = SaldoTab.SALDOS
+            else -> {}
         }
     }
 
@@ -187,6 +194,8 @@ fun SaldoApp(
             // Quem chega por widget ou lembrete pediu um dia, não um panorama.
             is Destino.Saldos -> {
                 vistaSaldos = VistaSaldos.BOARD
+                ledgerVm.fecharBusca()
+                ledgerVm.definirTagFiltro(null)
                 boardVm.irPara(destino.mes, destino.dia)
                 tab = SaldoTab.SALDOS
             }
@@ -277,6 +286,9 @@ fun SaldoApp(
                             onMesAnterior = boardVm::mesAnterior,
                             onProximoMes = boardVm::proximoMes,
                             onVerLista = {
+                                // LISTA é "sem filtro": uma etiqueta deixada pela vista TAG
+                                // anterior não pode vazar para cá.
+                                ledgerVm.definirTagFiltro(null)
                                 ledgerVm.irPara(boardVm.mesAtualAgora)
                                 vistaSaldos = VistaSaldos.LISTA
                             },
@@ -304,13 +316,18 @@ fun SaldoApp(
                             onTogglePrivacidade = privacidade::alternar,
                             onLimparTag = { ledgerVm.definirTagFiltro(null); vistaSaldos = VistaSaldos.LISTA },
                             onVerBoard = {
+                                // Sair da lista limpa a busca e o filtro de tag: nenhum dos
+                                // dois deve sobreviver escondido para o próximo Voltar ter de
+                                // fechá-lo às cegas.
+                                ledgerVm.fecharBusca()
                                 ledgerVm.definirTagFiltro(null)
-                                boardVm.irPara(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
+                                boardVm.sincronizarMes(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
                                 vistaSaldos = VistaSaldos.BOARD
                             },
                             alvo = alvoLedger,
                             onAlvoConsumido = ledgerVm::limparAlvo,
                             busca = buscaLedger,
+                            resultados = resultadosBusca,
                             onAbrirBusca = ledgerVm::abrirBusca,
                             onFecharBusca = ledgerVm::fecharBusca,
                             onBusca = ledgerVm::definirBusca,
@@ -351,8 +368,16 @@ fun SaldoApp(
             SaldoTabBar(
                 selected = tab,
                 // Tocar em `saldos` na barra é pedir a home: fecha a subtela da etiqueta.
+                // E trocar de aba PARA FORA de saldos também volta a vista ao board — ela é
+                // estado só da aba saldos, então deixá-la em lista/tag ao sair faria Voltar
+                // (que só olha vistaSaldos com a aba saldos em tela) precisar de dois toques
+                // para sair da aba nova.
                 onSelect = { novo ->
-                    if (novo == SaldoTab.SALDOS) vistaSaldos = VistaSaldos.BOARD
+                    vistaSaldos = VistaSaldos.BOARD
+                    if (novo == SaldoTab.SALDOS) {
+                        ledgerVm.fecharBusca()
+                        ledgerVm.definirTagFiltro(null)
+                    }
                     tab = novo
                 },
                 // O `+` lança no dia aberto do board — é o dia que o usuário está olhando.

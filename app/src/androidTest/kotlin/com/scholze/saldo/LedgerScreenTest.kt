@@ -1,5 +1,6 @@
 package com.scholze.saldo
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -125,10 +126,15 @@ class LedgerScreenTest {
 
     @Test
     fun buscaSemResultadoDizQueNaoAchou() {
+        semear("uber", -23_90, LocalDate.now())
         abrirLista()
         rule.onNodeWithContentDescription("buscar").performClick()
         rule.onNodeWithTag(TAG_CAMPO_BUSCA).performTextInput("zzz")
         rule.onNodeWithText("nada com \"zzz\"").assertIsDisplayed()
+        // Sem isto o teste passaria mesmo se a busca ignorasse o filtro e devolvesse tudo:
+        // "nada com" e uma lista cheia por baixo não são contraditórios para o Compose.
+        rule.onAllNodes(hasText("uber") and hasAnyAncestor(hasTestTag(TAG_RESULTADOS)))
+            .assertCountEquals(0)
     }
 
     @Test

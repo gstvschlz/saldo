@@ -15,7 +15,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -39,11 +38,12 @@ class LedgerViewModelTest {
         recorrencias = emptyList(), mesesMaterializados = emptySet(), cartao = CartaoConfig(), hoje = hoje,
     )
 
-    // Os coletores do SavedStateHandle no `init` do ViewModel (Task 8) vivem em `viewModelScope`
-    // e nunca terminam sozinhos — em produção `onCleared()` os corta; aqui ninguém chama isso.
-    // Sem cancelar, eles sobrevivem ao fim do teste e tentam retomar depois que `resetMain()`
-    // já invalidou o dispatcher, e a exceção assíncrona é atribuída ao próximo teste da suíte
-    // inteira (`UncaughtExceptionsBeforeTest`) — não a este arquivo.
+    // `state` e `resultados` são StateFlow em `viewModelScope` (Task 9); um teste que os
+    // coleta (`.first { }`) mantém aquele `WhileSubscribed` vivo além do teste — em produção
+    // `onCleared()` cancela `viewModelScope`, aqui ninguém chama isso. Sem cancelar, ele
+    // sobrevive ao fim do teste e tenta retomar depois que `resetMain()` já invalidou o
+    // dispatcher, e a exceção assíncrona é atribuída ao próximo teste da suíte inteira
+    // (`UncaughtExceptionsBeforeTest`) — não a este arquivo.
     private val criados = mutableListOf<LedgerViewModel>()
     private fun vm(saved: SavedStateHandle = SavedStateHandle()) =
         LedgerViewModel(RepositorioFixo(input), saved).also { criados += it }
@@ -60,19 +60,18 @@ class LedgerViewModelTest {
         val vm = vm()
         vm.abrirBusca()
         vm.definirBusca("uber")
-        val estado = vm.state.first { it.resultados != null }
-        assertEquals(listOf(1L, 2L), estado.resultados!!.map { it.id })
+        val resultados = vm.resultados.first { it != null }
+        assertEquals(listOf(1L, 2L), resultados!!.map { it.id })
     }
 
     @Test
     fun buscaFechadaNaoTemResultados() = runTest(dispatcher) {
         val vm = vm()
-        val estado = vm.state.first { it.mes != null }
-        assertNull(estado.resultados)
+        assertNull(vm.resultados.value)
     }
 
     @Test
-    fun mesFiltroTagEBuscaSobrevivemNoSavedState() = runTest(dispatcher) {
+    fun mesFiltroTagEBuscaSobrevivemNoSavedState() {
         val saved = SavedStateHandle()
         val vm = vm(saved)
         vm.irPara(YearMonth.of(2026, 4))
@@ -80,7 +79,6 @@ class LedgerViewModelTest {
         vm.definirTagFiltroId(9L)
         vm.abrirBusca()
         vm.definirBusca("ub")
-        advanceUntilIdle()
 
         val outro = vm(saved)
         assertEquals(YearMonth.of(2026, 4), outro.mesAtualAgora)

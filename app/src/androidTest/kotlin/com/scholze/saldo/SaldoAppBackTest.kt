@@ -92,10 +92,54 @@ class SaldoAppBackTest {
     @Test
     fun noBoardOVoltarSaiDoApp() {
         app()
-        val scenario = ActivityScenario.launch(MainActivity::class.java)
-        esperarBoard()
-        voltar()
-        rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
-        assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            esperarBoard()
+            voltar()
+            rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
+            assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
+        }
+    }
+
+    /**
+     * Sem a guarda "só conta na aba saldos", o primeiro toque em Voltar só fechava a vista de
+     * lista escondida atrás de totais (sem trocar de aba) — precisava de um segundo toque
+     * para o board aparecer. Com a guarda, trocar de aba já devolve a vista para o board, e
+     * um único toque em Voltar mostra a grade.
+     */
+    @Test
+    fun daListaTocaTotaisEUmVoltarVaiDireitoAoBoard() {
+        app()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            esperarBoard()
+            rule.onNodeWithContentDescription("ver como lista").performClick()
+            esperarTexto("todas")
+            rule.onNodeWithText("totais").performClick()
+            esperarTexto("totais")
+            assertEquals(true, voltar())
+            esperarBoard()
+            assertEquals(true, rule.onAllNodesWithTag(TAG_BOARD_GRADE).fetchSemanticsNodes().isNotEmpty())
+        }
+    }
+
+    /**
+     * Com a busca aberta a barra da lista mostra só o campo e o × — "ver como grade" some da
+     * árvore enquanto a busca está aberta, então voltar para saldos só é alcançável pela
+     * própria barra de abas. Sair assim tem de fechar a busca também — senão ela fica aberta
+     * e escondida, e o próximo Voltar (no board) a fecharia em vez de sair do app.
+     */
+    @Test
+    fun daListaComABuscaAbertaTocarSaldosLimpaEDepoisVoltarSaiDoApp() {
+        app()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            esperarBoard()
+            rule.onNodeWithContentDescription("ver como lista").performClick()
+            esperarTexto("todas")
+            rule.onNodeWithContentDescription("buscar").performClick()
+            rule.onNodeWithText("saldos").performClick()
+            esperarBoard()
+            voltar()
+            rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
+            assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
+        }
     }
 }

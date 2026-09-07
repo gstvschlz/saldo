@@ -43,8 +43,6 @@ data class LedgerUiState(
     val hoje: LocalDate,
     /** Etiqueta escolhida na aba tags; `null` = o mês inteiro. */
     val tagFiltro: Tag? = null,
-    /** Os resultados da busca, mais recentes primeiro; `null` = busca fechada ou em branco. */
-    val resultados: List<Movimentacao>? = null,
     /** Os templates, para a shell achar o dia da recorrência de uma linha ao abrir a sheet. */
     val recorrencias: List<Recorrencia> = emptyList(),
 )
@@ -61,7 +59,8 @@ class LedgerViewModel(
     // voltar ao app depois de um tempo mostrava a subtela da tag sem tag — e sem o × para sair.
     private val mesAtual = MutableStateFlow(savedState.get<Long>(KEY_MES)?.toYearMonth() ?: YearMonth.now())
     private val filtro = MutableStateFlow(
-        savedState.get<String>(KEY_FILTRO)?.let { FiltroLedger.valueOf(it) } ?: FiltroLedger.TODAS,
+        savedState.get<String>(KEY_FILTRO)?.let { salvo -> FiltroLedger.entries.firstOrNull { it.name == salvo } }
+            ?: FiltroLedger.TODAS,
     )
     // Guarda o id, não a Tag: renomear ou apagar a etiqueta na aba tags tem de chegar
     // aqui, e um snapshot da Tag deixaria o chip preso ao nome antigo (ou o ledger preso
@@ -87,10 +86,10 @@ class LedgerViewModel(
     val filtroAgora: FiltroLedger get() = filtro.value
     val tagFiltroIdAgora: Long? get() = tagFiltroId.value
 
-    /** Os cinco controles do usuário, combinados uma vez: o `combine` de seis fluxos perde os tipos. */
-    private data class Controles(val mes: YearMonth, val filtro: FiltroLedger, val tagId: Long?, val busca: String?)
+    /** Os controles do mês, combinados uma vez: o `combine` de vários fluxos perde os tipos. */
+    private data class Controles(val mes: YearMonth, val filtro: FiltroLedger, val tagId: Long?)
 
-    private val controles = combine(mesAtual, filtro, tagFiltroId, _busca) { m, f, t, b -> Controles(m, f, t, b) }
+    private val controles = combine(mesAtual, filtro, tagFiltroId) { m, f, t -> Controles(m, f, t) }
 
     val state: StateFlow<LedgerUiState> =
         combine(repo.ledger, repo.tags, controles) { input, tags, c ->
@@ -101,9 +100,6 @@ class LedgerViewModel(
                 filtro = c.filtro,
                 hoje = input.hoje,
                 tagFiltro = tag,
-                resultados = c.busca?.takeIf { it.isNotBlank() }?.let { q ->
-                    Busca.filtrar(ProjectionEngine.movimentacoesAte(input, YearMonth.from(input.hoje)), q, input.hoje)
-                },
                 recorrencias = input.recorrencias,
             )
         }
@@ -119,12 +115,24 @@ class LedgerViewModel(
                 LedgerUiState(mes = null, mesAtual = mesAtual.value, filtro = filtro.value, hoje = LocalDate.now()),
             )
 
+    /**
+     * Os resultados da busca, à parte do [state]: `state` combina mês, filtro e tag, que não
+     * mudam a cada tecla — misturar a busca ali forçaria `ProjectionEngine.mes` (a projeção do
+     * mês inteiro) a rodar de novo a cada caractere digitado. Aqui só as movimentações
+     * efetivas são recalculadas, e só quando `repo.ledger` ou o texto mudam.
+     */
+    val resultados: StateFlow<List<Movimentacao>?> =
+        combine(repo.ledger, _busca) { input, q ->
+            q?.takeIf { it.isNotBlank() }?.let {
+                Busca.filtrar(ProjectionEngine.movimentacoesAte(input, YearMonth.from(input.hoje)), it, input.hoje)
+            }
+        }
+            .flowOn(Dispatchers.Default)
+            .catch { Log.e(TAG, "busca do ledger falhou", it) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     init {
         abrir(mesAtual.value)
-        viewModelScope.launch { mesAtual.collect { savedState[KEY_MES] = it.toLongChave() } }
-        viewModelScope.launch { filtro.collect { savedState[KEY_FILTRO] = it.name } }
-        viewModelScope.launch { tagFiltroId.collect { savedState[KEY_TAG] = it } }
-        viewModelScope.launch { _busca.collect { savedState[KEY_BUSCA] = it } }
     }
 
     fun mesAnterior() = irPara(mesAtual.value.minusMonths(1))
@@ -133,6 +141,7 @@ class LedgerViewModel(
     /** Navega para [mes]; com [dia], o ledger rola até ele quando o mês chegar (deep link). */
     fun irPara(mes: YearMonth, dia: Int? = null) {
         mesAtual.value = mes
+        savedState[KEY_MES] = mes.toLongChave()
         _alvo.value = dia?.let { AlvoLedger(mes, it) }
         abrir(mes)
     }
@@ -151,14 +160,31 @@ class LedgerViewModel(
         }
     }
 
-    fun definirFiltro(f: FiltroLedger) { filtro.value = f }
+    fun definirFiltro(f: FiltroLedger) {
+        filtro.value = f
+        savedState[KEY_FILTRO] = f.name
+    }
 
     fun definirTagFiltro(tag: Tag?) = definirTagFiltroId(tag?.id)
-    fun definirTagFiltroId(id: Long?) { tagFiltroId.value = id }
+    fun definirTagFiltroId(id: Long?) {
+        tagFiltroId.value = id
+        savedState[KEY_TAG] = id
+    }
 
-    fun abrirBusca() { if (_busca.value == null) _busca.value = "" }
-    fun fecharBusca() { _busca.value = null }
-    fun definirBusca(texto: String) { _busca.value = texto }
+    fun abrirBusca() {
+        if (_busca.value == null) {
+            _busca.value = ""
+            savedState[KEY_BUSCA] = ""
+        }
+    }
+    fun fecharBusca() {
+        _busca.value = null
+        savedState[KEY_BUSCA] = null
+    }
+    fun definirBusca(texto: String) {
+        _busca.value = texto
+        savedState[KEY_BUSCA] = texto
+    }
 
     /**
      * Abre um resultado da busca. Uma ocorrência virtual (`id == 0`) precisa do mês

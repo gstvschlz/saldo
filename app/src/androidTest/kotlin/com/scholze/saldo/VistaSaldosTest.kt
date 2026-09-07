@@ -143,6 +143,9 @@ class VistaSaldosTest {
      */
     @Test
     fun oMaisLancaNoDiaAbertoDoBoard() {
+        // No dia 1 do mês, tocar na célula de hoje FECHA o painel (já vem aberto por
+        // padrão) em vez de abri-lo — o teste passaria pela razão errada.
+        org.junit.Assume.assumeTrue(LocalDate.now().dayOfMonth > 1)
         val appCtx = ApplicationProvider.getApplicationContext<SaldoApplication>()
         runBlocking {
             appCtx.container.settings.definirSaldoInicial(100_000_00, YearMonth.now().atDay(1).minusDays(1))
