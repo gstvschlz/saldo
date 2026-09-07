@@ -19,6 +19,11 @@ Exporte em `mais → exportar dados`, em csv ou json.
 Lançar cobra só o valor: a **descrição é opcional**, e a linha sem nome aparece como "sem
 descrição" nas listas. Os exports guardam o campo vazio como ele é.
 
+Na edição, "repetir" continua um controle: uma avulsa vira mensal, e uma mensal para a partir
+daquele mês. Em `totais → a caminho → recorrências`, cada uma tem um interruptor para pausar e
+retomar — os meses pausados ficam vazios. Uma tag apagada tem "desfazer" e muda de cor em
+"editar". A tecla `00` do teclado anexa dois zeros.
+
 A aba `saldos` é o **board**, e só ele: o mês em quadradinhos, um por dia — do dia 1 até
 hoje, sem passar disso, porque uma célula pintada quer dizer "este dia aconteceu". A cor é o
 saldo do dia: rosa saiu mais do que entrou, verde o contrário, e a intensidade sai de
@@ -26,10 +31,18 @@ múltiplos de um dia típico (a mediana dos dias com movimento). Uma compra no c
 dia da compra; o anel marca o dia em que a fatura vence.
 
 Toque num dia e os lançamentos dele abrem embaixo da grade, com o swipe-pra-apagar de
-sempre; toque de novo e fecham. As setas do cabeçalho e o arrasto horizontal trocam de mês —
-um mês passado aparece inteiro, e a seta de avançar para no mês corrente, porque o que ainda
-vai acontecer tem tela própria em `totais → a caminho`. A lista do mês inteiro sobrou só como
-"os lançamentos desta etiqueta", que é onde a aba `tags` aterrissa.
+sempre; toque de novo e fecham.
+
+O ícone de lista na barra abre o mesmo mês em linhas, com os chips `todas/diários/fixas`, e a
+lupa busca no histórico inteiro — descrição, tag ou valor (`340` acha R$ 340,00). O `+` lança
+no dia que estiver aberto na grade. Voltar fecha a lista, depois vai para `saldos`, e só então
+sai do app.
+
+As setas do cabeçalho e o arrasto horizontal trocam de mês — um mês passado aparece inteiro, e
+a seta de avançar para no mês corrente, porque o que ainda vai acontecer tem tela própria em
+`totais → a caminho`. A lista do mês inteiro sobrou como "os lançamentos desta etiqueta", que
+é onde a aba `tags` aterrissa — e agora também dá para chegar nela pelo ícone de lista no
+board.
 
 Três gráficos de performance em `totais`: **ritmo do mês** (quanto já saiu contra o costume
 dos três meses anteriores na mesma altura do mês), **poupança mês a mês** (a taxa dos seis
