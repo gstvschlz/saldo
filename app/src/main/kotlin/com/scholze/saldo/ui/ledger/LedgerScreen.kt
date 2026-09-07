@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -354,17 +355,19 @@ internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit, onVerG
             }
             // Do que entrou, quanto foi guardado. Não é dinheiro: a privacidade não a esconde.
             mes.taxaGuardada?.let { taxa ->
-                Text(
-                    "guardou $taxa%",
+                Box(
                     Modifier
+                        .sizeIn(minHeight = 44.dp)   // alvo de toque, sem inflar a pill visualmente
                         .clip(RoundedCornerShape(percent = 50))
                         .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
                         .clickable(onClick = onVerGuardado)
                         .padding(horizontal = 11.dp, vertical = 5.dp)
                         .testTag(TAG_PILL_GUARDADO)
                         .semantics { contentDescription = "guardou $taxa% do que entrou" },
-                    style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer,
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("guardou $taxa%", style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer)
+                }
             }
         }
         if (mes.estimativaCentavos > 0) {

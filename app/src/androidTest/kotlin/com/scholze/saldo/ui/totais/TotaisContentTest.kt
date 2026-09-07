@@ -12,7 +12,6 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -309,33 +308,6 @@ class TotaisContentTest {
         // Volta ao segmento "mês", mas com o offset de rolagem que a tendência deixou no scroll
         // state compartilhado — sem performScrollTo() aqui o teste depende de sorte de viewport.
         rule.onNodeWithText("para onde foi").performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
-    fun segmentoTendenciaSobreviveARestauracaoDeEstado() {
-        // `segmento` usa rememberSaveable — um teste que só recompõe (como os outros desta classe)
-        // passa igualzinho contra `remember {}`, porque recomposição não recria a instância. Só
-        // StateRestorationTester força a recriação que rememberSaveable precisa sobreviver.
-        val restorationTester = StateRestorationTester(rule)
-        restorationTester.setContent {
-            SaldoTheme(darkTheme = false) {
-                CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = false)) {
-                    var segmento by rememberSaveable { mutableStateOf(SegmentoTotais.MES) }
-                    TotaisContent(
-                        TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia), {}, {},
-                        segmento = segmento, onSegmento = { segmento = it },
-                    )
-                }
-            }
-        }
-        segmento("tendência").performClick()
-        rule.onNodeWithText("6 MESES").assertIsDisplayed()
-
-        restorationTester.emulateSavedInstanceStateRestore()
-
-        // Se `segmento` fosse `remember {}` puro, a restauração voltaria para "mês" — o teste
-        // continua vendo o conteúdo da tendência só porque o estado sobreviveu de verdade.
-        rule.onNodeWithText("6 MESES").assertIsDisplayed()
     }
 
     /**

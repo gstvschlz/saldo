@@ -95,6 +95,7 @@ class BoardScreenTest {
     private var mesesAndados = 0
     private var pediuLista = false
     private var pediuGuardado = false
+    private var alternouPrivacidade = 0
 
     private fun montar(
         entrada: LedgerInput = input,
@@ -117,7 +118,7 @@ class BoardScreenTest {
                         onProximoMes = { mesesAndados++ },
                         onItemClick = {},
                         onExcluir = {},
-                        onTogglePrivacidade = {},
+                        onTogglePrivacidade = { alternouPrivacidade++ },
                         onVerLista = { pediuLista = true },
                         onVerGuardado = { pediuGuardado = true },
                     )
@@ -344,11 +345,14 @@ class BoardScreenTest {
     @Test
     fun tocarNaPillPedeATendencia() {
         pediuGuardado = false
+        alternouPrivacidade = 0
         montar(entrada = input.copy(movimentacoes = input.movimentacoes + Movimentacao(
             id = 5, descricao = "cdb", valorCentavos = -1_480_00,
             data = LocalDate.parse("2026-09-02"), natureza = Natureza.ECONOMIA,
         )))
         rule.onNodeWithTag(TAG_PILL_GUARDADO).performClick()
         assertEquals(true, pediuGuardado)
+        // O clique na pill não deve vazar para o toggle de privacidade do hero por baixo dela.
+        assertEquals(0, alternouPrivacidade)
     }
 }

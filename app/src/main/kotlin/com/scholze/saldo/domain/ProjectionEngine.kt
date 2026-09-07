@@ -94,10 +94,13 @@ object ProjectionEngine {
         val fimMes = mes.atEndOfMonth()
         val fimAnterior = mes.minusMonths(1).atEndOfMonth()
 
+        // A partição do mês inteiro, uma vez só: `movsDoMes` e a taxa guardada (abaixo)
+        // reaproveitam em vez de varrer `efetivas` de novo cada um por conta própria.
+        val doMes = efetivas.filter { YearMonth.from(it.data) == mes }
+
         // Itens do mês segundo o filtro.
-        val movsDoMes = efetivas.asSequence()
+        val movsDoMes = doMes.asSequence()
             .filter { it.natureza != Natureza.CARTAO }
-            .filter { YearMonth.from(it.data) == mes }
             .filter { passaFiltro(it, filtro, tagId) }
             .toList()
         val faturasDoMes =
@@ -130,7 +133,6 @@ object ProjectionEngine {
         val projetadoAnterior = projetadoDoMes(input, efetivas, faturas, mes.minusMonths(1))
 
         // Sempre sobre o mês inteiro (sem filtro): a pill do hero não muda com os chips.
-        val doMes = efetivas.filter { YearMonth.from(it.data) == mes }
         val entradas = doMes.filter { it.natureza != Natureza.CARTAO && it.valorCentavos > 0 }.sumOf { it.valorCentavos }
         val economia = -doMes.filter { it.natureza == Natureza.ECONOMIA && it.valorCentavos < 0 }.sumOf { it.valorCentavos }
 

@@ -91,6 +91,13 @@ class SaldoWidgetContentTest {
         onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertDoesNotExist()
     }
 
+    @Test
+    fun quadradoTambemDizQuantoGuardou() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(SaldoWidget.QUADRADO)
+        provideComposable { SaldoWidgetContent(pronto.copy(mostrarValores = true)) }
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou 20%")
+    }
+
     /** Pina os extras que o widget manda contra o que `MainActivity`/`Destino.de` esperam ler. */
     @Test
     fun paraParametrosLevaOsExtrasQueMainActivityEspera() {
