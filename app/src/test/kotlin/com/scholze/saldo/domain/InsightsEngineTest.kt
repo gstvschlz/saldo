@@ -364,10 +364,27 @@ class InsightsEngineTest {
         val academia = Recorrencia(id = 4, descricao = "academia", valorCentavos = -120_00, natureza = Natureza.DIARIO, diaDoMes = 1, inicio = YearMonth.of(2026, 9))
         val antiga = Recorrencia(id = 5, descricao = "antiga", valorCentavos = -10_00, natureza = Natureza.DIARIO, diaDoMes = 1, inicio = YearMonth.of(2026, 1), ativa = false)
         val r = InsightsEngine.recorrencias(input(recs = listOf(aluguel, salario, netflix, academia, antiga)), jul)
-        assertEquals(listOf("academia", "aluguel", "salário"), r.ativas.map { it.descricao })      // por dia do mês: 1, 3, 5
-        assertEquals(listOf("antiga", "netflix"), r.encerradas.map { it.descricao })
+        // "antiga" está inativa mas sem `fim`: não é encerrada, só some das somas — é "pausada".
+        assertEquals(listOf("academia", "antiga", "aluguel", "salário"), r.ativas.map { it.descricao })      // por dia do mês: 1, 1, 3, 5
+        assertEquals(listOf("netflix"), r.encerradas.map { it.descricao })
         assertEquals(8_240_00L, r.entramMes)
-        assertEquals(2_400_00L, r.saemMes)                                                           // academia só começa em setembro
+        assertEquals(2_400_00L, r.saemMes)                                                           // academia só começa em setembro; antiga está inativa
+    }
+
+    @Test
+    fun `recorrencia pausada continua na lista mas fora das somas`() {
+        val pausada = Recorrencia(
+            id = 7, descricao = "academia", valorCentavos = -120_00, natureza = Natureza.DIARIO,
+            diaDoMes = 5, inicio = YearMonth.of(2026, 1), ativa = false,
+        )
+        val ativa = Recorrencia(
+            id = 8, descricao = "aluguel", valorCentavos = -1_690_00, natureza = Natureza.DIARIO,
+            diaDoMes = 10, inicio = YearMonth.of(2026, 1),
+        )
+        val r = InsightsEngine.recorrencias(input(recs = listOf(pausada, ativa)), YearMonth.of(2026, 9))
+        assertEquals(listOf(7L, 8L), r.ativas.map { it.id })
+        assertEquals(emptyList<Recorrencia>(), r.encerradas)
+        assertEquals(1_690_00L, r.saemMes)
     }
 
     // ---- para onde foi ao longo do tempo ----

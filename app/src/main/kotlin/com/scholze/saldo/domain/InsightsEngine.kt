@@ -261,8 +261,10 @@ object InsightsEngine {
      * (`inicio ≤ mes`) — em julho, aquela recorrência de setembro ainda não moveu dinheiro nenhum.
      */
     fun recorrencias(input: LedgerInput, mes: YearMonth): ResumoRecorrencias {
-        val (ativas, encerradas) = input.recorrencias.partition { r -> r.ativa && (r.fim?.let { it >= mes } ?: true) }
-        val vigentes = ativas.filter { it.inicio <= mes }
+        // Pausada (`ativa = false`) não é encerrada: continua na lista, com o interruptor, e só
+        // sai das somas. Encerrada é a que tem `fim` antes do mês visto.
+        val (ativas, encerradas) = input.recorrencias.partition { r -> r.fim?.let { it >= mes } ?: true }
+        val vigentes = ativas.filter { it.ativa && it.inicio <= mes }
         return ResumoRecorrencias(
             ativas = ativas.sortedBy { it.diaDoMes },
             encerradas = encerradas.sortedBy { it.diaDoMes },
