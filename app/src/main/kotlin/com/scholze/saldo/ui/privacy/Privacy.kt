@@ -5,7 +5,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -21,22 +22,27 @@ import com.scholze.saldo.ui.theme.tabular
 
 const val MASCARA_PRIVACIDADE = "R$ •••••"
 
-/** Session-scoped visibility of money values. */
+/** Visibilidade dos valores. Escolha de sessão: sobrevive à rotação, não a uma abertura nova. */
 class PrivacyState(ocultoInicial: Boolean) {
     var oculto by mutableStateOf(ocultoInicial)
         private set
 
     fun alternar() { oculto = !oculto }
+
+    companion object {
+        val Saver: Saver<PrivacyState, Boolean> = Saver(save = { it.oculto }, restore = { PrivacyState(it) })
+    }
 }
 
 val LocalPrivacy = staticCompositionLocalOf { PrivacyState(ocultoInicial = false) }
 
 /**
- * Survives recomposition but not configuration change: the mask is a session
- * choice, and [ocultoInicial] is only read the first time.
+ * Sobrevive à rotação e à morte do processo com a activity viva: esconder é uma decisão, e
+ * girar o aparelho não pode desfazê-la. [ocultoInicial] só é lido na primeira composição.
  */
 @Composable
-fun rememberPrivacyState(ocultoInicial: Boolean): PrivacyState = remember { PrivacyState(ocultoInicial) }
+fun rememberPrivacyState(ocultoInicial: Boolean): PrivacyState =
+    rememberSaveable(saver = PrivacyState.Saver) { PrivacyState(ocultoInicial) }
 
 enum class FormatoMoney { VALOR, COM_SIMBOLO, ASSINADO, ASSINADO_COM_SIMBOLO }
 

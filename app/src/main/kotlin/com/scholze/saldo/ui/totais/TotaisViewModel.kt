@@ -1,8 +1,10 @@
 package com.scholze.saldo.ui.totais
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -19,6 +21,8 @@ import com.scholze.saldo.domain.RitmoEngine
 import com.scholze.saldo.domain.TagsNoTempo
 import com.scholze.saldo.domain.ResumoRecorrencias
 import com.scholze.saldo.domain.TotaisMes
+import com.scholze.saldo.ui.toLongChave
+import com.scholze.saldo.ui.toYearMonth
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -50,9 +54,16 @@ data class TotaisUiState(
     val tagsNoTempo: TagsNoTempo? = null,
 )
 
-class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
+class TotaisViewModel(
+    private val repo: SaldoRepository,
+    private val savedState: SavedStateHandle = SavedStateHandle(),
+) : ViewModel() {
 
-    private val mesAtual = MutableStateFlow(YearMonth.now())
+    // Sobrevive à morte do processo, e não só à rotação — mesmo `Long` de chave que o board usa.
+    private val mesAtual = MutableStateFlow(savedState.get<Long>(KEY_MES)?.toYearMonth() ?: YearMonth.now())
+
+    /** Leitura síncrona: os testes conferem o saved state sem coletar o Flow. */
+    val mesAtualAgora: YearMonth get() = mesAtual.value
 
     val state: StateFlow<TotaisUiState> = combine(repo.ledger, mesAtual) { input, mes ->
         TotaisUiState(
@@ -87,6 +98,7 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     fun irPara(mes: YearMonth) {
         mesAtual.value = mes
+        savedState[KEY_MES] = mes.toLongChave()
         abrir(mes)
     }
 
@@ -104,9 +116,10 @@ class TotaisViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     companion object {
         private const val TAG = "saldo"
+        private const val KEY_MES = "totais.mes"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { TotaisViewModel(container.repository) }
+            initializer { TotaisViewModel(container.repository, createSavedStateHandle()) }
         }
     }
 }

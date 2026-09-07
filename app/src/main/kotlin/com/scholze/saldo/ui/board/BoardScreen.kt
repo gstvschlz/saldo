@@ -117,6 +117,7 @@ fun BoardScreen(
     val colors = SaldoTheme.colors
     val board = state.board
     val semanas = remember(board) { board?.let { semanasDe(it.dias) }.orEmpty() }
+    // O diálogo da fatura é só leitura — não edita nada — então fechar na rotação é aceitável.
     var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
 
     Box(

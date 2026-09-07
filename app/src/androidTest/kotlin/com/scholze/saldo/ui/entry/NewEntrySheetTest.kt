@@ -91,4 +91,16 @@ class NewEntrySheetTest {
         rule.onNodeWithText("tags").performClick()
         noDialogo("cancelar").assertIsDisplayed()
     }
+
+    @Test
+    fun oSeletorDeDataSobreviveARestauracaoDeEstado() {
+        val vm = vm()
+        vm.iniciarNova(LocalDate.now())
+        val restaurador = androidx.compose.ui.test.junit4.StateRestorationTester(rule)
+        restaurador.setContent { SaldoTheme { NewEntrySheet(vm = vm, onFechar = {}) } }
+        rule.onNodeWithText("data").performClick()
+        rule.onNodeWithText("ok").assertIsDisplayed()
+        restaurador.emulateSavedInstanceStateRestore()
+        rule.onNodeWithText("ok").assertIsDisplayed()
+    }
 }

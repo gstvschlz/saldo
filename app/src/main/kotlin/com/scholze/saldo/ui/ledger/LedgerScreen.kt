@@ -120,7 +120,7 @@ fun LedgerScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     // Fatura tocada: abre a lista de compras (Step 1b). Estado de tela, não de ViewModel —
-    // é só uma leitura, não muda dado nenhum.
+    // é só uma leitura, não muda dado nenhum, então fechar na rotação é aceitável.
     var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
 
     // Índice do item de hoje na LazyColumn: 2 headers antes dos dias (hero, chips), 3
