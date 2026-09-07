@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,9 +29,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Recorrencia
+import com.scholze.saldo.domain.descricaoVisivel
 import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
@@ -113,6 +117,7 @@ fun RecorrenciasScreen(
                             } else {
                                 null
                             },
+                            onPausa = { vm.alternarPausa(rec) },
                         )
                     }
                 }
@@ -155,7 +160,7 @@ private fun LinhaMes(rotulo: String, centavos: Long, cor: Color? = null) {
 }
 
 @Composable
-private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> Unit)?) {
+private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> Unit)?, onPausa: (() -> Unit)? = null) {
     val colors = SaldoTheme.colors
     val base = Modifier.fillMaxWidth()
     Row(
@@ -168,7 +173,7 @@ private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> U
             DescricaoTexto(rec.descricao)
             val nota = when {
                 rec.inicio > mes -> "começa em " + rec.inicio.rotuloCurto()
-                !rec.ativa -> "encerrada"
+                !rec.ativa -> "pausada"
                 rec.fim != null -> "até " + rec.fim.rotuloCurto()
                 else -> null
             }
@@ -183,7 +188,18 @@ private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> U
         }
         MoneyText(
             centavos = rec.valorCentavos,
-            style = SaldoTheme.type.body, color = colors.label, formato = FormatoMoney.ASSINADO,
+            style = SaldoTheme.type.body,
+            color = if (!rec.ativa) colors.secondaryLabel else colors.label,
+            formato = FormatoMoney.ASSINADO,
         )
+        if (onPausa != null) {
+            Switch(
+                checked = rec.ativa,
+                onCheckedChange = { onPausa() },
+                modifier = Modifier.semantics {
+                    contentDescription = (if (rec.ativa) "pausar " else "retomar ") + rec.descricao.descricaoVisivel()
+                },
+            )
+        }
     }
 }

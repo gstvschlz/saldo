@@ -1,8 +1,11 @@
 package com.scholze.saldo.ui.totais
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -83,6 +86,31 @@ class RecorrenciasScreenTest {
             // duplicaria o texto do chip e quebraria o performClick que troca de segmento).
             rule.waitUntil(5_000) { rule.onAllNodesWithText("a caminho").fetchSemanticsNodes().isNotEmpty() }
             rule.onNodeWithText("a caminho").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun oInterruptorPausaEALinhaDizPausada() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        runBlocking {
+            app.container.settings.definirSaldoInicial(100_000_00, hoje)
+            app.container.repository.criar(
+                Movimentacao(descricao = "academia", valorCentavos = -120_00, data = hoje.withDayOfMonth(5), natureza = Natureza.DIARIO),
+                RepetirOpcao.TodoMes(5),
+            )
+        }
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.from(hoje)))).use {
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("a caminho").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("a caminho").performClick()
+            rule.onNodeWithText("recorrências").performScrollTo().performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("pausar academia").fetchSemanticsNodes().isNotEmpty() }
+
+            rule.onNodeWithContentDescription("pausar academia").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("pausada").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithContentDescription("retomar academia").assertIsDisplayed()
+            // e continua na lista, não em "encerradas"
+            rule.onAllNodesWithText("encerradas", substring = true).assertCountEquals(0)
         }
     }
 }

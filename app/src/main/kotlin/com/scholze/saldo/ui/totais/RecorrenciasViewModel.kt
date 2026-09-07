@@ -12,6 +12,7 @@ import com.scholze.saldo.domain.InsightsEngine
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.ResumoRecorrencias
+import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +70,19 @@ class RecorrenciasViewModel(private val repo: SaldoRepository) : ViewModel() {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "abrirOcorrencia(${rec.id}, $m) falhou", e)
+            }
+        }
+    }
+
+    /** Pausar/retomar, pelo `ativa` do template — ver `SaldoRepository.pausar` para o que fica e o que some. */
+    fun alternarPausa(rec: Recorrencia) {
+        viewModelScope.launch {
+            try {
+                if (rec.ativa) repo.pausar(rec.id, LocalDate.now()) else repo.retomar(rec.id, LocalDate.now())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "alternarPausa(${rec.id}) falhou", e)
             }
         }
     }
