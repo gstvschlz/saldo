@@ -9,8 +9,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.scholze.saldo.AppContainer
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.domain.TagSnapshot
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -35,9 +38,16 @@ class TagsViewModel(private val repo: SaldoRepository) : ViewModel() {
         .catch { Log.e(TAG, "fluxo de tags falhou", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TagsUiState())
 
+    private val _exclusoes = MutableSharedFlow<TagSnapshot>(extraBufferCapacity = 1)
+
+    /** A tag apagada, para o "desfazer" do snackbar — o mesmo caminho das movimentações. */
+    val exclusoes: SharedFlow<TagSnapshot> = _exclusoes
+
     fun criar(nome: String, cor: Long) = escrever("criarTag") { repo.criarTag(nome, cor) }
     fun renomear(tag: Tag, nome: String) = escrever("renomearTag") { repo.renomearTag(tag.id, nome) }
-    fun excluir(tag: Tag) = escrever("excluirTag") { repo.excluirTag(tag.id) }
+    fun recolorir(tag: Tag, cor: Long) = escrever("recolorirTag") { repo.recolorirTag(tag.id, cor) }
+    fun excluir(tag: Tag) = escrever("excluirTag") { _exclusoes.emit(repo.excluirTag(tag.id)) }
+    fun desfazerExclusao(snapshot: TagSnapshot) = escrever("restaurarTag") { repo.restaurarTag(snapshot) }
 
     private fun escrever(qual: String, bloco: suspend () -> Unit) {
         viewModelScope.launch {

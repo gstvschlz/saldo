@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
  */
 enum class SaldoIcon {
     SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE, RECORRENTE,
-    OLHO, OLHO_RISCADO, CHECK, GRADE, LISTA, LUPA, FECHAR,
+    OLHO, OLHO_RISCADO, CHECK, GRADE, LISTA, LUPA, FECHAR, LAPIS, LIXEIRA,
 }
 
 @Composable
@@ -188,6 +188,19 @@ fun SaldoGlyph(
             SaldoIcon.FECHAR -> {
                 drawLine(tint, Offset(w * 0.25f, h * 0.25f), Offset(w * 0.75f, h * 0.75f), sw, StrokeCap.Round)
                 drawLine(tint, Offset(w * 0.75f, h * 0.25f), Offset(w * 0.25f, h * 0.75f), sw, StrokeCap.Round)
+            }
+            // Uma diagonal com a ponta: o lápis.
+            SaldoIcon.LAPIS -> {
+                drawLine(tint, Offset(w * 0.22f, h * 0.78f), Offset(w * 0.70f, h * 0.30f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.70f, h * 0.30f), Offset(w * 0.78f, h * 0.22f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.22f, h * 0.78f), Offset(w * 0.20f, h * 0.80f), sw, StrokeCap.Round)
+            }
+            // A tampa e o balde: a lixeira.
+            SaldoIcon.LIXEIRA -> {
+                drawLine(tint, Offset(w * 0.22f, h * 0.30f), Offset(w * 0.78f, h * 0.30f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.30f, h * 0.30f), Offset(w * 0.34f, h * 0.78f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.70f, h * 0.30f), Offset(w * 0.66f, h * 0.78f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.34f, h * 0.78f), Offset(w * 0.66f, h * 0.78f), sw, StrokeCap.Round)
             }
         }
     }

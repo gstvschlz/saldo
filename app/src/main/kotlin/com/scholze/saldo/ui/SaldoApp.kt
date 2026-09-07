@@ -124,6 +124,7 @@ fun SaldoApp(
     val totaisVm: TotaisViewModel = viewModel(factory = remember(container) { TotaisViewModel.factory(container) })
     val boardVm: BoardViewModel = viewModel(factory = remember(container) { BoardViewModel.factory(container) })
     val tagsFactory = remember(container) { TagsViewModel.factory(container) }
+    val tagsVm: TagsViewModel = viewModel(factory = tagsFactory)
     val maisFactory = remember(container) { MaisViewModel.factory(container) }
     val recorrenciasFactory = remember(container) { RecorrenciasViewModel.factory(container) }
     val ledgerState by ledgerVm.state.collectAsState()
@@ -228,6 +229,13 @@ fun SaldoApp(
 
     LaunchedEffect(Unit) {
         entryVm.erros.collect { snackbar.showSnackbar(it) }
+    }
+
+    LaunchedEffect(Unit) {
+        tagsVm.exclusoes.collect { snapshot ->
+            val resultado = snackbar.showSnackbar(message = "tag excluída", actionLabel = "desfazer")
+            if (resultado == SnackbarResult.ActionPerformed) tagsVm.desfazerExclusao(snapshot)
+        }
     }
 
     // ---- exportar dados (SAF) ----
@@ -356,7 +364,7 @@ fun SaldoApp(
                         )
                     }
                     SaldoTab.TAGS -> TagsScreen(
-                        vm = viewModel(factory = tagsFactory),
+                        vm = tagsVm,
                         onTagClick = { ledgerVm.definirTagFiltro(it); vistaSaldos = VistaSaldos.TAG; tab = SaldoTab.SALDOS },
                     )
                     SaldoTab.MAIS -> MaisScreen(

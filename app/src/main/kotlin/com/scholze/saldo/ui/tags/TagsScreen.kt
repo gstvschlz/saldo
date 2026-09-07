@@ -1,6 +1,7 @@
 package com.scholze.saldo.ui.tags
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,14 +24,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.PaletaTags
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.ui.components.IconeRedondo
 import com.scholze.saldo.ui.components.InsetGroup
+import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
@@ -39,9 +46,12 @@ import com.scholze.saldo.ui.theme.SaldoTheme
 fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
     val state by vm.state.collectAsState()
-    var criando by remember { mutableStateOf(false) }
-    var renomeando by remember { mutableStateOf<Tag?>(null) }
-    var excluindo by remember { mutableStateOf<Tag?>(null) }
+    var criando by rememberSaveable { mutableStateOf(false) }
+    // `Tag` não é `Saveable`: guarda-se o id e resolve-se contra `state.tags` na hora de desenhar.
+    var renomeandoId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var excluindoId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val renomeando = state.tags.firstOrNull { it.first.id == renomeandoId }?.first
+    val excluindo = state.tags.firstOrNull { it.first.id == excluindoId }?.first
 
     Column(modifier.fillMaxSize().background(colors.background)) {
         // Titulo grande e a ESQUERDA, como no ledger, em totais e em recorrencias: centrado
@@ -58,13 +68,19 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
                 .padding(PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
+            if (state.tags.isEmpty()) {
+                Text(
+                    "uma tag é uma etiqueta: mercado, casa, lazer. Toque numa tag para ver só ela.",
+                    style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
+                )
+            }
             InsetGroup {
                 state.tags.forEachIndexed { i, (tag, total) ->
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .clickable { onTagClick(tag) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
@@ -77,14 +93,8 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
                                 formato = FormatoMoney.ASSINADO,
                             )
                         }
-                        Text(
-                            "editar", Modifier.clickable { renomeando = tag },
-                            style = SaldoTheme.type.footnote, color = colors.tint,
-                        )
-                        Text(
-                            "excluir", Modifier.clickable { excluindo = tag },
-                            style = SaldoTheme.type.footnote, color = colors.categoryVariable,
-                        )
+                        IconeRedondo(SaldoIcon.LAPIS, "editar ${tag.nome}", onClick = { renomeandoId = tag.id })
+                        IconeRedondo(SaldoIcon.LIXEIRA, "excluir ${tag.nome}", onClick = { excluindoId = tag.id })
                     }
                 }
                 Text(
@@ -93,10 +103,12 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
                     style = SaldoTheme.type.body, color = colors.tint,
                 )
             }
-            Text(
-                "toque numa tag para ver só ela no ledger",
-                style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
-            )
+            if (state.tags.isNotEmpty()) {
+                Text(
+                    "toque numa tag para ver só ela no ledger",
+                    style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
+                )
+            }
         }
     }
 
@@ -125,29 +137,48 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
 
     renomeando?.let { tag ->
         var nome by remember(tag) { mutableStateOf(tag.nome) }
+        var cor by remember(tag) { mutableStateOf(tag.cor) }
         AlertDialog(
-            onDismissRequest = { renomeando = null },
-            title = { Text("renomear tag") },
-            text = { OutlinedTextField(value = nome, onValueChange = { nome = it }, singleLine = true) },
+            onDismissRequest = { renomeandoId = null },
+            title = { Text("editar tag") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = nome, onValueChange = { nome = it }, singleLine = true)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PaletaTags.cores.forEachIndexed { i, c ->
+                            Box(
+                                Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(c))
+                                    .then(if (c == cor) Modifier.border(3.dp, colors.label, CircleShape) else Modifier)
+                                    .clickable { cor = c }
+                                    .semantics { contentDescription = "cor ${i + 1}" },
+                            )
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    if (nome.isNotBlank()) vm.renomear(tag, nome.trim())
-                    renomeando = null
+                    if (nome.isNotBlank() && nome.trim() != tag.nome) vm.renomear(tag, nome.trim())
+                    if (cor != tag.cor) vm.recolorir(tag, cor)
+                    renomeandoId = null
                 }) { Text("salvar") }
             },
-            dismissButton = { TextButton(onClick = { renomeando = null }) { Text("cancelar") } },
+            dismissButton = { TextButton(onClick = { renomeandoId = null }) { Text("cancelar") } },
         )
     }
 
     excluindo?.let { tag ->
         AlertDialog(
-            onDismissRequest = { excluindo = null },
+            onDismissRequest = { excluindoId = null },
             title = { Text("excluir \"${tag.nome}\"?") },
             // Verdade garantida pelo schema: os cross-refs saem por ON DELETE CASCADE,
             // as linhas de movimentação não.
             text = { Text("as movimentações continuam; só perdem essa tag.") },
-            confirmButton = { TextButton(onClick = { vm.excluir(tag); excluindo = null }) { Text("excluir") } },
-            dismissButton = { TextButton(onClick = { excluindo = null }) { Text("cancelar") } },
+            confirmButton = { TextButton(onClick = { vm.excluir(tag); excluindoId = null }) { Text("excluir") } },
+            dismissButton = { TextButton(onClick = { excluindoId = null }) { Text("cancelar") } },
         )
     }
 }
