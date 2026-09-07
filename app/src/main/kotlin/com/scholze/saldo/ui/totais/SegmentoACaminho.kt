@@ -128,7 +128,9 @@ fun SegmentoACaminho(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Text(
-                                fixas(resumo.ativas.size) + " ·",
+                                // `resumo.ativas` inclui templates pausados (ver InsightsEngine);
+                                // as somas ao lado excluem-nos, então a contagem também precisa.
+                                fixas(resumo.ativas.count { it.ativa }) + " ·",
                                 style = SaldoTheme.type.footnote,
                                 color = colors.secondaryLabel,
                             )
