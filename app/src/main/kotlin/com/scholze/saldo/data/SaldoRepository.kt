@@ -2,6 +2,8 @@ package com.scholze.saldo.data
 
 import androidx.room.withTransaction
 import com.scholze.saldo.data.db.MesMaterializadoEntity
+import com.scholze.saldo.data.db.MovimentacaoTagCross
+import com.scholze.saldo.data.db.RecorrenciaTagCross
 import com.scholze.saldo.data.db.SaldoDatabase
 import com.scholze.saldo.data.db.toAnoMes
 import com.scholze.saldo.data.db.toDomain
@@ -15,6 +17,7 @@ import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.RecurrenceExpander
 import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.domain.TagSnapshot
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
@@ -85,7 +88,11 @@ interface SaldoRepository {
 
     suspend fun criarTag(nome: String, cor: Long): Long
     suspend fun renomearTag(id: Long, nome: String)
-    suspend fun excluirTag(id: Long)
+
+    /** Apaga a tag (os vínculos caem por CASCADE) e devolve o que [restaurarTag] precisa. */
+    suspend fun excluirTag(id: Long): TagSnapshot
+    suspend fun restaurarTag(snapshot: TagSnapshot)
+    suspend fun recolorirTag(id: Long, cor: Long)
 }
 
 class RoomSaldoRepository(
@@ -326,7 +333,24 @@ class RoomSaldoRepository(
 
     override suspend fun renomearTag(id: Long, nome: String) = tagDao.rename(id, nome)
 
-    override suspend fun excluirTag(id: Long) = tagDao.deleteById(id)
+    override suspend fun excluirTag(id: Long): TagSnapshot = db.withTransaction {
+        val tag = tagDao.todas().first { it.id == id }.toDomain()
+        val snapshot = TagSnapshot(
+            tag = tag,
+            movimentacaoIds = tagDao.movimentacoesDaTag(id),
+            recorrenciaIds = tagDao.recorrenciasDaTag(id),
+        )
+        tagDao.deleteById(id)
+        snapshot
+    }
+
+    override suspend fun restaurarTag(snapshot: TagSnapshot) = db.withTransaction {
+        tagDao.insertComId(snapshot.tag.toEntity())
+        snapshot.movimentacaoIds.forEach { tagDao.insertMovCross(MovimentacaoTagCross(it, snapshot.tag.id)) }
+        snapshot.recorrenciaIds.forEach { tagDao.insertRecCross(RecorrenciaTagCross(it, snapshot.tag.id)) }
+    }
+
+    override suspend fun recolorirTag(id: Long, cor: Long) = tagDao.recolor(id, cor)
 
     /**
      * Núcleo de [abrirMes]: expande todo template ativo em [mes] e marca o mês como materializado.

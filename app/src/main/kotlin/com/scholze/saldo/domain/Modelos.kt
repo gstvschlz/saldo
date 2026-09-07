@@ -9,6 +9,9 @@ enum class FiltroLedger(val rotulo: String) { TODAS("todas"), DIARIOS("diários"
 
 data class Tag(val id: Long = 0, val nome: String, val cor: Long)
 
+/** O que o "desfazer" de uma tag apagada precisa reinserir: a tag e as duas listas de vínculos. */
+data class TagSnapshot(val tag: Tag, val movimentacaoIds: List<Long>, val recorrenciaIds: List<Long>)
+
 /**
  * O que se lê no lugar de uma descrição em branco.
  *

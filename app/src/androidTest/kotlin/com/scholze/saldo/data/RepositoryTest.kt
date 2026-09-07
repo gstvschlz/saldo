@@ -425,4 +425,44 @@ class RepositoryTest {
         val junho = ProjectionEngine.movimentacoesDoMes(input, YearMonth.of(2026, 6))
         assertEquals(0, junho.size)
     }
+
+    // ---- tags: desfazer e cor (uso-diario-1) ----
+
+    @Test
+    fun excluirTagDevolveOSnapshotComOsVinculos() = runBlocking {
+        val id = repo.criarTag("mercado", 0xFF112233L)
+        val tag = Tag(id = id, nome = "mercado", cor = 0xFF112233L)
+        repo.criar(mov("2026-07-10", -80_00).copy(tags = listOf(tag)), RepetirOpcao.Nao)
+        repo.criar(mov("2026-07-15", -50_00).copy(tags = listOf(tag)), RepetirOpcao.TodoMes(15))
+
+        val snapshot = repo.excluirTag(id)
+
+        assertEquals(tag, snapshot.tag)
+        assertEquals(2, snapshot.movimentacaoIds.size)     // a avulsa e a instância de julho
+        assertEquals(1, snapshot.recorrenciaIds.size)
+        assertEquals(0, repo.tags.first().size)
+        assertEquals(true, linhas().all { it.tags.isEmpty() })
+    }
+
+    @Test
+    fun restaurarTagTrazAMesmaTagEOsVinculosDeVolta() = runBlocking {
+        val id = repo.criarTag("mercado", 0xFF112233L)
+        val tag = Tag(id = id, nome = "mercado", cor = 0xFF112233L)
+        repo.criar(mov("2026-07-10", -80_00).copy(tags = listOf(tag)), RepetirOpcao.Nao)
+        repo.criar(mov("2026-07-15", -50_00).copy(tags = listOf(tag)), RepetirOpcao.TodoMes(15))
+        val snapshot = repo.excluirTag(id)
+
+        repo.restaurarTag(snapshot)
+
+        assertEquals(listOf(tag), repo.tags.first())
+        assertEquals(true, linhas().all { it.tags == listOf(tag) })
+        assertEquals(listOf(tag), templates().single().tags)
+    }
+
+    @Test
+    fun recolorirTagTrocaSoACor() = runBlocking {
+        val id = repo.criarTag("mercado", 0xFF112233L)
+        repo.recolorirTag(id, 0xFF445566L)
+        assertEquals(Tag(id = id, nome = "mercado", cor = 0xFF445566L), repo.tags.first().single())
+    }
 }

@@ -115,9 +115,31 @@ interface TagDao {
     @Query("SELECT * FROM tags ORDER BY nome")
     fun observeAll(): Flow<List<TagEntity>>
 
+    /** Leitura única para dentro de transações — um Flow não participa da transação. */
+    @Query("SELECT * FROM tags ORDER BY nome")
+    suspend fun todas(): List<TagEntity>
+
     @Insert suspend fun insert(tag: TagEntity): Long
     @Query("UPDATE tags SET nome = :nome WHERE id = :id") suspend fun rename(id: Long, nome: String)
     @Query("DELETE FROM tags WHERE id = :id") suspend fun deleteById(id: Long)
+
+    @Query("UPDATE tags SET cor = :cor WHERE id = :id") suspend fun recolor(id: Long, cor: Long)
+
+    @Query("SELECT movimentacaoId FROM movimentacao_tags WHERE tagId = :tagId")
+    suspend fun movimentacoesDaTag(tagId: Long): List<Long>
+
+    @Query("SELECT recorrenciaId FROM recorrencia_tags WHERE tagId = :tagId")
+    suspend fun recorrenciasDaTag(tagId: Long): List<Long>
+
+    /** Reinsere com o id do snapshot — os vínculos apontam para ele. Conflito = já voltou. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertComId(tag: TagEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertMovCross(cross: MovimentacaoTagCross)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRecCross(cross: RecorrenciaTagCross)
 }
 
 @Dao
