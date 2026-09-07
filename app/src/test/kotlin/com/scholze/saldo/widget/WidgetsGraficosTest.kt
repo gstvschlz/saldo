@@ -28,6 +28,9 @@ class WidgetsGraficosTest {
     private val GRANDE = DpSize(250.dp, 110.dp)
     private val FAIXA = DpSize(250.dp, 60.dp)
 
+    /** O menor board que o launcher deixa montar: 2×2. */
+    private val PEQUENO = DpSize(110.dp, 110.dp)
+
     // ---------------------------------------------------------------- board
 
     private val board = BoardWidgetEstado.Pronto(
@@ -59,6 +62,20 @@ class WidgetsGraficosTest {
         setAppWidgetSize(GRANDE)
         provideComposable { BoardWidgetContent(board) }
         // O fixture tem três dias negativos, dois positivos e dois parados.
+        onAllNodes(hasContentDescription("dia em que saiu mais")).assertCountEquals(3)
+        onAllNodes(hasContentDescription("dia em que entrou mais")).assertCountEquals(2)
+        onAllNodes(hasContentDescription("dia sem movimentação")).assertCountEquals(2)
+    }
+
+    /**
+     * Em 2×2 o que encolhe é o quadradinho, não a grade: nenhum dia some e o nome do mês
+     * continua lá. É o que sustenta o `minResizeWidth` de 110dp no provider.
+     */
+    @Test
+    fun boardEncolhidoNaoPerdeNenhumDia() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(PEQUENO)
+        provideComposable { BoardWidgetContent(board) }
+        onNode(hasTestTag(TAG_BOARD_WIDGET_MES)).assertHasText("setembro")
         onAllNodes(hasContentDescription("dia em que saiu mais")).assertCountEquals(3)
         onAllNodes(hasContentDescription("dia em que entrou mais")).assertCountEquals(2)
         onAllNodes(hasContentDescription("dia sem movimentação")).assertCountEquals(2)

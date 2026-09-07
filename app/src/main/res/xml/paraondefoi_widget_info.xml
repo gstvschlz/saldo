@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    4x2: a barra 100% por tag mais as quatro maiores fatias. A largura importa mais que a
-    altura aqui — a barra e calculada em dp a partir da largura viva do widget.
+    Nasce 4x2 e encolhe ate 2x2 (minResize* abaixo de min*): no compacto o cabecalho empilha e
+    a lista cai para duas fatias. A largura importa mais que a altura aqui — a barra e
+    calculada em dp a partir da largura viva do widget.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="250dp"
+    android:minResizeWidth="110dp"
     android:minResizeHeight="110dp"
     android:maxResizeWidth="400dp"
     android:maxResizeHeight="220dp"

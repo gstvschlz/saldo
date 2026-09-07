@@ -128,6 +128,38 @@ class WidgetsNovosTest {
         onNode(hasText("comida")).assertExists()
     }
 
+    /** O estado carrega até quatro fatias; num 4×2 todas aparecem. */
+    private val quatroFatias = paraOndeFoi.copy(
+        fatias = listOf(
+            ParaOndeFoiEstado.Segmento("comida", 0xFFA6486B, 700_00, 0.44f),
+            ParaOndeFoiEstado.Segmento("moradia", 0xFFB95A2E, 600_00, 0.37f),
+            ParaOndeFoiEstado.Segmento("transporte", 0xFF4E6E58, 200_00, 0.12f),
+            ParaOndeFoiEstado.Segmento("sem tag", -1L, 100_00, 0.07f),
+        ),
+    )
+
+    @Test
+    fun paraOndeFoiGrandeMostraAsQuatroFatias() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(PARA_ONDE_FOI)
+        provideComposable { ParaOndeFoiWidgetContent(quatroFatias) }
+        onNode(hasText("transporte")).assertExists()
+        onNode(hasText("sem tag")).assertExists()
+    }
+
+    /**
+     * Em 2×2 ficam o total e a barra — que continua contando o mês inteiro — e a lista cai
+     * para duas fatias, que é o que cabe. É o que sustenta o `minResizeWidth` de 110dp.
+     */
+    @Test
+    fun paraOndeFoiEncolhidoCortaAListaEmDuas() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(PARA_ONDE_FOI_PEQUENO)
+        provideComposable { ParaOndeFoiWidgetContent(quatroFatias) }
+        onNode(hasTestTag(TAG_PARAONDEFOI_TOTAL)).assertHasText("R$ 1.600,00")
+        onNode(hasText("comida")).assertExists()
+        onNode(hasText("moradia")).assertExists()
+        onNode(hasText("transporte")).assertDoesNotExist()
+    }
+
     @Test
     fun paraOndeFoiSemSaidasDizIsso() = runGlanceAppWidgetUnitTest {
         setAppWidgetSize(PARA_ONDE_FOI)
@@ -158,6 +190,7 @@ class WidgetsNovosTest {
     private companion object {
         val ACAMINHO = DpSize(250.dp, 110.dp)
         val PARA_ONDE_FOI = DpSize(250.dp, 110.dp)
+        val PARA_ONDE_FOI_PEQUENO = DpSize(110.dp, 110.dp)
         val LANCAR = DpSize(110.dp, 40.dp)
     }
 }

@@ -54,7 +54,9 @@ estabelecimento existe enquanto a sugestão está na barra e vira a descrição 
 você tocar em "lançar"; se ignorar, morre com a notificação.
 
 **Sete widgets** de tela inicial: saldo, a caminho, para onde foi, lançar, board do mês,
-ritmo e poupança. Os que mostram dinheiro vêm mascarados por padrão — ligue em `mais →
-mostrar valores no widget`. O do board e o da poupança não têm o que mascarar: cor e
+ritmo e poupança. O board e o `para onde foi` nascem 4×2 mas encolhem até 2×2: o board
+diminui o quadradinho em vez de cortar dias, e o `para onde foi` empilha o cabeçalho e passa
+a listar duas fatias — a barra continua contando o mês inteiro. Os que mostram dinheiro vêm
+mascarados por padrão — ligue em `mais → mostrar valores no widget`. O do board e o da poupança não têm o que mascarar: cor e
 porcentagem não são número de conta. Lembretes locais (fatura vence amanhã, recorrência hoje,
 registrar gastos, fechamento do mês) em `mais → lembretes`; todos desligados por padrão.

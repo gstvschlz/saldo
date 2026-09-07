@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    4x2: cinco ou seis linhas de sete quadradinhos de 14dp, mais o nome do mes.
-    Abaixo de ~110dp a ultima semana nao cabe.
+    Nasce 4x2 e encolhe ate 2x2 (minResize* abaixo de min*): o conteudo mede a largura viva e
+    escolhe o lado do quadradinho, entao a grade inteira continua cabendo — so menor. A altura
+    nao desce de 110dp porque as seis semanas mais o nome do mes precisam disso, em qualquer
+    tamanho de celula.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="250dp"
+    android:minResizeWidth="110dp"
     android:minResizeHeight="110dp"
     android:maxResizeWidth="400dp"
     android:maxResizeHeight="220dp"

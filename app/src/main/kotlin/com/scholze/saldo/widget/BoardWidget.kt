@@ -2,13 +2,17 @@ package com.scholze.saldo.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -64,6 +68,8 @@ sealed interface BoardWidgetEstado {
  */
 class BoardWidget : GlanceAppWidget() {
 
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(PEQUENO, GRANDE))
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val estado = when (val carga = carregarWidget(context)) {
             Carga.SemOnboarding -> BoardWidgetEstado.SemOnboarding
@@ -79,6 +85,18 @@ class BoardWidget : GlanceAppWidget() {
             }
         }
         provideContent { BoardWidgetContent(estado) }
+    }
+
+    companion object {
+        /**
+         * 2×2. A grade não perde nenhum dia ao encolher — o que encolhe é o quadradinho, que
+         * o conteúdo calcula a partir da largura viva. É o piso: com menos de sete colunas de
+         * 8dp não sobra board, sobra ruído.
+         */
+        val PEQUENO = DpSize(110.dp, 110.dp)
+
+        /** 4×2, o tamanho com que o widget nasce. */
+        val GRANDE = DpSize(250.dp, 110.dp)
     }
 }
 
@@ -104,13 +122,21 @@ class BoardWidgetReceiver : GlanceAppWidgetReceiver() {
 @Composable
 fun BoardWidgetContent(estado: BoardWidgetEstado) {
     val mes = (estado as? BoardWidgetEstado.Pronto)?.mes ?: mesDeHoje()
+    val largura = LocalSize.current.width
+    val compacto = largura < BoardWidget.GRANDE.width
+    val margem = if (compacto) 10.dp else 14.dp
+    val vao = if (compacto) 2.dp else 3.dp
+    // Sete colunas e sete vãos (cada célula carrega o seu à direita) têm de caber na largura
+    // viva. O teto de 14dp é o board de sempre: um widget largo ganha ar à direita, não um
+    // tabuleiro de damas. O piso de 8dp é o ponto em que um quadradinho ainda é uma cor.
+    val lado = ((largura - margem * 2 - vao * 7) / 7).coerceIn(8.dp, 14.dp)
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(CoresWidget.fundo)
             .cornerRadius(16.dp)
             .clickable(abrirWidget(Destino.Saldos(mes, LocalDate.now().dayOfMonth)))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = margem, vertical = if (compacto) 8.dp else 10.dp),
     ) {
         when (estado) {
             BoardWidgetEstado.SemOnboarding -> AvisoBoard("toque para começar")
@@ -119,18 +145,18 @@ fun BoardWidgetContent(estado: BoardWidgetEstado) {
                 Text(
                     estado.mes.format(mesBoardWidget),
                     modifier = GlanceModifier.semantics { testTag = TAG_BOARD_WIDGET_MES },
-                    style = TextStyle(color = CoresWidget.secundario, fontSize = 12.sp),
+                    style = TextStyle(color = CoresWidget.secundario, fontSize = if (compacto) 11.sp else 12.sp),
                     maxLines = 1,
                 )
-                Box(GlanceModifier.padding(top = 6.dp)) {
+                Box(GlanceModifier.padding(top = if (compacto) 4.dp else 6.dp)) {
                     Column(modifier = GlanceModifier.fillMaxWidth()) {
                         estado.semanas.forEach { semana ->
                             Row(
-                                modifier = GlanceModifier.fillMaxWidth().padding(bottom = 3.dp),
+                                modifier = GlanceModifier.fillMaxWidth().padding(bottom = vao),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 semana.forEach { nivel ->
-                                    Box(GlanceModifier.padding(end = 3.dp)) { Celula(nivel) }
+                                    Box(GlanceModifier.padding(end = vao)) { Celula(nivel, lado) }
                                 }
                             }
                         }
@@ -142,19 +168,19 @@ fun BoardWidgetContent(estado: BoardWidgetEstado) {
 }
 
 /**
- * Uma célula de 14dp. `null` — dia de outro mês ou anterior ao saldo inicial — vira um vão
+ * Uma célula de [lado] dp. `null` — dia de outro mês ou anterior ao saldo inicial — vira um vão
  * transparente do mesmo tamanho, para as colunas continuarem alinhadas.
  */
 @Composable
-private fun Celula(nivel: Int?) {
+private fun Celula(nivel: Int?, lado: Dp) {
     if (nivel == null) {
-        Box(GlanceModifier.size(14.dp)) {}
+        Box(GlanceModifier.size(lado)) {}
         return
     }
     Box(
         GlanceModifier
-            .size(14.dp)
-            .cornerRadius(4.dp)
+            .size(lado)
+            .cornerRadius(if (lado < 12.dp) 3.dp else 4.dp)
             .background(CoresWidget.tomDoBoard(nivel))
             .semantics { contentDescription = descricaoDoNivel(nivel) },
     ) {}
