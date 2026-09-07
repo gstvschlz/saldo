@@ -355,18 +355,24 @@ internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit, onVerG
             }
             // Do que entrou, quanto foi guardado. Não é dinheiro: a privacidade não a esconde.
             mes.taxaGuardada?.let { taxa ->
+                // O alvo de toque (44 dp) fica no Box de fora, invisível; a pill pintada é a de
+                // dentro, do mesmo tamanho da "no mês" — o fundo não pode denunciar o alvo.
                 Box(
                     Modifier
-                        .sizeIn(minHeight = 44.dp)   // alvo de toque, sem inflar a pill visualmente
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
+                        .sizeIn(minHeight = 44.dp)
                         .clickable(onClick = onVerGuardado)
-                        .padding(horizontal = 11.dp, vertical = 5.dp)
                         .testTag(TAG_PILL_GUARDADO)
                         .semantics { contentDescription = "guardou $taxa% do que entrou" },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("guardou $taxa%", style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer)
+                    Text(
+                        "guardou $taxa%",
+                        Modifier
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
+                            .padding(horizontal = 11.dp, vertical = 5.dp),
+                        style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer,
+                    )
                 }
             }
         }
