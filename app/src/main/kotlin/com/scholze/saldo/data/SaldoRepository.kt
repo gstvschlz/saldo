@@ -62,18 +62,24 @@ interface SaldoRepository {
 
     /**
      * Uma avulsa vira mensal: cria o template a partir dela (começa no mês dela, no dia
-     * [diaDoMes]), liga a linha e semeia todo mês já materializado depois. A linha fica
-     * marcada como editada se a data dela não cai em [diaDoMes] — é o mesmo sinal que uma
-     * instância movida de dia carrega.
+     * [diaDoMes]), liga a linha e semeia todo mês já materializado depois. Os campos visíveis
+     * da linha (descrição, valor, data, natureza, tags) são gravados primeiro, na mesma
+     * transação — exatamente como [editar] faz para [EscopoEdicao.SO_ESTE_MES] — então o que o
+     * usuário mudou na sheet chega ao banco mesmo quando ele também mexeu em "repetir" e a UI
+     * não chama [editar] à parte. A linha fica marcada como editada se a data dela não cai em
+     * [diaDoMes] — é o mesmo sinal que uma instância movida de dia carrega.
      */
     suspend fun converterEmRecorrencia(mov: Movimentacao, diaDoMes: Int)
 
     /**
-     * "repetir: não" numa instância: a série acaba no mês anterior ao de [mov], a linha vira
-     * avulsa, as instâncias não editadas do mês seguinte em diante somem. Se a série acabaria
-     * antes de começar, o template é apagado.
+     * "repetir: não" numa instância: grava primeiro os campos visíveis de [mov] na linha (mesma
+     * transação, como [converterEmRecorrencia] faz), desliga-a do template e apaga as
+     * instâncias não editadas do mês seguinte a [mesDaSerie] em diante. A série acaba no mês
+     * ANTERIOR a [mesDaSerie] — o mês a que a instância pertencia quando a sheet foi aberta, não
+     * `mov.data`, que pode já ter sido movida para outro mês no mesmo formulário antes de salvar.
+     * Se a série acabaria antes de começar, o template é apagado.
      */
-    suspend fun encerrarRecorrencia(mov: Movimentacao)
+    suspend fun encerrarRecorrencia(mov: Movimentacao, mesDaSerie: YearMonth)
 
     /** Desliga o template e apaga as instâncias não editadas do mês seguinte a [dia] em diante. */
     suspend fun pausar(recorrenciaId: Long, dia: LocalDate)
@@ -258,6 +264,19 @@ class RoomSaldoRepository(
     override suspend fun converterEmRecorrencia(mov: Movimentacao, diaDoMes: Int) = db.withTransaction {
         require(mov.id != 0L) { "movimentação virtual — abra o mês antes de converter" }
         require(mov.recorrenciaId == null) { "a movimentação já é de uma recorrência" }
+        val editada = mov.data.dayOfMonth != diaDoMes
+        // Mesmo UPDATE campo a campo que `editar(SO_ESTE_MES)` faz: a UI não chama `editar` à
+        // parte, então é aqui que a descrição/valor/data/natureza/tags digitados na sheet
+        // chegam ao banco.
+        movDao.updateCampos(
+            id = mov.id,
+            descricao = mov.descricao,
+            valorCentavos = mov.valorCentavos,
+            dataEpochDay = mov.data.toEpochDay(),
+            natureza = mov.natureza.name,
+            editadaManualmente = editada,
+        )
+        movDao.setTags(mov.id, mov.tags.map { it.id })
         val inicio = YearMonth.from(mov.data)
         val recId = recDao.insert(
             Recorrencia(
@@ -266,7 +285,7 @@ class RoomSaldoRepository(
             ).toEntity(),
         )
         recDao.setTags(recId, mov.tags.map { it.id })
-        movDao.ligarARecorrencia(mov.id, recId, editada = mov.data.dayOfMonth != diaDoMes)
+        movDao.ligarARecorrencia(mov.id, recId, editada = editada)
         val template = Recorrencia(
             id = recId, descricao = mov.descricao, valorCentavos = mov.valorCentavos,
             natureza = mov.natureza, diaDoMes = diaDoMes, inicio = inicio, tags = mov.tags,
@@ -280,16 +299,33 @@ class RoomSaldoRepository(
         if (inicio !in marcados) materializar(inicio, excetoRecorrenciaId = recId)
     }
 
-    override suspend fun encerrarRecorrencia(mov: Movimentacao) = db.withTransaction {
+    override suspend fun encerrarRecorrencia(mov: Movimentacao, mesDaSerie: YearMonth) = db.withTransaction {
         require(mov.id != 0L) { "movimentação virtual — abra o mês antes de encerrar" }
         val recId = requireNotNull(mov.recorrenciaId) { "a movimentação não é de uma recorrência" }
-        val mes = YearMonth.from(mov.data)
+        // Mesmo UPDATE campo a campo que `editar(SO_ESTE_MES)` e `converterEmRecorrencia` fazem
+        // — `desligarDaRecorrencia`, abaixo, zera `editadaManualmente` de novo; o valor passado
+        // aqui não sobrevive, só os outros campos.
+        movDao.updateCampos(
+            id = mov.id,
+            descricao = mov.descricao,
+            valorCentavos = mov.valorCentavos,
+            dataEpochDay = mov.data.toEpochDay(),
+            natureza = mov.natureza.name,
+            // `mov.recorrenciaId` já foi conferido não-nulo acima (`recId`): esta linha É uma
+            // instância, então sempre "editada" — o valor não sobrevive de qualquer forma,
+            // `desligarDaRecorrencia` zera de novo a seguir.
+            editadaManualmente = true,
+        )
+        movDao.setTags(mov.id, mov.tags.map { it.id })
         val template = requireNotNull(
             recDao.todos().firstOrNull { it.rec.id == recId },
         ) { "recorrência $recId não existe" }.toDomain()
         movDao.desligarDaRecorrencia(mov.id)
-        movDao.deleteInstanciasNaoEditadasAPartirDe(recId, mes.plusMonths(1).atDay(1).toEpochDay())
-        val fim = mes.minusMonths(1)
+        // `mesDaSerie` é o mês a que a instância pertencia quando a sheet abriu — não
+        // `mov.data`, que pode ter sido movida para outro mês no mesmo formulário. Usar
+        // `mov.data` aqui cortaria (ou apagaria) o mês errado da série.
+        movDao.deleteInstanciasNaoEditadasAPartirDe(recId, mesDaSerie.plusMonths(1).atDay(1).toEpochDay())
+        val fim = mesDaSerie.minusMonths(1)
         if (fim < template.inicio) {
             // A série acabaria antes de começar: o template inteiro some. Uma instância
             // editada à mão (fora do alcance do delete acima) manteria `recorrenciaId`

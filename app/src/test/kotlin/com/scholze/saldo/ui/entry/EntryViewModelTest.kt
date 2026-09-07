@@ -9,6 +9,7 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.RepetirOpcao
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -36,7 +37,7 @@ class EntryViewModelTest {
         val chamadas = mutableListOf<String>()
         override suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao) { chamadas += "editar:$escopo" }
         override suspend fun converterEmRecorrencia(mov: Movimentacao, diaDoMes: Int) { chamadas += "converter:$diaDoMes" }
-        override suspend fun encerrarRecorrencia(mov: Movimentacao) { chamadas += "encerrar" }
+        override suspend fun encerrarRecorrencia(mov: Movimentacao, mesDaSerie: YearMonth) { chamadas += "encerrar:$mesDaSerie" }
         override suspend fun criar(mov: Movimentacao, repetir: RepetirOpcao) { chamadas += "criar" }
     }
 
@@ -54,7 +55,9 @@ class EntryViewModelTest {
         vm.definirRepetir(RepetirOpcao.TodoMes(10))
         vm.salvar(EscopoEdicao.SO_ESTE_MES) {}
         advanceUntilIdle()
-        assertEquals(listOf("editar:SO_ESTE_MES", "converter:10"), repo.chamadas)
+        // Uma única transação: `converterEmRecorrencia` grava os campos da linha sozinha, não
+        // há mais um `editar` separado antes dela.
+        assertEquals(listOf("converter:10"), repo.chamadas)
     }
 
     @Test
@@ -65,7 +68,25 @@ class EntryViewModelTest {
         vm.definirRepetir(RepetirOpcao.Nao)
         vm.salvar(EscopoEdicao.SO_ESTE_MES) {}
         advanceUntilIdle()
-        assertEquals(listOf("editar:SO_ESTE_MES", "encerrar"), repo.chamadas)
+        // Idem: uma única transação, e o mês da série é o de `instancia.data` (2026-09-10).
+        assertEquals(listOf("encerrar:2026-09"), repo.chamadas)
+    }
+
+    /**
+     * O usuário moveu a data da instância no mesmo formulário em que desligou "repetir": o mês
+     * da série gravado tem de continuar sendo o de ORIGEM (setembro, o snapshot tirado ao abrir
+     * a edição), não o de destino (dezembro, o que ficou no campo "data").
+     */
+    @Test
+    fun mensalQueParaComADataMovidaEncerraNoMesOriginal() = runTest(dispatcher) {
+        val repo = RepoEspiao(input)
+        val vm = EntryViewModel(repo)
+        vm.iniciarEdicao(instancia, diaDoTemplate = 10) // instancia.data = 2026-09-10
+        vm.definirData(LocalDate.parse("2026-12-25"))
+        vm.definirRepetir(RepetirOpcao.Nao)
+        vm.salvar(EscopoEdicao.SO_ESTE_MES) {}
+        advanceUntilIdle()
+        assertEquals(listOf("encerrar:2026-09"), repo.chamadas)
     }
 
     @Test
@@ -74,6 +95,22 @@ class EntryViewModelTest {
         val vm = EntryViewModel(repo)
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         vm.definirCentavos(130_00)
+        vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
+        advanceUntilIdle()
+        assertEquals(listOf("editar:DAQUI_EM_DIANTE"), repo.chamadas)
+    }
+
+    /**
+     * Mudar só o dia do "todo mês" (continua `TodoMes`, nos dois lados) não é conversão nem
+     * encerramento — é uma edição normal do template. O dia em si ainda não chega ao
+     * repositório por aqui (fatia "dados-1"); o que este teste fixa é o roteamento.
+     */
+    @Test
+    fun trocarODiaDoTodoMesRoteiaParaEditar() = runTest(dispatcher) {
+        val repo = RepoEspiao(input)
+        val vm = EntryViewModel(repo)
+        vm.iniciarEdicao(instancia, diaDoTemplate = 10)
+        vm.definirRepetir(RepetirOpcao.TodoMes(15))
         vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
         advanceUntilIdle()
         assertEquals(listOf("editar:DAQUI_EM_DIANTE"), repo.chamadas)

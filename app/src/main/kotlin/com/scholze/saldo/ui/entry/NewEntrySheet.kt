@@ -335,6 +335,10 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
     }
 
     if (escolhendoRepetir) {
+        // O dia do TEMPLATE, não o da linha: numa instância clamped (29/30/31 num mês curto) a
+        // data cai num dia diferente do template, e reoferecer "todo mês" com `state.data.dayOfMonth`
+        // silenciosamente encolheria a série inteira para o dia clamped.
+        val diaTemplate = (state.repetir as? RepetirOpcao.TodoMes)?.dia ?: state.data.dayOfMonth
         AlertDialog(
             onDismissRequest = { escolhendoRepetir = false },
             title = { Text("repetir") },
@@ -351,11 +355,11 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                             .padding(vertical = 12.dp),
                     )
                     Text(
-                        "todo mês no dia ${state.data.dayOfMonth}",
+                        "todo mês no dia $diaTemplate",
                         Modifier
                             .fillMaxWidth()
                             .clickable {
-                                vm.definirRepetir(RepetirOpcao.TodoMes(state.data.dayOfMonth))
+                                vm.definirRepetir(RepetirOpcao.TodoMes(diaTemplate))
                                 escolhendoRepetir = false
                             }
                             .padding(vertical = 12.dp),

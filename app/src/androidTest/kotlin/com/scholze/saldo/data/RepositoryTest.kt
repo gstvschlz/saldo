@@ -359,13 +359,32 @@ class RepositoryTest {
         assertEquals(31, templates().single().diaDoMes)
     }
 
+    /**
+     * A sheet muda descrição/valor no mesmo formulário em que liga "todo mês": não há um
+     * `editar` separado antes de `converterEmRecorrencia`, então é ela quem tem de gravar os
+     * dois — na linha E no template recém-criado.
+     */
+    @Test
+    fun converterGravaDescricaoEValorMudadosNaLinhaENoTemplate() = runBlocking {
+        repo.criar(mov("2026-07-10", -80_00), RepetirOpcao.Nao)
+        val avulsa = linhas().single()
+        repo.converterEmRecorrencia(avulsa.copy(descricao = "academia", valorCentavos = -90_00), diaDoMes = 10)
+
+        val julho = linhas().single()
+        assertEquals("academia", julho.descricao)
+        assertEquals(-90_00L, julho.valorCentavos)
+        val t = templates().single()
+        assertEquals("academia", t.descricao)
+        assertEquals(-90_00L, t.valorCentavos)
+    }
+
     @Test
     fun encerrarRecorrenciaDesligaALinhaEApagaAsFuturas() = runBlocking {
         repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
         repo.abrirMes(YearMonth.of(2026, 8))
         repo.abrirMes(YearMonth.of(2026, 9))
         val agosto = linhas().first { it.data == LocalDate.parse("2026-08-15") }
-        repo.encerrarRecorrencia(agosto)
+        repo.encerrarRecorrencia(agosto, mesDaSerie = YearMonth.of(2026, 8))
 
         val t = templates().single()
         assertEquals(YearMonth.of(2026, 7), t.fim)
@@ -376,10 +395,43 @@ class RepositoryTest {
         assertEquals(false, ago.editadaManualmente)
     }
 
+    /**
+     * O usuário moveu a data da instância de setembro para dezembro no mesmo formulário em que
+     * desligou "repetir". A série tem de acabar em agosto — o mês ANTERIOR ao de origem
+     * (setembro) — e outubro/novembro (que ficariam "depois" de dezembro, se o corte usasse
+     * `mov.data`) têm de sumir; usar `mov.data` (dezembro) cortaria a série no mês errado e
+     * deixaria outubro/novembro vivos.
+     */
+    @Test
+    fun encerrarUsaOMesDaSerieQuandoADataFoiMovidaNoMesmoFormulario() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.abrirMes(YearMonth.of(2026, 8))
+        repo.abrirMes(YearMonth.of(2026, 9))
+        repo.abrirMes(YearMonth.of(2026, 10))
+        repo.abrirMes(YearMonth.of(2026, 11))
+        repo.abrirMes(YearMonth.of(2026, 12))
+        val setembro = linhas().first { it.data == LocalDate.parse("2026-09-15") }
+
+        repo.encerrarRecorrencia(
+            setembro.copy(data = LocalDate.parse("2026-12-15")),
+            mesDaSerie = YearMonth.of(2026, 9),
+        )
+
+        val t = templates().single()
+        assertEquals(YearMonth.of(2026, 8), t.fim)
+        assertEquals(
+            listOf("2026-07-15", "2026-08-15", "2026-12-15"),
+            linhas().map { it.data.toString() },
+        )
+        val dez = linhas().first { it.data == LocalDate.parse("2026-12-15") }
+        assertEquals(null, dez.recorrenciaId)                   // virou avulsa
+        assertEquals(false, dez.editadaManualmente)
+    }
+
     @Test
     fun encerrarNoPrimeiroMesApagaOTemplate() = runBlocking {
         repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
-        repo.encerrarRecorrencia(linhas().single())
+        repo.encerrarRecorrencia(linhas().single(), mesDaSerie = YearMonth.of(2026, 7))
         assertEquals(0, templates().size)
         val unica = linhas().single()
         assertEquals(null, unica.recorrenciaId)
@@ -474,7 +526,7 @@ class RepositoryTest {
         repo.editar(agosto.copy(valorCentavos = -99_00), EscopoEdicao.SO_ESTE_MES)
 
         val julho = linhas().first { it.data == LocalDate.parse("2026-07-15") }
-        repo.encerrarRecorrencia(julho)
+        repo.encerrarRecorrencia(julho, mesDaSerie = YearMonth.of(2026, 7))
 
         assertEquals(0, templates().size)
         val ago = linhas().first { it.data == LocalDate.parse("2026-08-15") }

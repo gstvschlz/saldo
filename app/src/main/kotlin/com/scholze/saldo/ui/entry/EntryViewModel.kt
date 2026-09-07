@@ -199,15 +199,17 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
             )
             when {
                 f.editandoId == null -> repo.criar(mov, f.repetir)
-                // Os campos gravam primeiro, sempre SÓ nesta linha; depois a recorrência muda
-                // de estado. Uma avulsa que vira mensal leva os valores novos para o template.
+                // `converterEmRecorrencia`/`encerrarRecorrencia` gravam os campos da linha
+                // sozinhos, na mesma transação — não há um `editar` separado para chamar antes.
+                // Uma avulsa que vira mensal leva os valores novos para o template.
                 f.repetirOriginal is RepetirOpcao.Nao && f.repetir is RepetirOpcao.TodoMes -> {
-                    repo.editar(mov, EscopoEdicao.SO_ESTE_MES)
                     repo.converterEmRecorrencia(mov, f.repetir.dia)
                 }
                 f.repetirOriginal is RepetirOpcao.TodoMes && f.repetir is RepetirOpcao.Nao -> {
-                    repo.editar(mov, EscopoEdicao.SO_ESTE_MES)
-                    repo.encerrarRecorrencia(mov)
+                    // O mês da SÉRIE é o de quando a sheet abriu (`original`), não `f.data`: o
+                    // usuário pode ter movido a data no mesmo formulário antes de desligar o
+                    // "repetir", e a série tem de acabar no mês de origem, não no de destino.
+                    repo.encerrarRecorrencia(mov, YearMonth.from(original.value!!.data))
                 }
                 else -> repo.editar(mov, escopo)
             }
