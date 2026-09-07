@@ -13,11 +13,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -132,6 +138,12 @@ fun DiaBadge(dia: Int, diaSemana: String, destacado: Boolean, modifier: Modifier
     }
 }
 
+/** O campo de busca que toma a barra; os testes o acham por aqui. */
+const val TAG_CAMPO_BUSCA = "topbar:busca"
+
+/** O que a barra precisa para virar um campo de busca: o texto, quem o muda, e o `×`. */
+data class BuscaTopBar(val texto: String, val onTexto: (String) -> Unit, val onFechar: () -> Unit)
+
 /**
  * A barra superior grande do M3: título alinhado à ESQUERDA e em corpo grande, que é
  * a diferença mais visível de todas contra a barra centrada do HIG.
@@ -142,6 +154,11 @@ fun DiaBadge(dia: Int, diaSemana: String, destacado: Boolean, modifier: Modifier
  *
  * [mostrarSetas] `false` some com as duas: a janela do board é de 12 meses e não tem
  * mês anterior nem próximo para onde ir.
+ *
+ * [podeAvancar] `false` desenha a seta direita esmaecida e sem clique: o board para em hoje,
+ * e um controle que não faz nada precisa ao menos parecer que não faz.
+ *
+ * [busca] não nulo troca a barra inteira por um campo de texto com foco: é a busca do ledger.
  */
 @Composable
 fun SaldoTopBar(
@@ -150,9 +167,29 @@ fun SaldoTopBar(
     onProximo: () -> Unit,
     modifier: Modifier = Modifier,
     mostrarSetas: Boolean = true,
+    podeAvancar: Boolean = true,
+    busca: BuscaTopBar? = null,
     acoes: @Composable (() -> Unit)? = null,
 ) {
     val colors = SaldoTheme.colors
+    if (busca != null) {
+        val foco = remember { FocusRequester() }
+        LaunchedEffect(Unit) { foco.requestFocus() }
+        Row(
+            modifier.fillMaxWidth().background(colors.background).padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = busca.texto,
+                onValueChange = busca.onTexto,
+                modifier = Modifier.weight(1f).focusRequester(foco).testTag(TAG_CAMPO_BUSCA),
+                placeholder = { Text("descrição, tag ou valor") },
+                singleLine = true,
+            )
+            IconeRedondo(SaldoIcon.FECHAR, "fechar busca", busca.onFechar)
+        }
+        return
+    }
     Column(modifier.fillMaxWidth().background(colors.background)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -161,7 +198,7 @@ fun SaldoTopBar(
             if (mostrarSetas) IconeRedondo(SaldoIcon.CHEVRON_LEFT, "mês anterior", onAnterior)
             Box(Modifier.weight(1f))
             acoes?.invoke()
-            if (mostrarSetas) IconeRedondo(SaldoIcon.CHEVRON_RIGHT, "próximo mês", onProximo)
+            if (mostrarSetas) IconeRedondo(SaldoIcon.CHEVRON_RIGHT, "próximo mês", onProximo, habilitado = podeAvancar)
         }
         Text(
             titulo,
@@ -174,16 +211,27 @@ fun SaldoTopBar(
 
 /** Um alvo redondo de 44dp — o tamanho de toque do M3 para ícone sem rótulo. */
 @Composable
-fun IconeRedondo(icon: SaldoIcon, descricao: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun IconeRedondo(
+    icon: SaldoIcon,
+    descricao: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    habilitado: Boolean = true,
+) {
     val colors = SaldoTheme.colors
     Box(
         modifier
             .size(44.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick)
+            .clickable(enabled = habilitado, onClick = onClick)
             .semantics { contentDescription = descricao },
         contentAlignment = Alignment.Center,
     ) {
-        SaldoGlyph(icon, colors.secondaryLabel, size = 22.dp, strokeWidth = 2.dp)
+        SaldoGlyph(
+            icon,
+            if (habilitado) colors.secondaryLabel else colors.separator,
+            size = 22.dp,
+            strokeWidth = 2.dp,
+        )
     }
 }

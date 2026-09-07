@@ -2,10 +2,16 @@ package com.scholze.saldo.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.ui.theme.SaldoTheme
 import org.junit.Assert.assertEquals
@@ -73,5 +79,37 @@ class M3Test {
         rule.onNodeWithContentDescription("próximo mês").performClick()
         assertEquals(1, anterior)
         assertEquals(1, proximo)
+    }
+
+    @Test
+    fun setaDeAvancarDesabilitadaNaoTemClique() {
+        var avancos = 0
+        rule.setContent {
+            SaldoTheme { SaldoTopBar(titulo = "setembro 2026", onAnterior = {}, onProximo = { avancos++ }, podeAvancar = false) }
+        }
+        rule.onNodeWithContentDescription("próximo mês").assertIsNotEnabled()
+        rule.onNodeWithContentDescription("próximo mês").performClick()
+        assertEquals(0, avancos)
+    }
+
+    @Test
+    fun modoBuscaTrocaABarraPeloCampo() {
+        var texto = ""
+        var fechou = false
+        rule.setContent {
+            SaldoTheme {
+                SaldoTopBar(
+                    titulo = "setembro 2026", onAnterior = {}, onProximo = {},
+                    busca = BuscaTopBar(texto = texto, onTexto = { texto = it }, onFechar = { fechou = true }),
+                )
+            }
+        }
+        rule.onNodeWithText("setembro 2026").assertDoesNotExist()
+        rule.onAllNodesWithContentDescription("mês anterior").assertCountEquals(0)
+        rule.onNodeWithTag(TAG_CAMPO_BUSCA).assertIsFocused()
+        rule.onNodeWithTag(TAG_CAMPO_BUSCA).performTextInput("uber")
+        assertEquals("uber", texto)
+        rule.onNodeWithContentDescription("fechar busca").performClick()
+        assertEquals(true, fechou)
     }
 }

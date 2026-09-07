@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
  */
 enum class SaldoIcon {
     SALDOS, TOTAIS, TAGS, MAIS, PLUS, CHEVRON_LEFT, CHEVRON_RIGHT, BACKSPACE, RECORRENTE,
-    OLHO, OLHO_RISCADO, CHECK, GRADE,
+    OLHO, OLHO_RISCADO, CHECK, GRADE, LISTA, LUPA, FECHAR,
 }
 
 @Composable
@@ -169,6 +169,25 @@ fun SaldoGlyph(
                 if (icon == SaldoIcon.OLHO_RISCADO) {
                     drawLine(tint, Offset(w * 0.18f, h * 0.82f), Offset(w * 0.82f, h * 0.18f), sw, StrokeCap.Round)
                 }
+            }
+            // Três linhas iguais: uma lista.
+            SaldoIcon.LISTA -> {
+                listOf(0.30f, 0.50f, 0.70f).forEach { fy ->
+                    drawLine(tint, Offset(w * 0.18f, h * fy), Offset(w * 0.82f, h * fy), sw, StrokeCap.Round)
+                }
+            }
+            // Um círculo e o cabo: a lupa.
+            SaldoIcon.LUPA -> {
+                val r = w * 0.26f
+                val c = Offset(w * 0.44f, h * 0.44f)
+                drawCircle(tint, radius = r, center = c, style = stroke)
+                val d = r * 0.7071f
+                drawLine(tint, Offset(c.x + d, c.y + d), Offset(w * 0.82f, h * 0.82f), sw, StrokeCap.Round)
+            }
+            // Duas diagonais: o ×.
+            SaldoIcon.FECHAR -> {
+                drawLine(tint, Offset(w * 0.25f, h * 0.25f), Offset(w * 0.75f, h * 0.75f), sw, StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.75f, h * 0.25f), Offset(w * 0.25f, h * 0.75f), sw, StrokeCap.Round)
             }
         }
     }
