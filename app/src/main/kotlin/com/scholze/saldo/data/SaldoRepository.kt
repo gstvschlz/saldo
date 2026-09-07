@@ -75,16 +75,17 @@ interface SaldoRepository {
      */
     suspend fun encerrarRecorrencia(mov: Movimentacao)
 
-    /** Desliga o template e apaga as instâncias não editadas do mês seguinte a [hoje] em diante. */
-    suspend fun pausar(recorrenciaId: Long, hoje: LocalDate)
+    /** Desliga o template e apaga as instâncias não editadas do mês seguinte a [dia] em diante. */
+    suspend fun pausar(recorrenciaId: Long, dia: LocalDate)
 
     /**
-     * Liga o template de volta. Os meses entre a pausa e [hoje] que nunca foram abertos são
+     * Liga o template de volta. Os meses entre a pausa e [dia] que nunca foram abertos são
      * materializados ANTES de religar — ficam vazios para este template, e é isso que
-     * "pausada" quer dizer. O mês de [hoje], se já estava materializado sem instância, ganha
-     * a dele.
+     * "pausada" quer dizer. Todo mês já materializado a partir de [dia] (inclusive) que ficou
+     * sem instância deste template — a pausa apagou a dele, ou ele nunca teve uma — ganha a
+     * sua de volta.
      */
-    suspend fun retomar(recorrenciaId: Long, hoje: LocalDate)
+    suspend fun retomar(recorrenciaId: Long, dia: LocalDate)
 
     suspend fun criarTag(nome: String, cor: Long): Long
     suspend fun renomearTag(id: Long, nome: String)
@@ -193,7 +194,9 @@ class RoomSaldoRepository(
             EscopoEdicao.DAQUI_EM_DIANTE -> {
                 val recId = requireNotNull(mov.recorrenciaId) { "escopo DAQUI_EM_DIANTE exige recorrência" }
                 val mesInicio = YearMonth.from(mov.data)
-                val templateAntigo = recDao.todos().first { it.rec.id == recId }.toDomain()
+                val templateAntigo = requireNotNull(
+                    recDao.todos().firstOrNull { it.rec.id == recId },
+                ) { "recorrência $recId não existe" }.toDomain()
                 // Congela o passado ANTES de mexer no template: meses entre o início da recorrência
                 // e o mês da edição que nunca foram abertos ainda são expandidos virtualmente, e
                 // passariam a render os valores NOVOS. Materializá-los com os valores antigos
@@ -240,7 +243,9 @@ class RoomSaldoRepository(
             when (escopo) {
                 EscopoExclusao.SO_FUTURAS -> {
                     movDao.deleteInstanciasNaoEditadasAPartirDe(recorrenciaId, aPartirDe.atDay(1).toEpochDay())
-                    val template = recDao.todos().first { it.rec.id == recorrenciaId }.toDomain()
+                    val template = requireNotNull(
+                        recDao.todos().firstOrNull { it.rec.id == recorrenciaId },
+                    ) { "recorrência $recorrenciaId não existe" }.toDomain()
                     recDao.update(template.copy(fim = aPartirDe.minusMonths(1)).toEntity())
                 }
                 EscopoExclusao.TODAS -> {
@@ -279,17 +284,28 @@ class RoomSaldoRepository(
         require(mov.id != 0L) { "movimentação virtual — abra o mês antes de encerrar" }
         val recId = requireNotNull(mov.recorrenciaId) { "a movimentação não é de uma recorrência" }
         val mes = YearMonth.from(mov.data)
-        val template = recDao.todos().first { it.rec.id == recId }.toDomain()
+        val template = requireNotNull(
+            recDao.todos().firstOrNull { it.rec.id == recId },
+        ) { "recorrência $recId não existe" }.toDomain()
         movDao.desligarDaRecorrencia(mov.id)
         movDao.deleteInstanciasNaoEditadasAPartirDe(recId, mes.plusMonths(1).atDay(1).toEpochDay())
         val fim = mes.minusMonths(1)
-        if (fim < template.inicio) recDao.deleteById(recId)
-        else recDao.update(template.copy(fim = fim).toEntity())
+        if (fim < template.inicio) {
+            // A série acabaria antes de começar: o template inteiro some. Uma instância
+            // editada à mão (fora do alcance do delete acima) manteria `recorrenciaId`
+            // apontando para um id que não existe mais — desliga todas antes de apagar.
+            movDao.desligarTodasDaRecorrencia(recId)
+            recDao.deleteById(recId)
+        } else {
+            recDao.update(template.copy(fim = fim).toEntity())
+        }
     }
 
-    override suspend fun pausar(recorrenciaId: Long, hoje: LocalDate) = db.withTransaction {
-        val template = recDao.todos().first { it.rec.id == recorrenciaId }.toDomain()
-        val mesHoje = YearMonth.from(hoje)
+    override suspend fun pausar(recorrenciaId: Long, dia: LocalDate) = db.withTransaction {
+        val template = requireNotNull(
+            recDao.todos().firstOrNull { it.rec.id == recorrenciaId },
+        ) { "recorrência $recorrenciaId não existe" }.toDomain()
+        val mesHoje = YearMonth.from(dia)
         // Congela o passado ANTES de desligar, como `editar(DAQUI_EM_DIANTE)` faz: um mês entre
         // o início e hoje que nunca foi aberto ainda é expandido virtualmente, e com o template
         // inativo a expansão sumiria — a academia de fevereiro deixaria de ter existido.
@@ -299,23 +315,30 @@ class RoomSaldoRepository(
         recDao.definirAtiva(recorrenciaId, false)
     }
 
-    override suspend fun retomar(recorrenciaId: Long, hoje: LocalDate) = db.withTransaction {
-        val template = recDao.todos().first { it.rec.id == recorrenciaId }.toDomain()
-        val mesHoje = YearMonth.from(hoje)
+    override suspend fun retomar(recorrenciaId: Long, dia: LocalDate) = db.withTransaction {
+        val template = requireNotNull(
+            recDao.todos().firstOrNull { it.rec.id == recorrenciaId },
+        ) { "recorrência $recorrenciaId não existe" }.toDomain()
+        val mesHoje = YearMonth.from(dia)
         // O passado até a pausa já está congelado (ver `pausar`); o que sobra sem abrir é o
         // intervalo da pausa. Materializá-lo com o template AINDA inativo deixa esses meses
         // vazios para ele — as outras recorrências ganham as suas linhas — e é isso que
         // "pausada" quer dizer.
         congelarAte(template.inicio, mesHoje.minusMonths(1))
         recDao.definirAtiva(recorrenciaId, true)
-        val marcados = mesDao.todos().map { it.toYearMonth() }.toSet()
         val ativo = template.copy(ativa = true)
-        if (mesHoje in marcados) {
-            val existentes = movDao.countInstancias(
-                recorrenciaId, mesHoje.atDay(1).toEpochDay(), mesHoje.atEndOfMonth().toEpochDay(),
-            )
-            if (existentes == 0) RecurrenceExpander.ocorrenciaNoMes(ativo, mesHoje)?.let { insertComTags(it) }
-        }
+        // Não é só `mesHoje` que pode ter ficado sem instância: um mês DEPOIS dele também pode
+        // já estar materializado (totais/ledger navegam pra frente e chamam `abrirMes`), e a
+        // pausa apagou a instância não editada de lá. Sem re-semear todos, esses meses ficariam
+        // permanentemente vazios para este template — religar não bastaria para trazê-lo de volta.
+        mesDao.todos().map { it.toYearMonth() }
+            .filter { it >= mesHoje }
+            .forEach { m ->
+                val existentes = movDao.countInstancias(
+                    recorrenciaId, m.atDay(1).toEpochDay(), m.atEndOfMonth().toEpochDay(),
+                )
+                if (existentes == 0) RecurrenceExpander.ocorrenciaNoMes(ativo, m)?.let { insertComTags(it) }
+            }
     }
 
     /** Materializa todo mês de [de] a [ate] (inclusive) que ainda não foi aberto, com os templates como estão. */
@@ -334,7 +357,7 @@ class RoomSaldoRepository(
     override suspend fun renomearTag(id: Long, nome: String) = tagDao.rename(id, nome)
 
     override suspend fun excluirTag(id: Long): TagSnapshot = db.withTransaction {
-        val tag = tagDao.todas().first { it.id == id }.toDomain()
+        val tag = requireNotNull(tagDao.porId(id)) { "tag $id não existe" }.toDomain()
         val snapshot = TagSnapshot(
             tag = tag,
             movimentacaoIds = tagDao.movimentacoesDaTag(id),

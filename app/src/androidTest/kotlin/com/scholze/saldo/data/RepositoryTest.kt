@@ -327,6 +327,10 @@ class RepositoryTest {
     fun converterEmRecorrenciaLigaALinhaESemeiaOsMesesAbertosDepois() = runBlocking {
         repo.criar(mov("2026-07-10", -80_00), RepetirOpcao.Nao)
         repo.abrirMes(YearMonth.of(2026, 8))   // agosto aberto ANTES de converter
+        // Julho também aberto: pinça o `>` estrito de `marcados.filter { it > inicio }` — um
+        // `>=` por engano semearia OUTRA linha do template em julho, além da que já é a própria
+        // instância convertida.
+        repo.abrirMes(YearMonth.of(2026, 7))
         val avulsa = linhas().single()
         repo.converterEmRecorrencia(avulsa, diaDoMes = 10)
 
@@ -336,6 +340,10 @@ class RepositoryTest {
         val julho = linhas().first { it.data == LocalDate.parse("2026-07-10") }
         assertEquals(t.id, julho.recorrenciaId)
         assertEquals(avulsa.id, julho.id)                       // a mesma linha, não uma cópia
+        assertEquals(
+            1,
+            linhas().count { it.data == LocalDate.parse("2026-07-10") },
+        )
         assertEquals(
             listOf("2026-07-10", "2026-08-10"),
             linhas().map { it.data.toString() },
@@ -426,6 +434,78 @@ class RepositoryTest {
         assertEquals(0, junho.size)
     }
 
+    /**
+     * `retomar` reabre só `mesHoje`, mas um mês DEPOIS dele também pode já estar materializado
+     * — totais/ledger navegam pra frente e chamam `abrirMes` — e a pausa apagou a instância não
+     * editada de lá. Sem re-semear todos os meses `>= mesHoje`, setembro ficaria vazio para
+     * sempre.
+     */
+    @Test
+    fun retomarReseiaTodoMesMaterializadoDepoisDaPausaNaoSoOMesCorrente() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.abrirMes(YearMonth.of(2026, 9))                    // setembro aberto; agosto, não
+        val id = templates().single().id
+
+        repo.pausar(id, hoje)                                   // hoje = 2026-07-20
+        repo.retomar(id, hoje)
+
+        assertEquals(true, templates().single().ativa)
+        val setembro = linhas().filter { YearMonth.from(it.data) == YearMonth.of(2026, 9) }
+        assertEquals(listOf("2026-09-15"), setembro.map { it.data.toString() })
+
+        // agosto nunca foi aberto: sem linha no banco, mas a expansão virtual continua ativa
+        val input = repo.ledger.first()
+        assertEquals(false, YearMonth.of(2026, 8) in input.mesesMaterializados)
+        val agosto = ProjectionEngine.movimentacoesDoMes(input, YearMonth.of(2026, 8))
+        assertEquals(1, agosto.size)
+    }
+
+    /**
+     * `encerrarRecorrencia` no primeiro mês apaga o template inteiro. Uma instância editada à
+     * mão em outro mês não é tocada pelo `deleteInstanciasNaoEditadasAPartirDe` (que só apaga as
+     * não editadas) e sobreviveria com `recorrenciaId` apontando para um template que não existe
+     * mais, se o template não desligasse todas as instâncias antes de sumir.
+     */
+    @Test
+    fun encerrarApagandoOTemplateNaoDeixaInstanciaEditadaOrfa() = runBlocking {
+        repo.criar(mov("2026-07-15", -50_00), RepetirOpcao.TodoMes(15))
+        repo.abrirMes(YearMonth.of(2026, 8))
+        val agosto = linhas().first { it.data == LocalDate.parse("2026-08-15") }
+        repo.editar(agosto.copy(valorCentavos = -99_00), EscopoEdicao.SO_ESTE_MES)
+
+        val julho = linhas().first { it.data == LocalDate.parse("2026-07-15") }
+        repo.encerrarRecorrencia(julho)
+
+        assertEquals(0, templates().size)
+        val ago = linhas().first { it.data == LocalDate.parse("2026-08-15") }
+        assertEquals(null, ago.recorrenciaId)
+        assertEquals(-99_00L, ago.valorCentavos)                // a linha em si sobrevive intacta
+    }
+
+    @Test
+    fun pausarAntesDoInicioDoTemplateNaoCriaLinhaNemQuebra() = runBlocking {
+        // Início em setembro, "hoje" (2026-07-20) ainda não chegou lá.
+        repo.criar(mov("2026-09-15", -50_00), RepetirOpcao.TodoMes(15))
+        val id = templates().single().id
+
+        repo.pausar(id, hoje)
+
+        assertEquals(false, templates().single().ativa)
+        assertEquals(emptyList<String>(), linhas().map { it.data.toString() })
+    }
+
+    @Test
+    fun retomarPreservaOFimDoTemplate() = runBlocking {
+        repo.criar(mov("2026-05-15", -50_00), RepetirOpcao.TodoMes(15))
+        val id = templates().single().id
+        repo.excluirRecorrencia(id, YearMonth.of(2026, 9), EscopoExclusao.SO_FUTURAS) // fim = agosto
+
+        repo.pausar(id, hoje)                                   // hoje = 2026-07-20
+        repo.retomar(id, hoje)
+
+        assertEquals(YearMonth.of(2026, 8), templates().single().fim)
+    }
+
     // ---- tags: desfazer e cor (uso-diario-1) ----
 
     @Test
@@ -434,12 +514,14 @@ class RepositoryTest {
         val tag = Tag(id = id, nome = "mercado", cor = 0xFF112233L)
         repo.criar(mov("2026-07-10", -80_00).copy(tags = listOf(tag)), RepetirOpcao.Nao)
         repo.criar(mov("2026-07-15", -50_00).copy(tags = listOf(tag)), RepetirOpcao.TodoMes(15))
+        val idsEsperados = linhas().map { it.id }.toSet()         // a avulsa e a instância de julho
+        val recIdEsperado = templates().single().id
 
         val snapshot = repo.excluirTag(id)
 
         assertEquals(tag, snapshot.tag)
-        assertEquals(2, snapshot.movimentacaoIds.size)     // a avulsa e a instância de julho
-        assertEquals(1, snapshot.recorrenciaIds.size)
+        assertEquals(idsEsperados, snapshot.movimentacaoIds.toSet())
+        assertEquals(listOf(recIdEsperado), snapshot.recorrenciaIds)
         assertEquals(0, repo.tags.first().size)
         assertEquals(true, linhas().all { it.tags.isEmpty() })
     }

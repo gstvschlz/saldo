@@ -76,6 +76,14 @@ interface MovimentacaoDao {
     @Query("UPDATE movimentacoes SET recorrenciaId = NULL, editadaManualmente = 0 WHERE id = :id")
     suspend fun desligarDaRecorrencia(id: Long)
 
+    /**
+     * Mesma coisa que [desligarDaRecorrencia], mas para TODAS as instâncias da recorrência de
+     * uma vez — usado quando o template é apagado, para nenhuma linha (nem as editadas à mão,
+     * que sobrevivem à limpeza normal) ficar apontando para um id que não existe mais.
+     */
+    @Query("UPDATE movimentacoes SET recorrenciaId = NULL, editadaManualmente = 0 WHERE recorrenciaId = :id")
+    suspend fun desligarTodasDaRecorrencia(id: Long)
+
     @Query("UPDATE movimentacoes SET recorrenciaId = :recorrenciaId, editadaManualmente = :editada WHERE id = :id")
     suspend fun ligarARecorrencia(id: Long, recorrenciaId: Long, editada: Boolean)
 }
@@ -118,6 +126,9 @@ interface TagDao {
     /** Leitura única para dentro de transações — um Flow não participa da transação. */
     @Query("SELECT * FROM tags ORDER BY nome")
     suspend fun todas(): List<TagEntity>
+
+    @Query("SELECT * FROM tags WHERE id = :id")
+    suspend fun porId(id: Long): TagEntity?
 
     @Insert suspend fun insert(tag: TagEntity): Long
     @Query("UPDATE tags SET nome = :nome WHERE id = :id") suspend fun rename(id: Long, nome: String)
