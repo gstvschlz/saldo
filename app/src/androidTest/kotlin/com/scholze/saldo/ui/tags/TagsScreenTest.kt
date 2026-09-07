@@ -75,7 +75,7 @@ class TagsScreenTest {
     }
 
     @Test
-    fun osBotoesDaLinhaTem48dp() {
+    fun osBotoesDaLinhaTemOAlvoDoM3() {
         runBlocking { container.repository.criarTag("mercado", PaletaTags.cores[0]) }
         montar()
         rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("editar mercado").fetchSemanticsNodes().isNotEmpty() }

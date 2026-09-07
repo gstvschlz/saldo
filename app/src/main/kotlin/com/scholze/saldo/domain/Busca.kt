@@ -15,7 +15,8 @@ import kotlin.math.abs
 object Busca {
 
     private val marcas = Regex("\\p{M}+")
-    private val dinheiro = Regex("^\\d{1,9}([.,]\\d{1,2})?$")
+    // Depois do separador: 1-2 dígitos são centavos ("16,90"); 3 são milhar ("1.690" = 1690).
+    private val dinheiro = Regex("^\\d{1,9}([.,]\\d{1,3})?$")
 
     fun normalizar(s: String): String =
         Normalizer.normalize(s.trim().lowercase(), Normalizer.Form.NFD).replace(marcas, "")
@@ -37,15 +38,23 @@ object Busca {
     }
 
     /** Os valores em centavos que uma consulta numérica pode significar; vazio se não é número. */
-    private fun centavosDe(q: String): Set<Long> {
+    internal fun centavosDe(q: String): Set<Long> {
         if (!dinheiro.matches(q)) return emptySet()
         val partes = q.split(',', '.')
-        val reais = partes[0].toLong()
         val fracao = partes.getOrNull(1)
-        return if (fracao != null) {
-            setOf(reais * 100 + fracao.padEnd(2, '0').toLong())
-        } else {
-            setOf(reais * 100, reais)
+        return when {
+            fracao == null -> lidoComoInteiro(partes[0])
+            // Três dígitos depois do separador é milhar, não centavos: "1.690" é o mesmo
+            // número que "1690" — quem digitou o ponto lembrou do valor, não da vírgula de
+            // centavos. Junta os dois pedaços e lê como um inteiro só, dos dois jeitos de novo.
+            fracao.length == 3 -> lidoComoInteiro(partes[0] + fracao)
+            else -> setOf(partes[0].toLong() * 100 + fracao.padEnd(2, '0').toLong())
         }
+    }
+
+    /** "340" pode ser R$ 340,00 OU 340 centavos — as duas leituras, como um valor sem separador. */
+    private fun lidoComoInteiro(digitos: String): Set<Long> {
+        val n = digitos.toLong()
+        return setOf(n * 100, n)
     }
 }

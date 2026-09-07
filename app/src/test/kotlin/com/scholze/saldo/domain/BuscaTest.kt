@@ -41,6 +41,13 @@ class BuscaTest {
         assertEquals(listOf(5L), busca("1690"))
     }
 
+    @Test fun `valor com separador de milhar`() {
+        // "1.690" não é "16,90 com typo": três dígitos depois do ponto é milhar, o mesmo
+        // número que "1690" — as duas leituras (R$ 1.690,00 e R$ 16,90) continuam valendo.
+        assertEquals(setOf(169000L, 1690L), Busca.centavosDe("1.690"))
+        assertEquals(listOf(5L), busca("1.690"))
+    }
+
     @Test fun `o futuro nao entra`() = assertEquals(emptyList<Long>(), busca("aluguel"))
 
     @Test fun `ordem decrescente por data`() = assertEquals(listOf(3L, 2L, 5L, 1L), busca("r"))

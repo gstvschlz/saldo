@@ -28,7 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * A aba `saldos` é o board, e só ele: o ledger deixou de ser vista.
+ * A aba `saldos` tem três vistas: a lista é uma vista, o board é a home.
  *
  * O que este teste protege é a home — que ela abra na grade, que as setas troquem de mês,
  * que a seta de avançar não passe do mês corrente, e que quem chega por deep link pedindo
@@ -157,6 +157,9 @@ class VistaSaldosTest {
             rule.onNodeWithTag(tagCelula(dia1), useUnmergedTree = true).performClick()
             rule.onNodeWithTag(TAG_ADD).performClick()
             val rotulo = dia1.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.forLanguageTag("pt-BR"))).replace(".", "")
+            // O `EntryViewModel.state` pode não ter alcançado o formulário ainda quando a sheet
+            // termina de deslizar — sem esperar, a asserção corre atrás da composição.
+            rule.waitUntil(5_000) { rule.onAllNodesWithText(rotulo, substring = true).fetchSemanticsNodes().isNotEmpty() }
             // Duas ocorrências legítimas: a linha "data" e o rodapé "saldo de … ficará em".
             rule.onAllNodesWithText(rotulo, substring = true).onFirst().assertIsDisplayed()
         }

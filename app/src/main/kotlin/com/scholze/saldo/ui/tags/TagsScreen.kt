@@ -70,7 +70,7 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
         ) {
             if (state.tags.isEmpty()) {
                 Text(
-                    "uma tag é uma etiqueta: mercado, casa, lazer. Toque numa tag para ver só ela.",
+                    "uma tag é uma etiqueta: mercado, casa, lazer. toque numa tag para ver só ela.",
                     style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
                 )
             }

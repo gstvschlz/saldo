@@ -101,8 +101,8 @@ data class ACaminho(
 )
 
 /**
- * [ativas]: templates ativos e não encerrados no mês visto (inclui os que só começam depois);
- * [entramMes]/[saemMes] somam só os vigentes no mês (`inicio ≤ mês`).
+ * [ativas]: templates cujo fim não passou (pausados incluídos; inclui os que só começam
+ * depois); [entramMes]/[saemMes] somam só os vigentes no mês (`ativo && inicio ≤ mês`).
  */
 data class ResumoRecorrencias(
     val ativas: List<Recorrencia>,

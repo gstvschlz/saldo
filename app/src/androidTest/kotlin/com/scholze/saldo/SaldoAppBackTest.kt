@@ -48,6 +48,17 @@ class SaldoAppBackTest {
     /** Espresso.pressBack lança se a activity fechar; o `runCatching` distingue "saiu" de "ficou". */
     private fun voltar(): Boolean = runCatching { Espresso.pressBack() }.isSuccess
 
+    /**
+     * O campo de busca abre o teclado; um `pressBack` disparado com o IME ainda escondendo é
+     * engolido por ele antes de chegar ao `BackHandler` do Compose — flakiness pura, não um
+     * segundo estado de "voltar" de verdade. Fecha o teclado e espera o Compose assentar antes.
+     */
+    private fun fecharTecladoEVoltar(): Boolean {
+        Espresso.closeSoftKeyboard()
+        rule.waitForIdle()
+        return voltar()
+    }
+
     @Test
     fun deUmaAbaOVoltarVaiParaSaldos() {
         app()
@@ -137,7 +148,7 @@ class SaldoAppBackTest {
             rule.onNodeWithContentDescription("buscar").performClick()
             rule.onNodeWithText("saldos").performClick()
             esperarBoard()
-            voltar()
+            fecharTecladoEVoltar()
             rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
             assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
         }
@@ -159,9 +170,9 @@ class SaldoAppBackTest {
             rule.onNodeWithContentDescription("buscar").performClick()
             rule.onNodeWithText("totais").performClick()
             esperarTexto("totais")
-            assertEquals(true, voltar())
+            assertEquals(true, fecharTecladoEVoltar())
             esperarBoard()
-            voltar()
+            fecharTecladoEVoltar()
             rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
             assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
         }

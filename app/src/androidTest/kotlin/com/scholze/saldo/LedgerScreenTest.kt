@@ -130,6 +130,11 @@ class LedgerScreenTest {
         abrirLista()
         rule.onNodeWithContentDescription("buscar").performClick()
         rule.onNodeWithTag(TAG_CAMPO_BUSCA).performTextInput("zzz")
+        // Espera a árvore de resultados (e o "nada com") existirem antes de contar dentro dela —
+        // sem isso, a contagem de "uber" podia rodar antes da recomposição do filtro e passar
+        // por sorte, não porque a busca de fato não achou nada.
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag(TAG_RESULTADOS).fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("nada com \"zzz\"").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("nada com \"zzz\"").assertIsDisplayed()
         // Sem isto o teste passaria mesmo se a busca ignorasse o filtro e devolvesse tudo:
         // "nada com" e uma lista cheia por baixo não são contraditórios para o Compose.
