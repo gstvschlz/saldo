@@ -35,6 +35,13 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** Os segmentos da aba totais. */
+enum class SegmentoTotais(val rotulo: String) {
+    MES("mês"),
+    TENDENCIA("tendência"),
+    A_CAMINHO("a caminho"),
+}
+
 data class TotaisUiState(
     val mesAtual: YearMonth,
     /** `null` enquanto o primeiro `LedgerInput` não chegou do banco. */
@@ -64,6 +71,20 @@ class TotaisViewModel(
 
     /** Leitura síncrona: os testes conferem o saved state sem coletar o Flow. */
     val mesAtualAgora: YearMonth get() = mesAtual.value
+
+    // Sobrevive à morte do processo, como o mês: a pill "guardou N%" do hero precisa que o
+    // segmento já esteja em tendência quando a aba totais reabrir.
+    private val _segmento = MutableStateFlow(
+        savedState.get<String>(KEY_SEGMENTO)?.let { s -> SegmentoTotais.entries.firstOrNull { it.name == s } } ?: SegmentoTotais.MES,
+    )
+
+    /** O segmento visto; estado de navegação, como o mês — sobrevive à morte do processo. */
+    val segmento: StateFlow<SegmentoTotais> = _segmento
+
+    fun selecionarSegmento(s: SegmentoTotais) {
+        _segmento.value = s
+        savedState[KEY_SEGMENTO] = s.name
+    }
 
     val state: StateFlow<TotaisUiState> = combine(repo.ledger, mesAtual) { input, mes ->
         TotaisUiState(
@@ -117,6 +138,7 @@ class TotaisViewModel(
     companion object {
         private const val TAG = "saldo"
         private const val KEY_MES = "totais.mes"
+        private const val KEY_SEGMENTO = "totais.segmento"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer { TotaisViewModel(container.repository, createSavedStateHandle()) }

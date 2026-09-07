@@ -16,9 +16,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
@@ -45,13 +42,6 @@ import java.time.format.DateTimeFormatter
 // sem import) — reutilizados por SegmentoTendencia.kt e, futuramente, pelas Tasks 6 e 7.
 private val diaMes = DateTimeFormatter.ofPattern("d MMM", ptBr)
 
-/** Os segmentos da aba totais; a seleção é estado de tela (`rememberSaveable`), não de ViewModel. */
-enum class SegmentoTotais(val rotulo: String) {
-    MES("mês"),
-    TENDENCIA("tendência"),
-    A_CAMINHO("a caminho"),
-}
-
 const val TAG_SEGMENTO_TOTAIS = "totais:segmento"
 
 @Composable
@@ -64,10 +54,12 @@ fun TotaisScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by vm.state.collectAsState()
+    val segmento by vm.segmento.collectAsState()
     TotaisContent(
         state, vm::mesAnterior, vm::proximoMes,
         onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, onIrParaMes = vm::irPara,
         onIrParaDia = onIrParaDia, onAbrirRecorrencias = onAbrirRecorrencias,
+        segmento = segmento, onSegmento = vm::selecionarSegmento,
         modifier = modifier,
     )
 }
@@ -83,6 +75,8 @@ fun TotaisContent(
     onIrParaMes: (YearMonth) -> Unit = {},
     onIrParaDia: (YearMonth, Int) -> Unit = { _, _ -> },
     onAbrirRecorrencias: () -> Unit = {},
+    segmento: SegmentoTotais,
+    onSegmento: (SegmentoTotais) -> Unit,
 ) {
     val colors = SaldoTheme.colors
     val t = state.totais
@@ -127,11 +121,10 @@ fun TotaisContent(
                 )
             }
 
-            var segmento by rememberSaveable { mutableStateOf(SegmentoTotais.MES) }
             FiltroChips(
                 opcoes = SegmentoTotais.entries.map { it.rotulo },
                 selecionado = segmento.ordinal,
-                onSelect = { segmento = SegmentoTotais.entries[it] },
+                onSelect = { onSegmento(SegmentoTotais.entries[it]) },
                 modifier = Modifier.testTag(TAG_SEGMENTO_TOTAIS),
             )
 
@@ -177,7 +170,7 @@ fun TotaisContent(
                         pontos, state.mesAtual,
                         onMes = { mes ->
                             onIrParaMes(mes)
-                            segmento = SegmentoTotais.MES
+                            onSegmento(SegmentoTotais.MES)
                         },
                     )
                 }

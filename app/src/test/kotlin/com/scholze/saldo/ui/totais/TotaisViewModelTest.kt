@@ -40,4 +40,13 @@ class TotaisViewModelTest {
         val outro = TotaisViewModel(RepositorioFixo(input), saved)
         assertEquals(YearMonth.of(2026, 12), outro.mesAtualAgora)
     }
+
+    @Test
+    fun oSegmentoSobreviveNoSavedState() {
+        val saved = SavedStateHandle()
+        val vm = TotaisViewModel(RepositorioFixo(input), saved)
+        vm.selecionarSegmento(SegmentoTotais.TENDENCIA)
+        val outro = TotaisViewModel(RepositorioFixo(input), saved)
+        assertEquals(SegmentoTotais.TENDENCIA, outro.segmento.value)
+    }
 }

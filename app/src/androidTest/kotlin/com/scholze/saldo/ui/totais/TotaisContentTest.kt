@@ -2,6 +2,10 @@ package com.scholze.saldo.ui.totais
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
@@ -169,11 +173,13 @@ class TotaisContentTest {
         rule.setContent {
             SaldoTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = oculto)) {
+                    var segmento by rememberSaveable { mutableStateOf(SegmentoTotais.MES) }
                     TotaisContent(
                         state, {}, {},
                         onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao,
                         onIrParaMes = onIrParaMes, onIrParaDia = onIrParaDia,
                         onAbrirRecorrencias = onAbrirRecorrencias,
+                        segmento = segmento, onSegmento = { segmento = it },
                     )
                 }
             }
@@ -314,7 +320,11 @@ class TotaisContentTest {
         restorationTester.setContent {
             SaldoTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = false)) {
-                    TotaisContent(TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia), {}, {})
+                    var segmento by rememberSaveable { mutableStateOf(SegmentoTotais.MES) }
+                    TotaisContent(
+                        TotaisUiState(YearMonth.of(2026, 7), totais, insights = insights, tendencia = tendencia), {}, {},
+                        segmento = segmento, onSegmento = { segmento = it },
+                    )
                 }
             }
         }
