@@ -135,6 +135,12 @@ object Importers {
             // Tolerante a um tema gravado por uma versão futura do enum, como o SettingsStore.
             tema = s.textoOuNulo("tema")?.let { v -> Tema.entries.find { it.name == v } } ?: Tema.SISTEMA,
             widgetMostrarValores = s.optBoolean("widgetMostrarValores", false),
+            // Ausente = o padrão; fora de faixa = o padrão também. A MESMA regra do
+            // `SettingsStore`, e não um `coerceIn`: aparar 250 para 100 inventaria uma meta que
+            // ninguém escolheu, e aparar −5 para 0 desligaria a meta em nome do usuário.
+            metaGuardarPercent = s.optInt("metaGuardarPercent", PADRAO_META_GUARDAR)
+                .takeIf { it in 0..100 } ?: PADRAO_META_GUARDAR,
+            assinaturasDispensadas = s.textos("assinaturasDispensadas").toSet(),
             lembretes = LembretesConfig(
                 faturaAmanha = l.optBoolean("faturaAmanha", false),
                 recorrenciaHoje = l.optBoolean("recorrenciaHoje", false),

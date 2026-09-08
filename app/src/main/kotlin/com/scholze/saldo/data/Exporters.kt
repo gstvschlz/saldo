@@ -111,6 +111,10 @@ object Exporters {
         put("comecarOculto", s.comecarOculto)
         put("tema", s.tema.name)
         put("widgetMostrarValores", s.widgetMostrarValores)
+        put("metaGuardarPercent", s.metaGuardarPercent)
+        // Ordenado: um Set não tem ordem, e duas exportações do mesmo estado têm de dar o mesmo
+        // texto — é isso que faz a ida e volta ser comparável no teste.
+        put("assinaturasDispensadas", JSONArray(s.assinaturasDispensadas.sorted()))
         put(
             "lembretes",
             JSONObject().apply {

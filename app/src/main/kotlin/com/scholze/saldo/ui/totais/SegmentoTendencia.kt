@@ -60,6 +60,8 @@ fun SegmentoTendencia(
     mesDestacado: YearMonth,
     onMes: (YearMonth) -> Unit,
     modifier: Modifier = Modifier,
+    /** A meta de guardar, em %; `0` = sem meta e nenhuma régua no gráfico. */
+    metaGuardarPercent: Int = 0,
 ) {
     val colors = SaldoTheme.colors
     // Mesmo mapeamento série → cor usado dentro do Canvas de TrendChart — uma fonte só, para a
@@ -123,11 +125,13 @@ fun SegmentoTendencia(
             )
             if (!poucosMeses) {
                 // A taxa deixa de ser só o número deste mês e do anterior: seis barras mostram
-                // se ela está subindo ou se aquele mês bom foi um acidente.
+                // se ela está subindo ou se aquele mês bom foi um acidente — e a régua tracejada
+                // diz onde fica a meta que o usuário escreveu.
                 PoupancaBars(
                     pontos,
                     mesDestacado,
                     Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                    metaPercent = metaGuardarPercent,
                 )
             } else {
                 PrecisaDeMaisUmMes(96.dp)

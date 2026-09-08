@@ -83,9 +83,17 @@ class SaldoApplication : Application() {
         container = AppContainer(this)
         Notificacoes.criarCanal(this)
         NotificacaoSugestao.criarCanal(this)
-        // Rede de segurança (KEEP): normalmente os trabalhos já existem — o WorkManager sobrevive
-        // ao reboot — mas depois de "limpar dados" ou de um restore eles precisam voltar.
+        // Duas corrotinas, e não uma: o escopo é um `SupervisorJob`, então uma falha no repintar
+        // não pode levar junto o (re)agendamento dos lembretes e do backup — que é a rede de
+        // segurança de todo restore e de todo "limpar dados".
+        //
+        // Fora da thread principal de propósito: uma `onCreate` que bloqueasse até o `UPDATE`
+        // terminar atrasaria a abertura do app por um dado que nenhuma tela precisa naquele
+        // instante. As tags chegam às telas por um `Flow`, então o repintar recompõe sozinho.
+        container.scope.launch { container.repository.aplicarPaletaV2() }
         container.scope.launch {
+            // Rede de segurança (KEEP): normalmente os trabalhos já existem — o WorkManager
+            // sobrevive ao reboot — mas depois de "limpar dados" ou de um restore precisam voltar.
             val s = container.settings.settings.first()
             container.lembretesScheduler.agendar(s.lembretes, ExistingWorkPolicy.KEEP)
             container.backupScheduler.agendar(s.backup, ExistingWorkPolicy.KEEP)

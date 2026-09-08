@@ -190,4 +190,22 @@ class ExportersTest {
         assertEquals("data;descricao;valor_centavos;natureza;tags;recorrente", linhas[0])
         assertEquals(listOf("2026-07-05;mercado;-8000;DIARIO;;false", "2026-08-10;aluguel;-169000;DIARIO;;true"), linhas.drop(1))
     }
+
+    // ---- meta e dispensadas no arquivo (arrumacao-1) ----
+
+    @Test
+    fun jsonLevaAMetaEAsDispensadas() {
+        val d = dump().copy(
+            settings = settings.copy(
+                metaGuardarPercent = 35,
+                assinaturasDispensadas = setOf("spotify", "netflix"),
+            ),
+        )
+        val s = JSONObject(Exporters.json(d)).getJSONObject("settings")
+        assertEquals(35, s.getInt("metaGuardarPercent"))
+        // Ordenado: um Set não tem ordem, e um arquivo que muda de conteúdo a cada exportação sem
+        // nada ter mudado é impossível de comparar.
+        val arr = s.getJSONArray("assinaturasDispensadas")
+        assertEquals(listOf("netflix", "spotify"), (0 until arr.length()).map { arr.getString(it) })
+    }
 }

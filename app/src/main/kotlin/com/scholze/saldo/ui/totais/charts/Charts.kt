@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -234,33 +235,77 @@ fun PoupancaBars(
     destaque: YearMonth?,
     modifier: Modifier = Modifier,
     altura: Dp = 40.dp,
+    /** A meta de guardar, em %; `0` = sem meta e nenhuma régua. */
+    metaPercent: Int = 0,
 ) {
     val colors = SaldoTheme.colors
-    val alturas = remember(pontos) {
-        ChartMath.alturas(pontos.map { (it.taxaPoupanca ?: 0).toLong() })
+    val (alturas, fracaoMeta) = remember(pontos, metaPercent) {
+        ChartMath.alturasComReferencia(
+            pontos.map { (it.taxaPoupanca ?: 0).toLong() },
+            metaPercent.toLong(),
+        )
     }
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
-        pontos.forEachIndexed { i, ponto ->
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    ponto.taxaPoupanca?.let { "$it%" } ?: "—",
-                    style = SaldoTheme.type.caption,
-                    color = if (ponto.mes == destaque) colors.label else colors.secondaryLabel,
-                )
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(if (ponto.taxaPoupanca == null) 0.dp else pisoSeNaoZero(alturas[i], altura, 2.dp))
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(if (ponto.mes == destaque) colors.balance else colors.separator),
-                )
-                Text(
-                    ponto.mes.format(mesCurtoChart).removeSuffix("."),
-                    style = SaldoTheme.type.caption,
-                    color = colors.secondaryLabel,
-                )
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            pontos.forEachIndexed { i, ponto ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        ponto.taxaPoupanca?.let { "$it%" } ?: "—",
+                        style = SaldoTheme.type.caption,
+                        color = if (ponto.mes == destaque) colors.label else colors.secondaryLabel,
+                    )
+                    // A caixa da barra tem altura FIXA agora: é sobre ela que a régua é desenhada,
+                    // e sem uma origem comum cada coluna traçaria a linha numa altura diferente.
+                    // De brinde, os rótulos de mês passam a se alinhar entre si.
+                    Box(
+                        Modifier.fillMaxWidth().height(altura),
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(if (ponto.taxaPoupanca == null) 0.dp else pisoSeNaoZero(alturas[i], altura, 2.dp))
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (ponto.mes == destaque) colors.balance else colors.separator),
+                        )
+                        if (metaPercent > 0) ReguaDaMeta(fracaoMeta, colors.balance.copy(alpha = 0.55f))
+                    }
+                    Text(
+                        ponto.mes.format(mesCurtoChart).removeSuffix("."),
+                        style = SaldoTheme.type.caption,
+                        color = colors.secondaryLabel,
+                    )
+                }
             }
         }
+        if (metaPercent > 0) {
+            // O rótulo na ponta, uma vez: repeti-lo por coluna seria seis vezes a mesma palavra.
+            Text(
+                "meta $metaPercent%",
+                Modifier.align(Alignment.End),
+                style = SaldoTheme.type.caption,
+                color = colors.secondaryLabel,
+            )
+        }
+    }
+}
+
+/** A régua da meta: uma linha tracejada na altura [fracao] (0 = base, 1 = topo) da caixa. */
+@Composable
+private fun ReguaDaMeta(fracao: Float, cor: Color) {
+    Canvas(Modifier.fillMaxSize()) {
+        val y = size.height * (1f - fracao.coerceIn(0f, 1f))
+        drawLine(
+            color = cor,
+            start = Offset(0f, y),
+            end = Offset(size.width, y),
+            strokeWidth = 1.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+        )
     }
 }
 

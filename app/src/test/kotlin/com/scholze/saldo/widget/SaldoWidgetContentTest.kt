@@ -98,6 +98,70 @@ class SaldoWidgetContentTest {
         onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou 20%")
     }
 
+    // ---- a meta no widget (arrumacao-1) ----
+
+    /** A regra inteira num predicado: o composable só escolhe entre duas cores a partir dele. */
+    @Test
+    fun comMetaBatidaEValoresAMostraACorMuda() =
+        assertEquals(
+            true,
+            pronto.copy(mostrarValores = true, taxaGuardada = 22, metaGuardarPercent = 20).metaBatidaVisivel,
+        )
+
+    /** Valor escondido é meta escondida: a cor não pode contar o que o `••%` esconde. */
+    @Test
+    fun comMetaBatidaEValoresMascaradosACorNaoMuda() =
+        assertEquals(
+            false,
+            pronto.copy(mostrarValores = false, taxaGuardada = 22, metaGuardarPercent = 20).metaBatidaVisivel,
+        )
+
+    @Test
+    fun semMetaACorNuncaMuda() =
+        assertEquals(
+            false,
+            pronto.copy(mostrarValores = true, taxaGuardada = 99, metaGuardarPercent = 0).metaBatidaVisivel,
+        )
+
+    @Test
+    fun abaixoDaMetaACorNaoMuda() =
+        assertEquals(
+            false,
+            pronto.copy(mostrarValores = true, taxaGuardada = 19, metaGuardarPercent = 20).metaBatidaVisivel,
+        )
+
+    /** Exatamente na meta já é bater: `>=`, não `>`. */
+    @Test
+    fun exatamenteNaMetaJaBateu() =
+        assertEquals(
+            true,
+            pronto.copy(mostrarValores = true, taxaGuardada = 20, metaGuardarPercent = 20).metaBatidaVisivel,
+        )
+
+    @Test
+    fun semTaxaACorNaoMuda() =
+        assertEquals(
+            false,
+            pronto.copy(mostrarValores = true, taxaGuardada = null, metaGuardarPercent = 20).metaBatidaVisivel,
+        )
+
+    /** E o texto continua o mesmo, batendo a meta ou não. */
+    @Test
+    fun aMetaNaoMudaOTextoMascarado() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(SaldoWidget.LARGO)
+        provideComposable { SaldoWidgetContent(pronto.copy(taxaGuardada = 22, metaGuardarPercent = 20)) }
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou ••%")
+    }
+
+    @Test
+    fun aMetaNaoMudaOTextoRevelado() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(SaldoWidget.LARGO)
+        provideComposable {
+            SaldoWidgetContent(pronto.copy(mostrarValores = true, taxaGuardada = 22, metaGuardarPercent = 20))
+        }
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou 22%")
+    }
+
     /** Pina os extras que o widget manda contra o que `MainActivity`/`Destino.de` esperam ler. */
     @Test
     fun paraParametrosLevaOsExtrasQueMainActivityEspera() {

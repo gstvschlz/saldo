@@ -35,6 +35,20 @@ object ChartMath {
     }
 
     /**
+     * Como [alturas], mas com [referencia] **dentro** da escala: devolve as alturas de [valores] e
+     * a altura da própria referência.
+     *
+     * A referência entra na escala em vez de ser normalizada por fora porque senão uma meta maior
+     * que o maior mês desenharia a régua FORA do gráfico — exatamente no caso em que ela mais
+     * importa (nenhum mês bateu a meta). Com ela dentro, as barras encolhem e a régua cabe, que é a
+     * leitura certa: "falta esta distância toda".
+     */
+    fun alturasComReferencia(valores: List<Long>, referencia: Long): Pair<List<Float>, Float> {
+        val todas = alturas(valores + referencia)
+        return todas.dropLast(1) to todas.last()
+    }
+
+    /**
      * Um valor > 0 nunca ocupa menos que [piso] do espaço disponível ([cheio]) — do contrário vira
      * um traço subpixel que lê como "sem dado" (um dia sem gasto e um dia com R$ 1 não podem
      * parecer iguais). Zero não desenha nada. O piso é limitado por [cheio]: numa barra ou canvas

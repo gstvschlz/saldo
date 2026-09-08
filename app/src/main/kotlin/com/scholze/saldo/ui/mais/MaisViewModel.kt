@@ -117,6 +117,10 @@ class MaisViewModel(
     fun definirComecarOculto(v: Boolean) = escrever("definirComecarOculto") { settingsStore.definirComecarOculto(v) }
     fun definirTema(t: Tema) = escrever("definirTema") { settingsStore.definirTema(t) }
 
+    /** `0` = sem meta. O clamp mora na leitura do `SettingsStore`; o diálogo já só produz 0..100. */
+    fun definirMetaGuardar(percent: Int) =
+        escrever("definirMetaGuardar") { settingsStore.definirMetaGuardar(percent) }
+
     fun definirWidgetMostrarValores(v: Boolean) =
         escrever("definirWidgetMostrarValores") { settingsStore.definirWidgetMostrarValores(v) }
 

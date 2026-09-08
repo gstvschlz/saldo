@@ -164,4 +164,37 @@ class ImportersTest {
         assertNull(lido.settings.saldoInicialCentavos)
         assertNull(lido.settings.saldoInicialData)
     }
+
+    // ---- meta e dispensadas (arrumacao-1) ----
+
+    @Test
+    fun aMetaEAsDispensadasVaoEVoltam() {
+        val d = dump.copy(
+            settings = dump.settings.copy(metaGuardarPercent = 35, assinaturasDispensadas = setOf("netflix")),
+        )
+        val lido = Importers.json(Exporters.json(d))
+        assertEquals(35, lido.settings.metaGuardarPercent)
+        assertEquals(setOf("netflix"), lido.settings.assinaturasDispensadas)
+        assertEquals(d, lido)
+    }
+
+    /** Um arquivo de antes desta versão não tem as chaves: entra com os padrões, sem erro. */
+    @Test
+    fun asChavesNovasAusentesSaoAceitas() {
+        val lido = Importers.json(
+            texto {
+                getJSONObject("settings").remove("metaGuardarPercent")
+                getJSONObject("settings").remove("assinaturasDispensadas")
+            },
+        )
+        assertEquals(PADRAO_META_GUARDAR, lido.settings.metaGuardarPercent)
+        assertEquals(emptySet<String>(), lido.settings.assinaturasDispensadas)
+    }
+
+    /** Uma meta impossível não recusa o arquivo inteiro: cai no padrão, como um valor torto no disco. */
+    @Test
+    fun umaMetaForaDaFaixaCaiNoPadrao() {
+        val lido = Importers.json(texto { getJSONObject("settings").put("metaGuardarPercent", 250) })
+        assertEquals(PADRAO_META_GUARDAR, lido.settings.metaGuardarPercent)
+    }
 }

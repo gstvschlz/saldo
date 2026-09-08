@@ -256,4 +256,42 @@ class ChartMathTest {
     fun `sem coluna nenhuma devolve vazio`() {
         assertTrue(ChartMath.empilhado(emptyList()).isEmpty())
     }
+
+    // ---- a régua da meta (arrumacao-1) ----
+
+    /**
+     * O caso que fez a função existir: a meta acima do melhor mês. Normalizada por fora ela cairia
+     * em 40/20 = 2, ou seja o DOBRO da altura da caixa — a régua desenhada fora do gráfico, e logo
+     * em quem ainda não bateu a meta nenhuma vez. Dentro da escala ela vale o topo e as barras
+     * encolhem para caber embaixo dela.
+     */
+    @Test
+    fun aReferenciaEntraNaEscalaQuandoEAMaior() {
+        val (alturas, meta) = ChartMath.alturasComReferencia(listOf(10L, 20L), 40L)
+        assertEquals(1f, meta, 0.001f)
+        assertEquals(listOf(0.25f, 0.5f), alturas)
+    }
+
+    @Test
+    fun aReferenciaMenorNaoMexeNasBarras() {
+        val (alturas, meta) = ChartMath.alturasComReferencia(listOf(10L, 40L), 20L)
+        assertEquals(listOf(0.25f, 1f), alturas)
+        assertEquals(0.5f, meta, 0.001f)
+    }
+
+    /** Tudo zero (nenhum mês com taxa e sem meta) não pode virar divisão por zero. */
+    @Test
+    fun tudoZeroNaoEstoura() {
+        val (alturas, meta) = ChartMath.alturasComReferencia(listOf(0L, 0L), 0L)
+        assertEquals(listOf(0f, 0f), alturas)
+        assertEquals(0f, meta, 0.001f)
+    }
+
+    /** Lista vazia devolve lista vazia, e a referência sozinha vale o topo. */
+    @Test
+    fun listaVaziaNaoEstoura() {
+        val (alturas, meta) = ChartMath.alturasComReferencia(emptyList(), 20L)
+        assertEquals(emptyList<Float>(), alturas)
+        assertEquals(1f, meta, 0.001f)
+    }
 }

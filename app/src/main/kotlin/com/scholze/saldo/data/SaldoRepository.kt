@@ -13,6 +13,7 @@ import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
 import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.PaletaTags
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.RecurrenceExpander
 import com.scholze.saldo.domain.RepetirOpcao
@@ -107,6 +108,34 @@ interface SaldoRepository {
     suspend fun excluirTag(id: Long): TagSnapshot
     suspend fun restaurarTag(snapshot: TagSnapshot)
     suspend fun recolorirTag(id: Long, cor: Long)
+
+    /**
+     * Troca os vínculos de etiqueta da linha [movId] pelos de [tagIds]; lista vazia limpa.
+     *
+     * Estreito de propósito (decisão 5 do spec de `arrumacao-1`): [editar] reescreveria a linha
+     * inteira a partir de um objeto de UI só para trocar o vínculo, e carrega as precondições de
+     * escopo de recorrência, que não têm nada a ver com etiquetar. Aqui nenhum outro campo é
+     * tocado — nem `editadaManualmente`, nem `criadaEm`, nem a data.
+     *
+     * **Precondição: `movId != 0`.** Uma ocorrência virtual não tem linha no banco: o
+     * `DELETE … WHERE movimentacaoId = 0` não acertaria nada e o vínculo se perderia em silêncio.
+     * É por isso que a fila de "sem tag" só mostra linha real.
+     */
+    suspend fun definirTags(movId: Long, tagIds: List<Long>)
+
+    /**
+     * Repinta, **uma vez neste aparelho**, toda tag que esteja exatamente numa das seis cores da
+     * paleta velha, para a nova da mesma FAMÍLIA de matiz ([PaletaTags.ANTIGAS_PARA_NOVAS] — não
+     * por posição na lista: as duas paletas não estão na mesma ordem). Qualquer outra cor —
+     * importada, escolhida à mão, de uma versão antiga — fica intacta.
+     *
+     * Sem isto, [PaletaTags.proxima] passaria a ignorar todas as tags existentes de uma vez (ele só
+     * conta cores que estão em `cores`) e as primeiras tags novas sairiam todas na primeira cor.
+     *
+     * Guardado por `paleta_v2_aplicada` no DataStore, e idempotente mesmo sem a guarda: nenhuma cor
+     * nova é também uma cor velha, então a segunda passada não encontra nada.
+     */
+    suspend fun aplicarPaletaV2()
 
     /**
      * Troca o banco INTEIRO pelo conteúdo de [dump], numa transação só: apaga tudo e insere com os
@@ -474,6 +503,24 @@ class RoomSaldoRepository(
     }
 
     override suspend fun recolorirTag(id: Long, cor: Long) = tagDao.recolor(id, cor)
+
+    override suspend fun definirTags(movId: Long, tagIds: List<Long>) {
+        require(movId != 0L) { "movimentação virtual — abra o mês antes de etiquetar" }
+        // `setTags` já é `@Transaction` (apaga os vínculos e insere os novos): nada a envolver aqui.
+        movDao.setTags(movId, tagIds)
+    }
+
+    override suspend fun aplicarPaletaV2() {
+        if (settingsStore.paletaV2Aplicada()) return
+        db.withTransaction {
+            tagDao.todas().map { it.toDomain() }.forEach { t ->
+                PaletaTags.ANTIGAS_PARA_NOVAS[t.cor]?.let { nova -> tagDao.recolor(t.id, nova) }
+            }
+        }
+        // A marca só DEPOIS do commit: se a transação falhar, o próximo arranque tenta de novo, em
+        // vez de deixar as tags meio repintadas e o rodízio torto para sempre.
+        settingsStore.marcarPaletaV2Aplicada()
+    }
 
     override suspend fun substituirTudo(dump: Dump) = db.withTransaction {
         limparTabelas()

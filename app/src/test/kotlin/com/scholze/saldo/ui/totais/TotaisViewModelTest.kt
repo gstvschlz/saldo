@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -111,5 +112,25 @@ class TotaisViewModelTest {
             advanceUntilIdle()
             assertNotNull("$seg sem totais", vm.state.first { it.totais != null }.totais)
         }
+    }
+
+    // ---- a meta de guardar (arrumacao-1) ----
+
+    /** A meta chega por um fluxo só dela e vai ao estado, que é de onde a régua do gráfico lê. */
+    @Test
+    fun aMetaDosAjustesChegaAoEstado() = runTest(dispatcher) {
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), flowOf(35))
+            .also { criados += it }
+        assertEquals(35, vm.state.first { it.totais != null }.metaGuardarPercent)
+    }
+
+    /**
+     * Sem o terceiro parâmetro — o default que deixa os testes acima construírem o ViewModel com
+     * dois argumentos — não há meta nenhuma, e o gráfico não desenha régua.
+     */
+    @Test
+    fun semOFluxoDaMetaOEstadoFicaSemMeta() = runTest(dispatcher) {
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
+        assertEquals(0, vm.state.first { it.totais != null }.metaGuardarPercent)
     }
 }

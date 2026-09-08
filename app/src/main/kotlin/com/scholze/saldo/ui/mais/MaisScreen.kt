@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,10 +24,12 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +63,17 @@ const val TAG_CONFIRMACAO_APAGAR = "mais:confirmacao-apagar"
  * com DOIS nós — o botão e o texto editável do campo, que a semântica de busca trata igual.
  */
 const val TAG_BOTAO_APAGAR = "mais:botao-apagar"
+
+/**
+ * A linha e os controles do diálogo da meta.
+ *
+ * Por tag e não por texto: o diálogo repete o título da linha (dois nós com "meta de guardar"), e
+ * `−`/`+` são glifos de um caractere que casariam com meio app.
+ */
+const val TAG_LINHA_META = "mais:meta"
+const val TAG_META_MENOS = "mais:meta-menos"
+const val TAG_META_MAIS = "mais:meta-mais"
+const val TAG_META_VALOR = "mais:meta-valor"
 
 private fun rotulo(t: Tema) = when (t) {
     Tema.SISTEMA -> "sistema"
@@ -130,6 +144,7 @@ fun MaisScreen(
     var abrindoNotificacoes by rememberSaveable { mutableStateOf(false) }
     var abrindoBackup by rememberSaveable { mutableStateOf(false) }
     var apagando by rememberSaveable { mutableStateOf(false) }
+    var editandoMeta by rememberSaveable { mutableStateOf(false) }
     // O valor que saiu do teclado e ainda não foi gravado: é ele que abre o diálogo da data.
     var saldoPendente by rememberSaveable { mutableStateOf<Long?>(null) }
 
@@ -212,6 +227,12 @@ fun MaisScreen(
                     label = "cartão",
                     value = "${s.cartao.nome} · fecha ${s.cartao.fechamentoDia} · vence ${s.cartao.vencimentoDia}",
                     onClick = { editandoCartao = true },
+                )
+                InsetRow(
+                    label = "meta de guardar",
+                    modifier = Modifier.testTag(TAG_LINHA_META),
+                    value = if (s.metaGuardarPercent > 0) "${s.metaGuardarPercent}%" else "sem meta",
+                    onClick = { editandoMeta = true },
                 )
             }
 
@@ -332,6 +353,49 @@ fun MaisScreen(
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { escolhendoTema = false }) { Text("fechar") } },
+        )
+    }
+
+    // `−`/`+` de um em um, e não um campo de texto: a meta é uma escolha grosseira ("uns 20%"),
+    // e um teclado numérico para dois dígitos seria trabalho demais para a decisão que é.
+    if (editandoMeta) {
+        var percent by rememberSaveable { mutableIntStateOf(s.metaGuardarPercent) }
+        AlertDialog(
+            onDismissRequest = { editandoMeta = false },
+            title = { Text("meta de guardar") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("quanto do que entra você quer guardar por mês?")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        TextButton(
+                            onClick = { percent -= 1 },
+                            enabled = percent > 0,
+                            modifier = Modifier.testTag(TAG_META_MENOS),
+                        ) { Text("−") }
+                        Text(
+                            if (percent > 0) "$percent%" else "sem meta",
+                            Modifier.testTag(TAG_META_VALOR),
+                            style = SaldoTheme.type.body, color = colors.label,
+                        )
+                        TextButton(
+                            onClick = { percent += 1 },
+                            enabled = percent < 100,
+                            modifier = Modifier.testTag(TAG_META_MAIS),
+                        ) { Text("+") }
+                    }
+                    Text(
+                        "zero desliga a meta: o hero volta a mostrar só quanto você guardou.",
+                        style = SaldoTheme.type.caption, color = colors.secondaryLabel,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.definirMetaGuardar(percent); editandoMeta = false }) { Text("salvar") }
+            },
+            dismissButton = { TextButton(onClick = { editandoMeta = false }) { Text("cancelar") } },
         )
     }
 

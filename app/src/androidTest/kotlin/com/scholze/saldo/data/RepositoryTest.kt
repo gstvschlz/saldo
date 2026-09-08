@@ -11,6 +11,7 @@ import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.LembretesConfig
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.PaletaTags
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.RepetirOpcao
@@ -842,5 +843,86 @@ class RepositoryTest {
         } finally {
             coleta.cancel()
         }
+    }
+
+    // ---- etiquetar pela fila, e a paleta v2 (arrumacao-1) ----
+
+    @Test
+    fun definirTagsTrocaOsVinculosESoEles() = runBlocking {
+        val comida = repo.criarTag("comida", PaletaTags.cores[0])
+        val transporte = repo.criarTag("transporte", PaletaTags.cores[1])
+        repo.criar(mov("2026-07-10", -25_00), RepetirOpcao.Nao)
+        val antes = repo.ledger.first().movimentacoes.single()
+
+        repo.definirTags(antes.id, listOf(comida))
+        val comUma = repo.ledger.first().movimentacoes.single()
+        assertEquals(listOf("comida"), comUma.tags.map { it.nome })
+        // E nada mais da linha mudou: data, valor, natureza, criadaEm, editadaManualmente.
+        assertEquals(antes.copy(tags = comUma.tags), comUma)
+
+        repo.definirTags(antes.id, listOf(transporte))
+        assertEquals(listOf("transporte"), repo.ledger.first().movimentacoes.single().tags.map { it.nome })
+
+        repo.definirTags(antes.id, emptyList())
+        assertEquals(emptyList<Tag>(), repo.ledger.first().movimentacoes.single().tags)
+    }
+
+    /** Ocorrência virtual não tem linha para etiquetar — e falhar calado seria pior que lançar. */
+    @Test
+    fun definirTagsRecusaOIdZero() = runBlocking {
+        try {
+            repo.definirTags(0L, emptyList())
+            fail("definirTags deveria rejeitar ocorrência virtual")
+        } catch (esperado: IllegalArgumentException) {
+            // o DELETE ... WHERE movimentacaoId = 0 não acertaria nada, e o vínculo se perderia
+        }
+    }
+
+    /**
+     * O mapa é por FAMÍLIA de matiz, não por posição: das seis, quatro mudam de índice. O verde
+     * era o quinto da lista velha e vira o OLIVA (terceiro da nova); o pêssego era o sexto e vira
+     * o AZUL (quinto). Casar por índice daria azul ao verde e lilás ao pêssego — é isto que estes
+     * dois casos travam.
+     */
+    @Test
+    fun aplicarPaletaV2RepintaSoAsCoresVelhasEPorFamilia() = runBlocking {
+        repo.criarTag("comida", 0xFFA6486BL)     // vinho velho
+        repo.criarTag("casa", 0xFFE58A5AL)       // pêssego velho
+        repo.criarTag("carro", 0xFF14663AL)      // verde velho
+        repo.criarTag("importada", 0xFF123456L)  // fora de qualquer paleta
+
+        repo.aplicarPaletaV2()
+
+        val cores = repo.tags.first().associate { it.nome to it.cor }
+        assertEquals(PaletaTags.cores[0], cores["comida"]) // vinho -> vinho
+        assertEquals(PaletaTags.cores[4], cores["casa"])   // pêssego -> azul
+        assertEquals(PaletaTags.cores[2], cores["carro"])  // verde -> oliva
+        assertEquals(0xFF123456L, cores["importada"])      // intacta
+    }
+
+    /** A segunda passada não mexe em nada: a marca no DataStore e o mapa disjunto, juntos. */
+    @Test
+    fun aplicarPaletaV2DuasVezesNaoMudaNadaNaSegunda() = runBlocking {
+        repo.criarTag("comida", 0xFFA6486BL)
+        repo.aplicarPaletaV2()
+        val depoisDaPrimeira = repo.tags.first()
+        repo.aplicarPaletaV2()
+        assertEquals(depoisDaPrimeira, repo.tags.first())
+    }
+
+    /**
+     * E a marca é gravada e lida de verdade — sem isso, o teste acima passaria só pela disjunção
+     * do mapa e ninguém notaria a guarda sumir. Uma tag que nasce numa cor velha DEPOIS da
+     * primeira passada continua velha: o repintar roda uma vez neste aparelho, e só.
+     */
+    @Test
+    fun aplicarPaletaV2SoRodaUmaVezNesteAparelho() = runBlocking {
+        repo.aplicarPaletaV2()
+        assertEquals(true, settings.paletaV2Aplicada())
+
+        repo.criarTag("chegou depois", 0xFFA6486BL)
+        repo.aplicarPaletaV2()
+
+        assertEquals(0xFFA6486BL, repo.tags.first().first { it.nome == "chegou depois" }.cor)
     }
 }

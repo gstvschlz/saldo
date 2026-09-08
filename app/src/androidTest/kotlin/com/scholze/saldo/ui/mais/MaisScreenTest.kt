@@ -1,8 +1,10 @@
 package com.scholze.saldo.ui.mais
 
 import android.net.Uri
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -180,7 +183,7 @@ class MaisScreenTest {
         runBlocking { app.container.settings.definirSaldoInicial(1_00, LocalDate.now()) }
         tela(v)
 
-        rule.onNodeWithText("apagar dados").performClick()
+        rule.onNodeWithText("apagar dados").performScrollTo().performClick()
         rule.onNodeWithTag(TAG_BOTAO_APAGAR).assertIsNotEnabled()
 
         rule.onNodeWithTag(TAG_CONFIRMACAO_APAGAR).performTextInput("apaga")
@@ -205,7 +208,7 @@ class MaisScreenTest {
         }
         tela(v)
 
-        rule.onNodeWithText("apagar dados").performClick()
+        rule.onNodeWithText("apagar dados").performScrollTo().performClick()
         // Aparado e minúsculo: o teclado do Android capitaliza sozinho.
         rule.onNodeWithTag(TAG_CONFIRMACAO_APAGAR).performTextInput("  APAGAR ")
         rule.onNodeWithTag(TAG_BOTAO_APAGAR).assertIsEnabled().performClick()
@@ -271,5 +274,56 @@ class MaisScreenTest {
         rule.onNodeWithText("cancelar").performClick()
         // cancelar não grava
         assertEquals(1_00L, runBlocking { app.container.settings.settings.first().saldoInicialCentavos })
+    }
+
+    // ---- meta de guardar (arrumacao-1) ----
+
+    @Test
+    fun oDialogoDaMetaSalva() {
+        val v = vm { "" }
+        runBlocking { app.container.settings.definirSaldoInicial(1_00, LocalDate.now()) }
+        tela(v)
+
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("20%").fetchSemanticsNodes().isNotEmpty() }
+        // Pela tag, e não pelo texto: o diálogo repete o título da linha.
+        rule.onNodeWithTag(TAG_LINHA_META).performClick()
+
+        rule.onNodeWithTag(TAG_META_MAIS).performClick()
+        rule.onNodeWithTag(TAG_META_MAIS).performClick()
+        rule.onNodeWithTag(TAG_META_VALOR).assertTextEquals("22%")
+        rule.onNodeWithText("salvar").performClick()
+
+        rule.waitUntil(5_000) {
+            runBlocking { app.container.settings.settings.first().metaGuardarPercent } == 22
+        }
+    }
+
+    /** `0` não é "zero por cento": é "sem meta", e a linha tem de dizer isso. */
+    @Test
+    fun zeroMostraSemMeta() {
+        val v = vm { "" }
+        runBlocking {
+            app.container.settings.definirSaldoInicial(1_00, LocalDate.now())
+            app.container.settings.definirMetaGuardar(0)
+        }
+        tela(v)
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("sem meta").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("sem meta").assertIsDisplayed()
+    }
+
+    /** O `−` para em zero: abaixo disso não há meta negativa nenhuma para escolher. */
+    @Test
+    fun oMenosParaEmZero() {
+        val v = vm { "" }
+        runBlocking {
+            app.container.settings.definirSaldoInicial(1_00, LocalDate.now())
+            app.container.settings.definirMetaGuardar(1)
+        }
+        tela(v)
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("1%").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag(TAG_LINHA_META).performClick()
+        rule.onNodeWithTag(TAG_META_MENOS).performClick()
+        rule.onNodeWithTag(TAG_META_VALOR).assertTextEquals("sem meta")
+        rule.onNodeWithTag(TAG_META_MENOS).assertIsNotEnabled()
     }
 }

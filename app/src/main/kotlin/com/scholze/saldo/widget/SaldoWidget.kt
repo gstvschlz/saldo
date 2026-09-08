@@ -34,6 +34,7 @@ class SaldoWidget : GlanceAppWidget() {
                     deltaNoMesCentavos = mes.deltaNoMesCentavos,
                     mostrarValores = carga.mostrarValores,
                     taxaGuardada = mes.taxaGuardada,
+                    metaGuardarPercent = carga.metaGuardarPercent,
                 )
             }
         }

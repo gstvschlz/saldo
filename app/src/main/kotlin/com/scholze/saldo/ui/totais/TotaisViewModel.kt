@@ -28,11 +28,15 @@ import com.scholze.saldo.ui.toYearMonth
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -62,11 +66,19 @@ data class TotaisUiState(
     val tagsNoTempo: TagsNoTempo? = null,
     /** Mensagem de falha de leitura; `null` = está tudo bem. Ver `fluxoComErro`. */
     val erro: String? = null,
+    /** A meta de guardar, em %; `0` = sem meta. Só a tendência a usa. */
+    val metaGuardarPercent: Int = 0,
 )
 
 class TotaisViewModel(
     private val repo: SaldoRepository,
     private val savedState: SavedStateHandle = SavedStateHandle(),
+    /**
+     * A meta de guardar. Um `Flow<Int>` e não o `SettingsStore` inteiro: esta tela usa um número
+     * dos ajustes, e assinar o `Settings` completo faria toda troca de tema ou de lembrete
+     * recalcular seis meses de tendência.
+     */
+    private val metaGuardar: Flow<Int> = flowOf(0),
 ) : ViewModel() {
 
     // Sobrevive à morte do processo, e não só à rotação — mesmo `Long` de chave que o board usa.
@@ -105,7 +117,7 @@ class TotaisViewModel(
         limparErro = { it.copy(erro = null) },
         rotulo = "fluxo de totais",
     ) {
-        combine(repo.ledger, mesAtual, _segmento) { input, mes, seg ->
+        combine(repo.ledger, mesAtual, _segmento, metaGuardar) { input, mes, seg, meta ->
             // O cabeçalho (saldo do mês, estimativa) vale para os três segmentos; o resto é só do
             // segmento aberto — `InsightsEngine.tendencia` sozinho roda `ProjectionEngine.totais`
             // seis vezes (uma por mês, cada uma com sua própria expansão e cálculo de fatura), e
@@ -115,6 +127,7 @@ class TotaisViewModel(
                 mesAtual = mes,
                 totais = ProjectionEngine.totais(input, mes),
                 estimativaCentavos = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).estimativaCentavos,
+                metaGuardarPercent = meta,
             )
             when (seg) {
                 SegmentoTotais.MES -> base.copy(
@@ -167,7 +180,13 @@ class TotaisViewModel(
         private const val KEY_SEGMENTO = "totais.segmento"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { TotaisViewModel(container.repository, createSavedStateHandle()) }
+            initializer {
+                TotaisViewModel(
+                    container.repository,
+                    createSavedStateHandle(),
+                    container.settings.settings.map { it.metaGuardarPercent }.distinctUntilChanged(),
+                )
+            }
         }
     }
 }

@@ -180,6 +180,7 @@ fun TotaisContent(
                             onIrParaMes(mes)
                             onSegmento(SegmentoTotais.MES)
                         },
+                        metaGuardarPercent = state.metaGuardarPercent,
                     )
                 }
 

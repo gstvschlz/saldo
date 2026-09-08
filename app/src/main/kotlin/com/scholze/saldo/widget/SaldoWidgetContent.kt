@@ -93,14 +93,18 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
                             maxLines = 1,
                         )
                     }
-                    // Do que entrou, quanto foi guardado. Mascarado junto com o valor: o
-                    // usuário escolheu esconder o percentual no widget, ao contrário do hero.
+                    // Do que entrou, quanto foi guardado. Mascarado junto com o valor: o usuário
+                    // escolheu esconder o percentual no widget, ao contrário do hero. E a COR
+                    // segue a máscara — ver `WidgetEstado.Pronto.metaBatidaVisivel`.
                     val taxa = estado.taxaGuardada
                     if (largo && taxa != null) {
                         Text(
                             if (estado.mostrarValores) "guardou $taxa%" else "guardou ••%",
                             modifier = GlanceModifier.semantics { testTag = TAG_WIDGET_GUARDADO },
-                            style = TextStyle(color = CoresWidget.secundario, fontSize = 12.sp),
+                            style = TextStyle(
+                                color = if (estado.metaBatidaVisivel) CoresWidget.positivo else CoresWidget.secundario,
+                                fontSize = 12.sp,
+                            ),
                             maxLines = 1,
                         )
                     }
