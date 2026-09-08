@@ -9,11 +9,13 @@ import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -23,6 +25,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -133,5 +136,95 @@ class LedgerViewModelTest {
         assertNull(depois.erro)
         assertEquals(2, repo.assinaturas)
         coleta.cancel()
+    }
+
+    // ---- a fila de sem tag (arrumacao-1) ----
+
+    /** Anota o que `definirTags` recebeu; todo o resto vem do repositório fixo. */
+    private class RepositorioQueAnotaTags(input: LedgerInput, tags: List<Tag>) :
+        SaldoRepository by RepositorioFixo(input, tags) {
+        val chamadas = mutableListOf<Pair<Long, List<Long>>>()
+        override suspend fun definirTags(movId: Long, tagIds: List<Long>) {
+            chamadas += movId to tagIds
+        }
+    }
+
+    private val comida = Tag(id = 5, nome = "comida", cor = 0xFFB63C62L)
+
+    @Test
+    fun escolherSemTagLimpaOFiltroDeEtiqueta() {
+        val vm = vm()
+        vm.definirTagFiltroId(5L)
+        vm.definirFiltro(FiltroLedger.SEM_TAG)
+        assertNull(vm.tagFiltroIdAgora)
+        assertEquals(FiltroLedger.SEM_TAG, vm.filtroAgora)
+    }
+
+    @Test
+    fun escolherUmaEtiquetaSaiDeSemTag() {
+        val vm = vm()
+        vm.definirFiltro(FiltroLedger.SEM_TAG)
+        vm.definirTagFiltroId(5L)
+        assertEquals(FiltroLedger.TODAS, vm.filtroAgora)
+        assertEquals(5L, vm.tagFiltroIdAgora)
+    }
+
+    /** `fixas` × etiqueta é uma interseção legítima: escolher uma etiqueta não mexe nela. */
+    @Test
+    fun escolherUmaEtiquetaNaoMexeEmFixas() {
+        val vm = vm()
+        vm.definirFiltro(FiltroLedger.FIXAS)
+        vm.definirTagFiltroId(5L)
+        assertEquals(FiltroLedger.FIXAS, vm.filtroAgora)
+    }
+
+    /** A exclusividade tem de sobreviver à morte do processo: o que grava é o setter. */
+    @Test
+    fun aExclusividadeChegaAoSavedState() {
+        val saved = SavedStateHandle()
+        val vm = vm(saved)
+        vm.definirTagFiltroId(5L)
+        vm.definirFiltro(FiltroLedger.SEM_TAG)
+
+        val outro = vm(saved)
+        assertEquals(FiltroLedger.SEM_TAG, outro.filtroAgora)
+        assertNull(outro.tagFiltroIdAgora)
+    }
+
+    @Test
+    fun etiquetarGravaAListaCertaEAvisaOSnackbar() = runTest(dispatcher) {
+        val repo = RepositorioQueAnotaTags(input, listOf(comida))
+        val vm = vmCom(repo)
+        // O fluxo não tem replay: quem não está inscrito na hora do emit perde o evento. Um
+        // `async` que já suspendeu no `first()` é a inscrição mais barata que não depende de
+        // ordem de fila — `runCurrent` só precisa levá-lo até lá.
+        val evento = async { vm.eventoEtiqueta.first() }
+        runCurrent()
+
+        vm.etiquetar(1L, comida)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1L to listOf(5L)), repo.chamadas)
+        assertEquals(EtiquetaAplicada(1L, "comida"), evento.await())
+    }
+
+    @Test
+    fun oDesfazerDevolveAListaVazia() = runTest(dispatcher) {
+        val repo = RepositorioQueAnotaTags(input, listOf(comida))
+        val vm = vmCom(repo)
+        vm.desfazerEtiqueta(1L)
+        advanceUntilIdle()
+        assertEquals(listOf(1L to emptyList<Long>()), repo.chamadas)
+    }
+
+    /** A fileira de chips sai daqui: as mais usadas nos 90 dias primeiro. */
+    @Test
+    fun oEstadoTrazAsEtiquetasSugeridas() = runTest(dispatcher) {
+        val aluguel = Tag(id = 6, nome = "aluguel", cor = 0xFF9A5A00L)
+        // Só a linha de 01/09 está dentro dos 90 dias de 07/09; a de abril não conta.
+        val comUso = input.copy(movimentacoes = input.movimentacoes.map { it.copy(tags = listOf(comida)) })
+        val vm = vmCom(RepositorioFixo(comUso, listOf(aluguel, comida)))
+        val estado = vm.state.first { it.mes != null }
+        assertEquals(listOf("comida", "aluguel"), estado.tagsSugeridas.map { it.nome })
     }
 }

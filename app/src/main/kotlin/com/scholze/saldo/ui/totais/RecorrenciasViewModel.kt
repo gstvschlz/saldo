@@ -8,6 +8,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.scholze.saldo.AppContainer
 import com.scholze.saldo.data.SaldoRepository
+import com.scholze.saldo.data.SettingsStore
+import com.scholze.saldo.domain.Assinatura
+import com.scholze.saldo.domain.AssinaturasEngine
 import com.scholze.saldo.domain.InsightsEngine
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Recorrencia
@@ -22,16 +25,26 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** O resumo do mês visto, e a falha de leitura quando ela acontece. */
-data class RecorrenciasUiState(val resumo: ResumoRecorrencias? = null, val erro: String? = null)
+/** O resumo do mês visto, as candidatas a assinatura, e a falha de leitura quando ela acontece. */
+data class RecorrenciasUiState(
+    val resumo: ResumoRecorrencias? = null,
+    /** Até três avulsas que parecem assinatura; vazia quando não há nenhuma (decisão 13). */
+    val assinaturas: List<Assinatura> = emptyList(),
+    val erro: String? = null,
+)
 
 /** A tela de recorrências: um resumo do mês visto na aba totais, mais a ponte para o editor. */
-class RecorrenciasViewModel(private val repo: SaldoRepository) : ViewModel() {
+class RecorrenciasViewModel(
+    private val repo: SaldoRepository,
+    private val settingsStore: SettingsStore,
+) : ViewModel() {
 
     private val mes = MutableStateFlow(YearMonth.now())
 
@@ -49,7 +62,20 @@ class RecorrenciasViewModel(private val repo: SaldoRepository) : ViewModel() {
         limparErro = { it.copy(erro = null) },
         rotulo = "fluxo de recorrências",
     ) {
-        combine(repo.ledger, mes) { input, m -> RecorrenciasUiState(InsightsEngine.recorrencias(input, m)) }
+        combine(
+            repo.ledger,
+            mes,
+            // Só a chave que importa: assinar o `Settings` inteiro faria toda troca de tema
+            // recalcular sete meses de agrupamento por descrição.
+            settingsStore.settings.map { it.assinaturasDispensadas }.distinctUntilChanged(),
+        ) { input, m, dispensadas ->
+            RecorrenciasUiState(
+                resumo = InsightsEngine.recorrencias(input, m),
+                // Sobre HOJE, não sobre o mês visto: "parece assinatura" é uma pergunta sobre o
+                // presente, e navegar para março não deveria mudar o que o app sugere cadastrar.
+                assinaturas = AssinaturasEngine.candidatas(input, input.hoje, dispensadas),
+            )
+        }
             .flowOn(Dispatchers.Default)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecorrenciasUiState())
@@ -102,11 +128,43 @@ class RecorrenciasViewModel(private val repo: SaldoRepository) : ViewModel() {
         }
     }
 
+    /**
+     * "tornar mensal": reusa o que a sheet já faz em "repetir: todo mês".
+     *
+     * [SaldoRepository.converterEmRecorrencia] cria o template a partir da linha, liga a linha a
+     * ele e semeia os meses materializados seguintes — inclusive a marcação de editada quando o
+     * dia da linha não bate com a mediana. Nenhuma API nova no repositório (decisão 12).
+     */
+    fun tornarMensal(a: Assinatura) {
+        viewModelScope.launch {
+            try {
+                repo.converterEmRecorrencia(a.ocorrenciaMaisRecente, a.diaDoMes)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "tornarMensal(${a.chave}) falhou", e)
+            }
+        }
+    }
+
+    /** Dispensar é por descrição, e é para sempre — decisão 11: "adiar" seria outra palavra. */
+    fun dispensar(a: Assinatura) {
+        viewModelScope.launch {
+            try {
+                settingsStore.dispensarAssinatura(a.chave)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "dispensar(${a.chave}) falhou", e)
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "saldo"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { RecorrenciasViewModel(container.repository) }
+            initializer { RecorrenciasViewModel(container.repository, container.settings) }
         }
     }
 }

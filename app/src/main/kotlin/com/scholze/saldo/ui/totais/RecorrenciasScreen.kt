@@ -13,18 +13,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +37,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.scholze.saldo.domain.Assinatura
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.descricaoVisivel
@@ -44,6 +50,7 @@ import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
 import java.time.YearMonth
+import kotlin.math.abs
 
 /**
  * totais › recorrências: toma a aba, lista os templates do mês visto por dia do mês e abre a
@@ -63,6 +70,10 @@ fun RecorrenciasScreen(
     // O mês vem da aba: navegar o mês em totais e voltar aqui mostra o mês certo.
     LaunchedEffect(mes) { vm.verMes(mes) }
     val estado by vm.state.collectAsState()
+
+    // A descrição da candidata que virou recorrência agora, e o pedido de rolagem até a linha dela.
+    var recemCriada by remember { mutableStateOf<String?>(null) }
+    val trazerParaAVista = remember { BringIntoViewRequester() }
 
     Column(modifier.fillMaxSize().background(colors.background)) {
         // Não é o SaldoTopBar: aquele existe para navegar meses e traz duas setas com
@@ -96,12 +107,45 @@ fun RecorrenciasScreen(
             return@Column
         }
 
+        // "tornar mensal" cria a recorrência lá embaixo, na ordem do dia do mês; sem rolar até ela,
+        // a candidata some do topo e nada na tela prova que alguma coisa aconteceu.
+        LaunchedEffect(recemCriada, r.ativas) {
+            if (recemCriada != null && r.ativas.any { it.descricao == recemCriada }) {
+                // Um quadro de espera antes de pedir: o efeito roda no callback de animação DESTE
+                // quadro, e a linha nova só ganha coordenadas na travessia de layout que vem
+                // depois — pedir agora seria pedir para rolar até um nó que ainda não tem lugar.
+                withFrameNanos { }
+                trazerParaAVista.bringIntoView()
+                recemCriada = null
+            }
+        }
+
         Column(
             Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp)),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
+            // No topo, e só quando há candidata: é um empurrão para uma tarefa que o usuário não
+            // sabia que existia, não uma seção permanente da tela.
+            if (estado.assinaturas.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("parece assinatura", style = SaldoTheme.type.sectionHeader, color = colors.label)
+                    InsetGroup {
+                        estado.assinaturas.forEach { a ->
+                            LinhaAssinatura(
+                                a,
+                                onTornarMensal = {
+                                    recemCriada = a.descricao
+                                    vm.tornarMensal(a)
+                                },
+                                onDispensar = { vm.dispensar(a) },
+                            )
+                        }
+                    }
+                }
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 // Uma pausada continua na lista de "ativas" (ver InsightsEngine.recorrencias),
                 // mas não é uma "fixa" ligada — a contagem só soma as que realmente rodam.
@@ -125,6 +169,11 @@ fun RecorrenciasScreen(
                                 { vm.abrirOcorrencia(rec, onAbrirMovimentacao) }
                             } else {
                                 null
+                            },
+                            modifier = if (rec.descricao == recemCriada) {
+                                Modifier.bringIntoViewRequester(trazerParaAVista)
+                            } else {
+                                Modifier
                             },
                             onPausa = { vm.alternarPausa(rec) },
                         )
@@ -169,9 +218,15 @@ private fun LinhaMes(rotulo: String, centavos: Long, cor: Color? = null) {
 }
 
 @Composable
-private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> Unit)?, onPausa: (() -> Unit)? = null) {
+private fun LinhaRecorrencia(
+    rec: Recorrencia,
+    mes: YearMonth,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    onPausa: (() -> Unit)? = null,
+) {
     val colors = SaldoTheme.colors
-    val base = Modifier.fillMaxWidth()
+    val base = modifier.fillMaxWidth()
     Row(
         (if (onClick != null) base.clickable(onClick = onClick) else base).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -211,6 +266,73 @@ private fun LinhaRecorrencia(rec: Recorrencia, mes: YearMonth, onClick: (() -> U
                     contentDescription = (if (rec.ativa) "pausar " else "retomar ") + rec.descricao.descricaoVisivel()
                 },
             )
+        }
+    }
+}
+
+/**
+ * Uma candidata: descrição, valor, "N meses · dia D", o reajuste quando houve, e as duas ações.
+ *
+ * "tornar mensal" e "dispensar" lado a lado, sem hierarquia visual entre elas: as duas são
+ * respostas legítimas, e a única que não tem volta é a segunda — que por isso não vira um botão
+ * vermelho convidativo. O nome da candidata entra no `contentDescription` de cada uma pelo mesmo
+ * motivo do interruptor de pausa acima: com três linhas na seção, três botões "dispensar" iguais
+ * não dizem a um leitor de tela qual assinatura some.
+ */
+@Composable
+private fun LinhaAssinatura(a: Assinatura, onTornarMensal: () -> Unit, onDispensar: () -> Unit) {
+    val colors = SaldoTheme.colors
+    val nome = a.descricao.descricaoVisivel()
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                DescricaoTexto(a.descricao)
+                Text(
+                    "${a.meses} meses · dia ${a.diaDoMes}",
+                    style = SaldoTheme.type.caption, color = colors.secondaryLabel,
+                )
+            }
+            MoneyText(
+                centavos = a.valorCentavos,
+                style = SaldoTheme.type.body, color = colors.label,
+                formato = FormatoMoney.ASSINADO,
+            )
+        }
+        a.valorAnteriorCentavos?.let { anterior ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    if (abs(a.valorCentavos) > abs(anterior)) "subiu de" else "caiu de",
+                    style = SaldoTheme.type.caption, color = colors.secondaryLabel,
+                )
+                // Em módulo: "subiu de −R$ 39,90 para −R$ 44,90" é uma frase que ninguém fala.
+                // Passa por MoneyText mesmo assim — é dinheiro, e a privacidade o esconde.
+                MoneyText(centavos = abs(anterior), style = SaldoTheme.type.caption, color = colors.secondaryLabel)
+                Text("para", style = SaldoTheme.type.caption, color = colors.secondaryLabel)
+                MoneyText(
+                    centavos = abs(a.valorCentavos),
+                    style = SaldoTheme.type.caption, color = colors.secondaryLabel,
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                onClick = onTornarMensal,
+                modifier = Modifier.semantics { contentDescription = "tornar mensal $nome" },
+            ) {
+                Text("tornar mensal")
+            }
+            TextButton(
+                onClick = onDispensar,
+                modifier = Modifier.semantics { contentDescription = "dispensar $nome" },
+            ) {
+                Text("dispensar")
+            }
         }
     }
 }

@@ -146,4 +146,131 @@ class RecorrenciasScreenTest {
             rule.onNodeWithText("1 fixa").assertIsDisplayed()
         }
     }
+
+    // ---- parece assinatura (arrumacao-1) ----
+
+    /**
+     * Uma avulsa por mês, nos meses fechados mais recentes, no dia 10 (existe em todo mês).
+     *
+     * [valores] vai do mês mais ANTIGO para o mais novo — o último é a ocorrência mais recente, a
+     * que o motor usa como "o preço de hoje". A sequência termina no mês anterior ao corrente, que
+     * é o mais tarde que o motor aceita sem exigir que a cobrança deste mês já tenha caído.
+     */
+    private fun semearAssinatura(
+        app: SaldoApplication,
+        hoje: LocalDate,
+        valores: List<Long> = listOf(-39_90, -39_90, -39_90),
+    ) = runBlocking {
+        app.container.settings.definirSaldoInicial(100_000_00, hoje.minusMonths(6))
+        valores.forEachIndexed { i, valor ->
+            app.container.repository.criar(
+                Movimentacao(
+                    descricao = "netflix", valorCentavos = valor,
+                    data = hoje.minusMonths((valores.size - i).toLong()).withDayOfMonth(10),
+                    natureza = Natureza.DIARIO,
+                ),
+                RepetirOpcao.Nao,
+            )
+        }
+    }
+
+    private fun abrirRecorrencias() {
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("a caminho").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("a caminho").performClick()
+        rule.onNodeWithText("recorrências").performScrollTo().performClick()
+    }
+
+    /** A candidata aparece com a contagem de meses, e "tornar mensal" a cadastra de verdade. */
+    @Test
+    fun aCandidataApareceETornarMensalACadastra() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        semearAssinatura(app, hoje)
+
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.from(hoje)))).use {
+            abrirRecorrencias()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("parece assinatura").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithText("3 meses · dia 10").assertIsDisplayed()
+
+            rule.onNodeWithContentDescription("tornar mensal netflix").performClick()
+            // A linha mais recente ganha `recorrenciaId` e deixa de ser avulsa; as duas que sobram
+            // param dois meses atrás e não chegam mais até agora — a seção inteira some.
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("parece assinatura").fetchSemanticsNodes().isEmpty() }
+            rule.onNodeWithText("1 fixa").assertIsDisplayed()
+            // E a fixa nasceu no dia da mediana, não no dia em que a sheet teria perguntado.
+            rule.onNodeWithText("dia 10").assertIsDisplayed()
+        }
+    }
+
+    /** Dispensar é para sempre: nem uma recomposição nem sair e voltar a trazem de volta. */
+    @Test
+    fun dispensarTiraACandidataENaoVolta() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        semearAssinatura(app, hoje)
+
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.from(hoje)))).use {
+            abrirRecorrencias()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("parece assinatura").fetchSemanticsNodes().isNotEmpty() }
+
+            rule.onNodeWithContentDescription("dispensar netflix").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("parece assinatura").fetchSemanticsNodes().isEmpty() }
+
+            rule.onNodeWithText("‹ totais").performClick()
+            abrirRecorrencias()
+            // Nada foi cadastrado — e nada volta a ser sugerido.
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("nenhuma recorrência").fetchSemanticsNodes().isNotEmpty() }
+            rule.onAllNodesWithText("parece assinatura").assertCountEquals(0)
+        }
+    }
+
+    /** Sem candidata, nenhum bloco: a seção não pode ocupar espaço para dizer que não achou nada. */
+    @Test
+    fun semCandidataNaoHaBloco() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        runBlocking {
+            app.container.settings.definirSaldoInicial(100_000_00, hoje.minusMonths(6))
+            app.container.repository.criar(
+                Movimentacao(
+                    descricao = "netflix", valorCentavos = -39_90,
+                    data = hoje.withDayOfMonth(10), natureza = Natureza.DIARIO,
+                ),
+                RepetirOpcao.Nao,
+            )
+        }
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.from(hoje)))).use {
+            abrirRecorrencias()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("nenhuma recorrência").fetchSemanticsNodes().isNotEmpty() }
+            rule.onAllNodesWithText("parece assinatura").assertCountEquals(0)
+        }
+    }
+
+    /**
+     * O reajuste na segunda linha, com os dois valores em módulo e com símbolo.
+     *
+     * Sem máscara de propósito: a segunda linha É os dois números, e escondidos ela leria
+     * "subiu de R$ ••••• para R$ •••••" — o teste não provaria nada.
+     */
+    @Test
+    fun oReajusteApareceNaSegundaLinha() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        runBlocking { app.container.settings.definirComecarOculto(false) }
+        // 39,90 → 42,90 é +7,5%: reajuste de verdade (acima de 1%) e ainda dentro dos ±10% da
+        // mediana que o motor exige. O "44,90" da copy do spec seria +12,5% e, com mediana 39,90,
+        // derrubaria a candidata inteira antes de chegar à tela.
+        semearAssinatura(app, hoje, listOf(-39_90, -39_90, -42_90))
+
+        ActivityScenario.launch<MainActivity>(MainActivity.intent(app, Destino.Totais(YearMonth.from(hoje)))).use {
+            abrirRecorrencias()
+            rule.waitUntil(5_000) { rule.onAllNodesWithText("parece assinatura").fetchSemanticsNodes().isNotEmpty() }
+
+            rule.onNodeWithText("subiu de").assertIsDisplayed()
+            rule.onNodeWithText("R$ 39,90").assertIsDisplayed()
+            rule.onNodeWithText("R$ 42,90").assertIsDisplayed()
+            // O valor da linha é o de hoje, assinado e sem símbolo, como em toda linha do app.
+            rule.onNodeWithText("−42,90").assertIsDisplayed()
+        }
+    }
 }
