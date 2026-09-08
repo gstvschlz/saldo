@@ -59,4 +59,44 @@ class RecurrenceExpanderTest {
         val occs = RecurrenceExpander.ocorrenciasNoMes(listOf(salario, aluguel), YearMonth.of(2026, 7))
         assertEquals(listOf("aluguel", "salário"), occs.map { it.descricao })
     }
+
+    // ---- o calendário da expansão (dados-1) ----
+
+    private fun template(dia: Int, inicio: String = "2024-01", fim: String? = null) = Recorrencia(
+        id = 1, descricao = "academia", valorCentavos = -120_00, natureza = Natureza.DIARIO,
+        diaDoMes = dia, inicio = YearMonth.parse(inicio), fim = fim?.let(YearMonth::parse),
+    )
+
+    @Test
+    fun dia29EmFevereiroBissextoCaiNo29() =
+        assertEquals(
+            LocalDate.parse("2024-02-29"),
+            RecurrenceExpander.ocorrenciaNoMes(template(29), YearMonth.of(2024, 2))!!.data,
+        )
+
+    @Test
+    fun dia29EmFevereiroNaoBissextoCaiNo28() =
+        assertEquals(
+            LocalDate.parse("2026-02-28"),
+            RecurrenceExpander.ocorrenciaNoMes(template(29), YearMonth.of(2026, 2))!!.data,
+        )
+
+    /** O clamp NÃO é permanente: março do mesmo ano volta ao dia 29. */
+    @Test
+    fun oClampDeFevereiroNaoContaminaMarco() =
+        assertEquals(
+            LocalDate.parse("2026-03-29"),
+            RecurrenceExpander.ocorrenciaNoMes(template(29), YearMonth.of(2026, 3))!!.data,
+        )
+
+    /** `fim` é inclusivo: o mês do fim ainda tem ocorrência, o seguinte não. */
+    @Test
+    fun fimEInclusivo() {
+        val t = template(10, fim = "2026-07")
+        assertEquals(
+            LocalDate.parse("2026-07-10"),
+            RecurrenceExpander.ocorrenciaNoMes(t, YearMonth.of(2026, 7))!!.data,
+        )
+        assertNull(RecurrenceExpander.ocorrenciaNoMes(t, YearMonth.of(2026, 8)))
+    }
 }

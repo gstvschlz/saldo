@@ -4,6 +4,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProjectionEngineTest {
@@ -258,5 +260,117 @@ class ProjectionEngineTest {
         assertEquals(20, ProjectionEngine.mes(input, set, FiltroLedger.TODAS).taxaGuardada)
         // agosto: economia sem entrada → nulo, não 0
         assertNull(ProjectionEngine.mes(input, YearMonth.of(2026, 8), FiltroLedger.TODAS).taxaGuardada)
+    }
+
+    // ---- âncora, estimativa e expansão única (dados-1) ----
+
+    /**
+     * Uma lista que conta quantas vezes alguém pediu o iterador. `RecurrenceExpander.ocorrenciasNoMes`
+     * faz `templates.mapNotNull { ... }`, então cada mês expandido é exatamente uma iteração — é o
+     * contador do expansor sem furar a produção com um hook de teste.
+     */
+    private class ListaContada<T>(private val base: List<T>) : List<T> by base {
+        var iteracoes = 0
+            private set
+
+        override fun iterator(): Iterator<T> {
+            iteracoes++
+            return base.iterator()
+        }
+    }
+
+    private val aluguel = Recorrencia(
+        id = 1, descricao = "aluguel", valorCentavos = -1_690_00,
+        natureza = Natureza.DIARIO, diaDoMes = 10, inicio = YearMonth.of(2026, 7),
+    )
+
+    @Test
+    fun compraNoCartaoAntesDaAncoraComFaturaVencendoDepoisConta() {
+        // fecha 28 / vence 5: a compra de 20/06 cai no ciclo de junho, que vence em 05/07 — depois
+        // da âncora (01/07). A fatura ainda não foi paga, então ela pesa.
+        val input = input(listOf(mov("2026-06-20", -100_00, natureza = Natureza.CARTAO)))
+        val faturas = ProjectionEngine.faturasAte(input, jul)
+        assertEquals(listOf(YearMonth.of(2026, 6)), faturas.map { it.ciclo })
+        assertEquals(-100_00L, faturas.single().totalCentavos)
+        assertEquals(LocalDate.parse("2026-07-05"), faturas.single().vencimento)
+        // e ela desce o saldo no dia do vencimento
+        assertEquals(99_900_00L, ProjectionEngine.mes(input, jul, FiltroLedger.TODAS).dias[4].saldoCentavos)
+    }
+
+    @Test
+    fun compraNoCartaoComFaturaVencidaAntesDaAncoraNaoConta() {
+        // 20/05 cai no ciclo de maio, que vence em 05/06 — antes da âncora, portanto já paga.
+        val input = input(listOf(mov("2026-05-20", -100_00, natureza = Natureza.CARTAO)))
+        assertEquals(emptyList<YearMonth>(), ProjectionEngine.faturasAte(input, jul).map { it.ciclo })
+    }
+
+    @Test
+    fun diarioAntesDaAncoraNaoConta() {
+        val input = input(listOf(mov("2026-06-20", -100_00)))
+        assertEquals(100_000_00L, ProjectionEngine.mes(input, jul, FiltroLedger.TODAS).dias[30].saldoCentavos)
+    }
+
+    /** 3.000,00 em avulsas DIARIO nos 30 dias até 20/09 → média de 100,00/dia; nada agendado depois de hoje. */
+    private val emSetembro = LedgerInput(
+        saldoInicialCentavos = 100_000_00,
+        saldoInicialData = LocalDate.parse("2026-09-01"),
+        movimentacoes = listOf(mov("2026-09-05", -1_500_00), mov("2026-09-15", -1_500_00)),
+        recorrencias = emptyList(),
+        mesesMaterializados = setOf(YearMonth.of(2026, 9)),
+        cartao = cartao,
+        hoje = LocalDate.parse("2026-09-20"),
+    )
+
+    @Test
+    fun estimativaDeUmMesFuturoCobreSoAqueleMes() {
+        // dezembro visto de setembro: 1 a 31 de dezembro são 30 dias de janela, não os 102 de hoje até lá
+        assertEquals(
+            30 * 100_00L,
+            ProjectionEngine.mes(emSetembro, YearMonth.of(2026, 12), FiltroLedger.TODAS).estimativaCentavos,
+        )
+        // e o mês corrente continua contando de hoje até o fim dele
+        assertEquals(
+            10 * 100_00L,
+            ProjectionEngine.mes(emSetembro, YearMonth.of(2026, 9), FiltroLedger.TODAS).estimativaCentavos,
+        )
+    }
+
+    /**
+     * O que se mostra e o que se desconta são duas contas. A projeção de dezembro parte do saldo
+     * de hoje, então tem de pagar os 102 dias até 31/12 — os 30 do mês exibido deixariam de fora
+     * o resto de setembro, outubro e novembro inteiros.
+     */
+    @Test
+    fun projecaoDeUmMesFuturoDescontaAJanelaInteiraDesdeHoje() {
+        val m = ProjectionEngine.mes(emSetembro, YearMonth.of(2026, 12), FiltroLedger.TODAS)
+        assertEquals(97_000_00L - 102 * 100_00L, m.saldoProjetadoCentavos)
+        assertEquals(30 * 100_00L, m.estimativaCentavos)
+    }
+
+    @Test
+    fun efetivasEExpandidaUmaVezPorLedgerInput() {
+        val recs = ListaContada(listOf(aluguel))
+        val input = input(recs = recs, materializados = emptySet())
+
+        assertSame(input.efetivas, input.efetivas)      // o `by lazy` guarda o resultado
+
+        ProjectionEngine.mes(input, jul, FiltroLedger.TODAS)
+        val depoisDoPrimeiro = recs.iteracoes
+        assertTrue("o expansor tem de rodar ao menos uma vez", depoisDoPrimeiro > 0)
+
+        ProjectionEngine.totais(input, jul)
+        ProjectionEngine.movimentacoesDoMes(input, jul)
+        ProjectionEngine.faturasAte(input, jul)
+        ProjectionEngine.movimentacoesAte(input, jul)
+        assertEquals("ninguém pode re-expandir o mesmo LedgerInput", depoisDoPrimeiro, recs.iteracoes)
+    }
+
+    /** Navegar em totais além do teto ainda projeta: a lista guardada é curta, e aí o motor expande de novo. */
+    @Test
+    fun umMesAlemDoTetoAindaEExpandido() {
+        val input = input(recs = listOf(aluguel), materializados = emptySet())
+        assertEquals(YearMonth.of(2027, 7), input.tetoExpansao)
+        val longe = YearMonth.from(input.hoje).plusMonths(24)
+        assertEquals(1, ProjectionEngine.mes(input, longe, FiltroLedger.TODAS).dias[9].itens.size)
     }
 }

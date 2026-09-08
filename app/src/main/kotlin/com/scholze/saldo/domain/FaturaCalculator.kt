@@ -9,10 +9,20 @@ object FaturaCalculator {
     fun fechamentoDoCiclo(ciclo: YearMonth, config: CartaoConfig): LocalDate =
         ciclo.atDay(minOf(config.fechamentoDia, ciclo.lengthOfMonth()))
 
-    /** Day V in the cycle month when V > F, otherwise day V of the next month. */
+    /**
+     * O vencimento do ciclo: dia V no mês do ciclo quando ele cai DEPOIS do fechamento, senão dia
+     * V do mês seguinte.
+     *
+     * A comparação é entre as datas **já clamped**, não entre os dias crus. Fecha 30 / vence 31 em
+     * fevereiro: os dois dias clampam para 28, e comparar 31 > 30 daria uma fatura que fecha e vence
+     * no mesmo dia — o único mês do ano sem um dia de carência. Comparando as datas, fevereiro passa
+     * a vencer em março, como todos os outros meses com essa configuração.
+     */
     fun vencimentoDoCiclo(ciclo: YearMonth, config: CartaoConfig): LocalDate {
-        val mes = if (config.vencimentoDia > config.fechamentoDia) ciclo else ciclo.plusMonths(1)
-        return mes.atDay(minOf(config.vencimentoDia, mes.lengthOfMonth()))
+        val noCiclo = ciclo.atDay(minOf(config.vencimentoDia, ciclo.lengthOfMonth()))
+        if (noCiclo > fechamentoDoCiclo(ciclo, config)) return noCiclo
+        val seguinte = ciclo.plusMonths(1)
+        return seguinte.atDay(minOf(config.vencimentoDia, seguinte.lengthOfMonth()))
     }
 
     /** Purchases on the closing day belong to the cycle closing that day. */

@@ -201,13 +201,15 @@ class SaldoResultanteTest {
     }
 
     /**
-     * Borda: fecha 30 e vence 31 clampam ambos para 28 de fevereiro, então a fatura vence no
-     * próprio dia da compra — e uma compra nova nesse dia pesa no saldo do dia, sim.
+     * Borda: fecha 30 e vence 31 clampam ambos para 28 de fevereiro, mas fevereiro ganhou a
+     * carência que todos os outros meses já tinham — a fatura desse ciclo vence em março, não no
+     * próprio dia da compra. Uma compra nova feita no dia do fechamento não pesa no saldo daquele
+     * dia.
      */
     @Test
-    fun cartaoNovoQueVenceNoMesmoDiaEntraNoSaldoDoDia() {
+    fun cartaoNovoNoFechamentoDeFevereiroNaoPesaNoSaldoDoDia() {
         assertEquals(
-            800_00L,
+            1_000_00L,
             saldoResultante(
                 saldoDoDia = saldoDoDia,
                 natureza = Natureza.CARTAO,

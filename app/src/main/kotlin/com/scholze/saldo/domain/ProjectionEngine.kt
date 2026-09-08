@@ -12,7 +12,30 @@ data class LedgerInput(
     val mesesMaterializados: Set<YearMonth>,
     val cartao: CartaoConfig,
     val hoje: LocalDate,
-)
+) {
+    /**
+     * Até onde [efetivas] vale: o último mês já materializado, ou o mês de [hoje] mais doze — o
+     * que for mais tarde. Cobre tudo que as telas pedem (o board olha treze meses; o ledger e
+     * totais andam de mês em mês); quem passar disso — totais não tem limite para o futuro —
+     * ganha uma expansão nova, calculada na hora.
+     */
+    val tetoExpansao: YearMonth
+        get() = maxOf(
+            mesesMaterializados.maxOrNull() ?: YearMonth.from(hoje),
+            YearMonth.from(hoje).plusMonths(12),
+        )
+
+    /**
+     * As movimentações efetivas — linhas materializadas mais as ocorrências virtuais das
+     * recorrências —, do saldo inicial até [tetoExpansao], sem faturas.
+     *
+     * `by lazy`: uma emissão do ledger expande as recorrências UMA vez, e `mes`, `totais`,
+     * `faturasAte`, `movimentacoesDoMes` e `movimentacoesAte` recortam esta lista por data em vez
+     * de re-expandir cada uma por conta própria. `TotaisViewModel` sozinho fazia sete expansões
+     * inteiras por emissão.
+     */
+    val efetivas: List<Movimentacao> by lazy { ProjectionEngine.expandir(this, tetoExpansao) }
+}
 
 sealed interface ItemDia {
     val descricao: String
@@ -39,9 +62,12 @@ data class MesLedger(
     val dias: List<DiaRow>,
     val saldoProjetadoCentavos: Long,
     /**
-     * Gasto avulso ainda esperado no intervalo `(hoje, fim de mes]` — não inclui hoje, e é
-     * zero num mês que já terminou. Já vem descontado de [saldoProjetadoCentavos]; quem
-     * mostra os dois lado a lado está mostrando o total e uma de suas parcelas.
+     * Gasto avulso ainda esperado **dentro** do mês — de hoje até o fim dele no mês corrente, do
+     * dia 1 ao fim num mês futuro —, e zero num mês que já terminou.
+     *
+     * No mês corrente é exatamente o que [saldoProjetadoCentavos] descontou. Num mês futuro a
+     * projeção desconta mais do que isto, porque também paga os dias entre hoje e o dia 1 daquele
+     * mês; ver `ProjectionEngine.estimativaAcumuladaAte`.
      */
     val estimativaCentavos: Long,
     val deltaNoMesCentavos: Long,
@@ -213,21 +239,55 @@ object ProjectionEngine {
 
     // ---- internals ----
 
-    /** Materialized rows + virtual expansions, from saldoInicialData through end of [ateMes]. */
-    private fun efetivas(input: LedgerInput, ateMes: YearMonth): List<Movimentacao> {
+    /**
+     * Linhas materializadas + expansões virtuais, do saldo inicial até o fim de [ateMes], sem
+     * faturas. Pública só porque é o corpo de [LedgerInput.efetivas] — todo mundo mais lê a lista
+     * pronta de lá, via [efetivas].
+     */
+    fun expandir(input: LedgerInput, ateMes: YearMonth): List<Movimentacao> {
         val fim = ateMes.atEndOfMonth()
-        val reais = input.movimentacoes.filter { it.data >= input.saldoInicialData && it.data <= fim }
+        val reais = input.movimentacoes.filter { dentroDaAncora(it, input) && it.data <= fim }
         val virtuais = buildList {
-            var m = YearMonth.from(input.saldoInicialData)
+            // Começa um mês ANTES da âncora: uma compra de cartão anterior ao saldo inicial cuja
+            // fatura vence depois dele conta (ver `dentroDaAncora`), e uma recorrência de cartão
+            // daquele mês seria perdida se a varredura começasse no mês da âncora.
+            var m = YearMonth.from(input.saldoInicialData).minusMonths(1)
             while (m <= ateMes) {
                 if (m !in input.mesesMaterializados) {
-                    addAll(RecurrenceExpander.ocorrenciasNoMes(input.recorrencias, m)
-                        .filter { it.data >= input.saldoInicialData })
+                    addAll(
+                        RecurrenceExpander.ocorrenciasNoMes(input.recorrencias, m)
+                            .filter { dentroDaAncora(it, input) },
+                    )
                 }
                 m = m.plusMonths(1)
             }
         }
         return (reais + virtuais).sortedBy { it.data }
+    }
+
+    /**
+     * A linha conta a partir do saldo inicial?
+     *
+     * `DIARIO` e `ECONOMIA`, pela data da movimentação — dinheiro que já saiu da conta antes da
+     * âncora está embutido nela. `CARTAO`, pelo VENCIMENTO da fatura em que a compra cai: o saldo
+     * inicial é "quanto tenho hoje" e a fatura aberta ainda não foi paga, então as compras dela
+     * pesam no vencimento, tenham sido feitas antes ou depois da âncora.
+     */
+    private fun dentroDaAncora(mov: Movimentacao, input: LedgerInput): Boolean =
+        if (mov.natureza == Natureza.CARTAO) {
+            FaturaCalculator.vencimentoDoCiclo(
+                FaturaCalculator.cicloDaCompra(mov.data, input.cartao),
+                input.cartao,
+            ) >= input.saldoInicialData
+        } else {
+            mov.data >= input.saldoInicialData
+        }
+
+    /** O recorte por data de [LedgerInput.efetivas]; além do teto, uma expansão nova. */
+    private fun efetivas(input: LedgerInput, ateMes: YearMonth): List<Movimentacao> {
+        if (ateMes > input.tetoExpansao) return expandir(input, ateMes)
+        val fim = ateMes.atEndOfMonth()
+        return input.efetivas.filter { it.data <= fim }
     }
 
     private fun passaFiltro(mov: Movimentacao, filtro: FiltroLedger, tagId: Long? = null): Boolean {
@@ -245,24 +305,44 @@ object ProjectionEngine {
             faturas.filter { it.vencimento <= ate }.sumOf { it.totalCentavos }
 
     /**
-     * Saldo projetado ao fim de [mes]: saldo real se o mês já terminou (`estimativa` 0),
-     * senão saldo real de hoje + agendadas/faturas futuras dentro do mês − estimativa.
-     */
-    /**
-     * Gasto avulso ainda esperado no intervalo `(hoje, fim de mes]` — zero num mês que já
-     * terminou. Fonte única: [mes] a publica como `estimativaCentavos` e [projetadoDoMes]
-     * a desconta, e as duas contas têm de continuar sendo a mesma.
+     * O que se MOSTRA: gasto avulso ainda esperado **dentro** de [mes] — zero num mês que já
+     * terminou. A janela começa em `max(hoje, dia 1 do mês)`, então no mês corrente vai de hoje ao
+     * fim dele e num mês futuro é o mês inteiro. Antes começava sempre em `hoje`, e a estimativa
+     * de dezembro vista de setembro cobrava cem dias de gasto contra um mês de 31.
+     *
+     * É o [MesLedger.estimativaCentavos] e nada mais. Quem projeta saldo desconta
+     * [estimativaAcumuladaAte], que é outra janela de propósito.
      */
     private fun estimativaDoMes(input: LedgerInput, mes: YearMonth): Long {
         val fimMes = mes.atEndOfMonth()
-        return if (fimMes <= input.hoje) 0L
-        else mediaDiaria(input) * ChronoUnit.DAYS.between(input.hoje, fimMes)
+        if (fimMes <= input.hoje) return 0L
+        return mediaDiaria(input) * ChronoUnit.DAYS.between(maxOf(input.hoje, mes.atDay(1)), fimMes)
     }
 
+    /**
+     * O que se DESCONTA: gasto avulso esperado de hoje até o fim de [mes] — a janela inteira,
+     * atravessando os meses do caminho.
+     *
+     * [projetadoDoMes] parte do saldo real de HOJE e soma tudo que está agendado no intervalo
+     * `(hoje, fim de mes]`; a estimativa que ele tira tem de cobrir esse mesmo intervalo. Usar
+     * [estimativaDoMes] aqui fazia a projeção de dezembro vista de setembro esquecer setenta e
+     * dois dias de gasto e ficar otimista em mais de sete mil reais.
+     */
+    private fun estimativaAcumuladaAte(input: LedgerInput, mes: YearMonth): Long {
+        val fimMes = mes.atEndOfMonth()
+        if (fimMes <= input.hoje) return 0L
+        return mediaDiaria(input) * ChronoUnit.DAYS.between(input.hoje, fimMes)
+    }
+
+    /**
+     * Saldo projetado ao fim de [mes]: saldo real se o mês já terminou, senão saldo real de hoje
+     * + agendadas/faturas futuras dentro do intervalo `(hoje, fim de mes]` − a estimativa do
+     * mesmo intervalo ([estimativaAcumuladaAte], não a do mês).
+     */
     private fun projetadoDoMes(input: LedgerInput, efetivas: List<Movimentacao>, faturas: List<Fatura>, mes: YearMonth): Long {
         val fimMes = mes.atEndOfMonth()
         if (fimMes <= input.hoje) return saldoReal(input, efetivas, faturas, fimMes)
-        val estimativa = estimativaDoMes(input, mes)
+        val estimativa = estimativaAcumuladaAte(input, mes)
         val agendadas = efetivas
             .filter { it.natureza != Natureza.CARTAO && it.data > input.hoje && it.data <= fimMes }
             .sumOf { it.valorCentavos }

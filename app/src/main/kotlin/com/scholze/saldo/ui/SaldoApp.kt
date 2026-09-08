@@ -42,6 +42,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.scholze.saldo.AppContainer
+import com.scholze.saldo.BuildConfig
+import com.scholze.saldo.data.Dump
 import com.scholze.saldo.data.Exporters
 import com.scholze.saldo.data.Settings
 import com.scholze.saldo.ui.board.BoardScreen
@@ -284,17 +286,18 @@ fun SaldoApp(
     // Um launcher por formato: o mime do CreateDocument é fixo na construção, e assim não
     // existe um "formato escolhido" guardado em estado para dessincronizar do arquivo.
     val exportarCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) gravar(uri) { Exporters.csv(container.repository.ledger.first().movimentacoes) }
+        if (uri != null) gravar(uri) { Exporters.csvDoLedger(container.repository.ledger.first()) }
     }
     val exportarJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
             gravar(uri) {
-                val input = container.repository.ledger.first()
                 Exporters.json(
-                    input.movimentacoes,
-                    input.recorrencias,
-                    container.repository.tags.first(),
-                    container.settings.settings.first(),
+                    Dump.de(
+                        input = container.repository.ledger.first(),
+                        tags = container.repository.tags.first(),
+                        settings = container.settings.settings.first(),
+                        app = BuildConfig.VERSION_NAME,
+                    ),
                 )
             }
         }

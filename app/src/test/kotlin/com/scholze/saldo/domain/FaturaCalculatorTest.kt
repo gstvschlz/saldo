@@ -73,4 +73,44 @@ class FaturaCalculatorTest {
         )
         assertEquals(0, faturas.size)
     }
+
+    // ---- carência de fevereiro (dados-1) ----
+
+    /** fecha 30 / vence 31: em fevereiro os dois clampam para 28 e a fatura venceria no mesmo dia. */
+    @Test
+    fun fevereiroComFechamento30EVencimento31VenceEmMarco() {
+        val config = CartaoConfig(nome = "c", fechamentoDia = 30, vencimentoDia = 31)
+        val fev = YearMonth.of(2026, 2)
+        assertEquals(LocalDate.parse("2026-02-28"), FaturaCalculator.fechamentoDoCiclo(fev, config))
+        assertEquals(LocalDate.parse("2026-03-31"), FaturaCalculator.vencimentoDoCiclo(fev, config))
+    }
+
+    /** O mês seguinte com a MESMA config continua como sempre foi: 30 → 31, no próprio ciclo. */
+    @Test
+    fun marcoComFechamento30EVencimento31ContinuaNoProprioCiclo() {
+        val config = CartaoConfig(nome = "c", fechamentoDia = 30, vencimentoDia = 31)
+        val mar = YearMonth.of(2026, 3)
+        assertEquals(LocalDate.parse("2026-03-30"), FaturaCalculator.fechamentoDoCiclo(mar, config))
+        assertEquals(LocalDate.parse("2026-03-31"), FaturaCalculator.vencimentoDoCiclo(mar, config))
+    }
+
+    /** Vencimento e fechamento no MESMO dia depois do clamp já é "não venceu ainda": vai para o mês seguinte. */
+    @Test
+    fun vencimentoIgualAoFechamentoDepoisDoClampVaiParaOMesSeguinte() {
+        val config = CartaoConfig(nome = "c", fechamentoDia = 28, vencimentoDia = 28)
+        assertEquals(
+            LocalDate.parse("2026-08-28"),
+            FaturaCalculator.vencimentoDoCiclo(YearMonth.of(2026, 7), config),
+        )
+    }
+
+    /** E o caso comum não pode regredir: fecha 28 / vence 5 sempre cai no mês seguinte. */
+    @Test
+    fun fechamento28Vencimento5ContinuaNoMesSeguinte() {
+        val config = CartaoConfig(nome = "c", fechamentoDia = 28, vencimentoDia = 5)
+        assertEquals(
+            LocalDate.parse("2026-08-05"),
+            FaturaCalculator.vencimentoDoCiclo(YearMonth.of(2026, 7), config),
+        )
+    }
 }
