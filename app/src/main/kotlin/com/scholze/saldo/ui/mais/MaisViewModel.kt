@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.scholze.saldo.AppContainer
+import com.scholze.saldo.backup.BackupScheduler
 import com.scholze.saldo.data.ArquivoInvalido
 import com.scholze.saldo.data.Dump
 import com.scholze.saldo.data.Importers
@@ -16,8 +17,10 @@ import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.data.Settings
 import com.scholze.saldo.data.SettingsStore
 import com.scholze.saldo.data.Tema
+import com.scholze.saldo.domain.Cadencia
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.LembretesConfig
+import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.lembretes.LembretesScheduler
 import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
 import java.time.LocalDate
@@ -29,7 +32,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -47,6 +52,7 @@ class MaisViewModel(
     private val settingsStore: SettingsStore,
     private val repository: SaldoRepository,
     private val scheduler: LembretesScheduler,
+    private val backupScheduler: BackupScheduler,
     private val leitor: LeitorDeArquivo,
     /** Reservado ao "apagar dados": tira lembretes e sugestões da barra de uma vez. */
     private val limparNotificacoes: () -> Unit,
@@ -82,12 +88,30 @@ class MaisViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
-     * Reancora o saldo inicial em hoje — é a semântica pretendida ("meu saldo HOJE é X"),
-     * e não uma correção retroativa: o engine ignora tudo antes de `saldoInicialData`,
-     * então movimentações anteriores deixam de contar a partir daqui.
+     * As linhas REAIS do ledger, para a contagem do diálogo do saldo inicial.
+     *
+     * Só as reais: as ocorrências virtuais de um mês nunca aberto não têm o que perder — elas são
+     * recalculadas a partir do template a cada leitura, e reancorar não apaga nenhuma delas.
+     *
+     * Pública porque [anterioresA] lê o `value` deste fluxo: sob `WhileSubscribed` ele só começa
+     * quando alguém assina, e quem assina é a `MaisScreen`.
      */
-    fun definirSaldoInicial(centavos: Long) =
-        escrever("definirSaldoInicial") { settingsStore.definirSaldoInicial(centavos, LocalDate.now()) }
+    val movimentacoes: StateFlow<List<Movimentacao>> = repository.ledger
+        .map { it.movimentacoes }
+        .catch { Log.e(TAG, "fluxo de movimentações falhou", it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Quantos lançamentos deixam de contar se o saldo inicial for reancorado em [data]. */
+    fun anterioresA(data: LocalDate): Int = movimentacoes.value.count { it.data < data }
+
+    /**
+     * Reancora o saldo inicial em [data] — "meu saldo em [data] era X".
+     *
+     * A data é escolhida no diálogo, não é sempre hoje: o motor ignora tudo antes dela, e reancorar
+     * em hoje sem avisar apagava das contas meses inteiros de história.
+     */
+    fun definirSaldoInicial(centavos: Long, data: LocalDate) =
+        escrever("definirSaldoInicial") { settingsStore.definirSaldoInicial(centavos, data) }
 
     fun definirCartao(config: CartaoConfig) = escrever("definirCartao") { settingsStore.definirCartao(config) }
     fun definirComecarOculto(v: Boolean) = escrever("definirComecarOculto") { settingsStore.definirComecarOculto(v) }
@@ -107,6 +131,25 @@ class MaisViewModel(
         settingsStore.definirLembretes(config)
         scheduler.agendar(config)
     }
+
+    // ---- backup automático ----
+
+    /**
+     * Guarda a pasta e agenda. A permissão persistida é tomada em `SaldoApp` (quem tem o
+     * `ContentResolver`); aqui chega só o texto do `Uri`.
+     */
+    fun definirPastaBackup(uri: String) = escrever("definirPastaBackup") {
+        settingsStore.definirPastaBackup(uri)
+        backupScheduler.agendar(settingsStore.settings.first().backup)
+    }
+
+    fun definirCadenciaBackup(cadencia: Cadencia) = escrever("definirCadenciaBackup") {
+        settingsStore.definirCadenciaBackup(cadencia)
+        backupScheduler.agendar(settingsStore.settings.first().backup)
+    }
+
+    /** O botão "agora": um trabalho único à parte, que não mexe no agendamento das 03:00. */
+    fun backupAgora() = escrever("backupAgora") { backupScheduler.agora() }
 
     // ---- restaurar ----
 
@@ -177,6 +220,25 @@ class MaisViewModel(
         }
     }
 
+    // ---- apagar dados ----
+
+    /**
+     * O "apagar dados": banco, agendamentos, notificações e ajustes, nesta ordem.
+     *
+     * Os ajustes por último de propósito — é `settingsStore.limpar()` que faz o `SaldoApp` cair no
+     * onboarding (o portão `saldoInicialCentavos == null`), e cair para uma tela de boas-vindas com
+     * o banco ainda cheio seria pior que qualquer falha no meio.
+     */
+    fun apagarTudo() = escrever("apagarTudo") {
+        repository.apagarTudo()
+        scheduler.cancelarTudo()
+        // O backup é o segundo agendamento: sem esta linha ele acordaria às 03:00 para gravar um
+        // dump vazio na pasta — por cima do último arquivo bom, pela rotação.
+        backupScheduler.cancelar()
+        limparNotificacoes()
+        settingsStore.limpar()
+    }
+
     private fun escrever(qual: String, bloco: suspend () -> Unit) {
         viewModelScope.launch {
             try {
@@ -198,6 +260,7 @@ class MaisViewModel(
                     settingsStore = container.settings,
                     repository = container.repository,
                     scheduler = container.lembretesScheduler,
+                    backupScheduler = container.backupScheduler,
                     leitor = container.leitorDeArquivo,
                     limparNotificacoes = container.limparNotificacoes,
                     limparSugestoes = container.limparSugestoes,

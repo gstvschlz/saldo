@@ -1,5 +1,6 @@
 package com.scholze.saldo.ui
 
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -318,6 +319,23 @@ fun SaldoApp(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) maisVm.prepararRestauracao(uri) }
 
+    // A pasta do backup: `OpenDocumentTree` devolve uma árvore, e a permissão dela só sobrevive ao
+    // reboot se for tomada como persistível AQUI, na volta do seletor — depois não dá mais. Sem
+    // ela guardada, o worker acordaria às 03:00 para tomar uma SecurityException.
+    val escolherPasta = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }.onSuccess { maisVm.definirPastaBackup(uri.toString()) }
+                .onFailure { Log.e("saldo", "permissão da pasta não pôde ser persistida", it) }
+        }
+    }
+
     Box(modifier.fillMaxSize().background(colors.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Box(Modifier.weight(1f)) {
@@ -406,6 +424,7 @@ fun SaldoApp(
                         onEscolherArquivo = {
                             escolherArquivo.launch(arrayOf("application/json", "text/plain", "*/*"))
                         },
+                        onEscolherPasta = { escolherPasta.launch(null) },
                     )
                 }
             }

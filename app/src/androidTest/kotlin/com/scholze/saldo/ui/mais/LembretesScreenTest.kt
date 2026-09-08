@@ -43,6 +43,7 @@ class LembretesScreenTest {
             settingsStore = app.container.settings,
             repository = app.container.repository,
             scheduler = app.container.lembretesScheduler,
+            backupScheduler = app.container.backupScheduler,
             leitor = app.container.leitorDeArquivo,
             limparNotificacoes = {},
             limparSugestoes = {},

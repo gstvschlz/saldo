@@ -63,13 +63,20 @@ fun DescricaoTexto(
     )
 }
 
-/** A label/value row inside an [InsetGroup]. */
+/**
+ * A label/value row inside an [InsetGroup].
+ *
+ * [habilitado] `false` apaga o rótulo e desliga o toque — e desligar pelo `clickable` é o que
+ * marca o nó como `disabled` na semântica, que é o que um leitor de tela (e o teste) lê. Uma
+ * linha que não faz nada precisa ao menos parecer que não faz.
+ */
 @Composable
 fun InsetRow(
     label: String,
     modifier: Modifier = Modifier,
     value: String? = null,
     valueColor: Color? = null,
+    habilitado: Boolean = true,
     onClick: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
@@ -79,18 +86,22 @@ fun InsetRow(
         .defaultMinSize(minHeight = 48.dp)
 
     Row(
-        (if (onClick != null) base.clickable(onClick = onClick) else base)
+        (if (onClick != null) base.clickable(enabled = habilitado, onClick = onClick) else base)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text = label, style = SaldoTheme.type.body, color = colors.label)
+        Text(
+            text = label,
+            style = SaldoTheme.type.body,
+            color = if (habilitado) colors.label else colors.secondaryLabel,
+        )
         Box(Modifier.weight(1f))
         if (value != null) {
             Text(
                 text = value,
                 style = SaldoTheme.type.body.copy(fontWeight = FontWeight.Bold),
-                color = valueColor ?: colors.secondaryLabel,
+                color = valueColor.takeIf { habilitado } ?: colors.secondaryLabel,
             )
         }
         trailing?.invoke()
