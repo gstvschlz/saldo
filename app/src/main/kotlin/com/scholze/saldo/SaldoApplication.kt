@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.work.ExistingWorkPolicy
+import com.scholze.saldo.backup.BackupScheduler
 import com.scholze.saldo.data.RoomSaldoRepository
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.data.SettingsStore
@@ -40,6 +41,7 @@ class AppContainer(context: Context) {
     val repository: SaldoRepository = RoomSaldoRepository(database, settings)
     val widgetRefresher: WidgetRefresher = WidgetRefresher(context.applicationContext, repository, settings, scope)
     val lembretesScheduler: LembretesScheduler = LembretesScheduler(context.applicationContext)
+    val backupScheduler: BackupScheduler = BackupScheduler(context.applicationContext)
 }
 
 class SaldoApplication : Application() {
@@ -54,7 +56,9 @@ class SaldoApplication : Application() {
         // Rede de segurança (KEEP): normalmente os trabalhos já existem — o WorkManager sobrevive
         // ao reboot — mas depois de "limpar dados" ou de um restore eles precisam voltar.
         container.scope.launch {
-            container.lembretesScheduler.agendar(container.settings.settings.first().lembretes, ExistingWorkPolicy.KEEP)
+            val s = container.settings.settings.first()
+            container.lembretesScheduler.agendar(s.lembretes, ExistingWorkPolicy.KEEP)
+            container.backupScheduler.agendar(s.backup, ExistingWorkPolicy.KEEP)
         }
     }
 }

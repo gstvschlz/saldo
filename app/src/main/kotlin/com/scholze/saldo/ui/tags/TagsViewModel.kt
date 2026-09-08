@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.scholze.saldo.AppContainer
 import com.scholze.saldo.data.SaldoRepository
+import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.TagSnapshot
 import java.time.YearMonth
@@ -27,9 +28,11 @@ data class TagsUiState(val tags: List<Pair<Tag, Long>> = emptyList())
 class TagsViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     val state: StateFlow<TagsUiState> = combine(repo.ledger, repo.tags) { input, tags ->
-        val mes = YearMonth.from(input.hoje)
-        val totais = input.movimentacoes
-            .filter { YearMonth.from(it.data) == mes && it.valorCentavos < 0 }
+        // Pelo motor, não por `input.movimentacoes`: a lista crua do banco não tem as ocorrências
+        // virtuais de um mês nunca aberto (a tag ficaria zerada num mês que o resto do app mostra
+        // cheio) e tem as linhas anteriores ao saldo inicial, que o resto do app ignora.
+        val totais = ProjectionEngine.movimentacoesDoMes(input, YearMonth.from(input.hoje))
+            .filter { it.valorCentavos < 0 }
             .flatMap { m -> m.tags.map { it.id to -m.valorCentavos } }
             .groupBy({ it.first }, { it.second })
             .mapValues { (_, v) -> v.sum() }

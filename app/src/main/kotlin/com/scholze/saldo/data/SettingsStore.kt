@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.scholze.saldo.domain.BackupConfig
+import com.scholze.saldo.domain.Cadencia
 import com.scholze.saldo.domain.CapturaConfig
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.LembretesConfig
@@ -32,6 +34,11 @@ data class Settings(
     val widgetMostrarValores: Boolean = false,
     val lembretes: LembretesConfig = LembretesConfig(),
     val captura: CapturaConfig = CapturaConfig(),
+    /**
+     * O backup automático. **Não vai no dump exportado**: a pasta e a permissão são deste aparelho,
+     * e um arquivo restaurado noutro celular apontaria para uma árvore que ele não pode escrever.
+     */
+    val backup: BackupConfig = BackupConfig(),
 )
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -55,6 +62,11 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val capturaLigada = booleanPreferencesKey("captura_ligada")
         val capturaMarcados = stringSetPreferencesKey("captura_marcados")
         val capturaVistos = stringSetPreferencesKey("captura_vistos")
+        val backupPastaUri = stringPreferencesKey("backup_pasta_uri")
+        val backupCadencia = stringPreferencesKey("backup_cadencia")
+        val backupUltimoSucessoEpochDay = longPreferencesKey("backup_ultimo_sucesso_epoch_day")
+        val backupUltimoErro = stringPreferencesKey("backup_ultimo_erro")
+        val backupUltimoErroEpochDay = longPreferencesKey("backup_ultimo_erro_epoch_day")
     }
 
     // Um disco ilegível não pode travar a primeira composição: o app cai nos defaults.
@@ -75,6 +87,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             widgetMostrarValores = p[Keys.widgetMostrarValores] ?: false,
             lembretes = p.lembretes(),
             captura = p.captura(),
+            backup = p.backup(),
         )
     }
 
@@ -130,6 +143,24 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         horaNudge = hora(Keys.lembretesHoraNudge, LembretesConfig().horaNudge),
     )
 
+    private fun Preferences.backup(): BackupConfig = BackupConfig(
+        pastaUri = this[Keys.backupPastaUri],
+        // Tolerante a uma cadência gravada por uma versão futura do enum, como o tema.
+        cadencia = this[Keys.backupCadencia]?.let { v -> Cadencia.entries.find { it.name == v } } ?: BackupConfig().cadencia,
+        ultimoSucesso = this[Keys.backupUltimoSucessoEpochDay]?.let(LocalDate::ofEpochDay),
+        ultimoErro = this[Keys.backupUltimoErro],
+        ultimoErroEm = this[Keys.backupUltimoErroEpochDay]?.let(LocalDate::ofEpochDay),
+    )
+
+    /**
+     * Sem engolir IOException, pela mesma razão de [lerLembretes]: é por aqui que o `BackupWorker`
+     * decide se há pasta para gravar. Por [settings] um disco ilegível viraria `pastaUri = null` —
+     * indistinguível de "o usuário não escolheu pasta" — e o worker sairia em silêncio, sem
+     * reagendar, matando o trabalho único até o próximo arranque do app. Ilegível é infraestrutura:
+     * `retry`.
+     */
+    suspend fun lerBackup(): BackupConfig = dataStore.data.first().backup()
+
     suspend fun definirSaldoInicial(centavos: Long, data: LocalDate) {
         dataStore.edit {
             it[Keys.saldoInicial] = centavos
@@ -165,6 +196,48 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[Keys.lembreteFechamentoMes] = config.fechamentoMes
             it[Keys.lembretesHoraInformativos] = config.horaInformativos.toSecondOfDay() / 60
             it[Keys.lembretesHoraNudge] = config.horaNudge.toSecondOfDay() / 60
+        }
+    }
+
+    /** `null` desliga: sem pasta, nada é agendado e a tela desabilita os outros controles. */
+    suspend fun definirPastaBackup(uri: String?) {
+        dataStore.edit { p ->
+            if (uri == null) p.remove(Keys.backupPastaUri) else p[Keys.backupPastaUri] = uri
+            // Trocar de pasta zera o histórico de estado: "último sucesso" da pasta velha não diz
+            // nada sobre a nova, e o erro dela ficaria congelado na tela para sempre.
+            p.remove(Keys.backupUltimoSucessoEpochDay)
+            p.remove(Keys.backupUltimoErro)
+            p.remove(Keys.backupUltimoErroEpochDay)
+        }
+    }
+
+    suspend fun definirCadenciaBackup(cadencia: Cadencia) {
+        dataStore.edit { it[Keys.backupCadencia] = cadencia.name }
+    }
+
+    /** Um sucesso apaga o erro anterior: a linha da tela mostra um estado, não um histórico. */
+    suspend fun registrarBackupOk(data: LocalDate) {
+        dataStore.edit {
+            it[Keys.backupUltimoSucessoEpochDay] = data.toEpochDay()
+            it.remove(Keys.backupUltimoErro)
+            it.remove(Keys.backupUltimoErroEpochDay)
+        }
+    }
+
+    /** O erro fica com a data junto: "falhou" sozinho não diz se foi ontem ou em março. */
+    suspend fun registrarBackupErro(mensagem: String, data: LocalDate) {
+        dataStore.edit {
+            it[Keys.backupUltimoErro] = mensagem
+            it[Keys.backupUltimoErroEpochDay] = data.toEpochDay()
+        }
+    }
+
+    /** Permissão revogada ou pasta apagada: o backup para e a tela pede a pasta de novo. */
+    suspend fun desligarBackup(motivo: String, data: LocalDate) {
+        dataStore.edit {
+            it.remove(Keys.backupPastaUri)
+            it[Keys.backupUltimoErro] = motivo
+            it[Keys.backupUltimoErroEpochDay] = data.toEpochDay()
         }
     }
 
