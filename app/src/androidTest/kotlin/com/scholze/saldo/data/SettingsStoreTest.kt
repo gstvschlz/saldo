@@ -3,6 +3,9 @@ package com.scholze.saldo.data
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.scholze.saldo.domain.BackupConfig
+import com.scholze.saldo.domain.Cadencia
+import com.scholze.saldo.domain.CapturaConfig
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.LembretesConfig
 import java.io.File
@@ -124,5 +127,78 @@ class SettingsStoreTest {
         s.definirCapturaLigada(true)
         s.definirAppMarcado("com.nubank", true)
         assertEquals(s.settings.first().captura, s.lerCaptura())
+    }
+
+    // ---- clamp do cartão e substituir (dados-1) ----
+
+    @Test
+    fun diaDeCartaoForaDaFaixaCaiNoPadrao() = runBlocking {
+        val st = store()
+        st.definirCartao(CartaoConfig(nome = "c", fechamentoDia = 0, vencimentoDia = 32))
+        val cartao = st.settings.first().cartao
+        assertEquals(CartaoConfig().fechamentoDia, cartao.fechamentoDia)
+        assertEquals(CartaoConfig().vencimentoDia, cartao.vencimentoDia)
+        assertEquals("c", cartao.nome)                       // o nome não é afetado
+    }
+
+    @Test
+    fun diaDeCartaoNasBordasEAceito() = runBlocking {
+        val st = store()
+        st.definirCartao(CartaoConfig(nome = "c", fechamentoDia = 1, vencimentoDia = 31))
+        val cartao = st.settings.first().cartao
+        assertEquals(1, cartao.fechamentoDia)
+        assertEquals(31, cartao.vencimentoDia)
+    }
+
+    @Test
+    fun substituirTrocaTodosOsAjustes() = runBlocking {
+        val st = store()
+        st.definirSaldoInicial(1_00, LocalDate.parse("2026-01-01"))
+        st.definirTema(Tema.CLARO)
+        st.definirWidgetMostrarValores(true)
+        st.definirCapturaLigada(true)
+        st.definirAppMarcado("com.antigo", true)
+
+        val novo = Settings(
+            saldoInicialCentavos = 50_000_00,
+            saldoInicialData = LocalDate.parse("2026-07-01"),
+            cartao = CartaoConfig("nubank", 27, 4),
+            comecarOculto = false,
+            tema = Tema.ESCURO,
+            widgetMostrarValores = false,
+            lembretes = LembretesConfig(faturaAmanha = true, horaInformativos = LocalTime.of(8, 30)),
+            captura = CapturaConfig(ligada = false, marcados = setOf("com.novo"), vistos = emptySet()),
+        )
+        st.substituir(novo)
+
+        assertEquals(novo, st.settings.first())
+    }
+
+    /** A pasta do backup é do APARELHO, não do arquivo: restaurar não pode apagá-la. */
+    @Test
+    fun substituirPreservaAFiacaoDoBackup() = runBlocking {
+        val st = store()
+        st.definirPastaBackup("content://tree/quintal")
+        st.definirCadenciaBackup(Cadencia.DIARIO)
+        st.registrarBackupOk(LocalDate.parse("2026-09-07"))
+
+        st.substituir(Settings(null, null, CartaoConfig(), true, Tema.SISTEMA))
+
+        val b = st.settings.first().backup
+        assertEquals("content://tree/quintal", b.pastaUri)
+        assertEquals(Cadencia.DIARIO, b.cadencia)
+        assertEquals(LocalDate.parse("2026-09-07"), b.ultimoSucesso)
+    }
+
+    /** Apagar dados é outra coisa: ali o backup vai junto. */
+    @Test
+    fun limparEsqueceInclusiveOBackup() = runBlocking {
+        val st = store()
+        st.definirPastaBackup("content://tree/quintal")
+        st.definirCadenciaBackup(Cadencia.DIARIO)
+
+        st.limpar()
+
+        assertEquals(BackupConfig(), st.settings.first().backup)
     }
 }

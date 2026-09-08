@@ -122,6 +122,18 @@ fun Movimentacao.toEntity() = MovimentacaoEntity(
     recorrenciaId = recorrenciaId, editadaManualmente = editadaManualmente,
     criadaEm = if (criadaEm != 0L) criadaEm else System.currentTimeMillis(),
 )
+
+/**
+ * Como [toEntity], mas SEM carimbar `criadaEm`: restaurar grava o arquivo como ele é, inclusive o
+ * `0` de uma linha cuja data de criação nunca foi conhecida. Carimbar aqui faria o dump deixar de
+ * bater consigo mesmo depois de uma ida e volta.
+ */
+fun Movimentacao.toEntityFiel() = MovimentacaoEntity(
+    id = id, descricao = descricao, valorCentavos = valorCentavos,
+    dataEpochDay = data.toEpochDay(), natureza = natureza.name,
+    recorrenciaId = recorrenciaId, editadaManualmente = editadaManualmente, criadaEm = criadaEm,
+)
+
 /** Tags are persisted separately via `RecorrenciaDao.setTags` — inserting this entity alone writes no tags. */
 fun Recorrencia.toEntity() = RecorrenciaEntity(
     id = id, descricao = descricao, valorCentavos = valorCentavos, natureza = natureza.name,

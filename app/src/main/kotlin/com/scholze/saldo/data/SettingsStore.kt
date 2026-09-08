@@ -78,8 +78,8 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             saldoInicialData = p[Keys.saldoInicialData]?.let(LocalDate::ofEpochDay),
             cartao = CartaoConfig(
                 nome = p[Keys.cartaoNome] ?: CartaoConfig().nome,
-                fechamentoDia = p[Keys.cartaoFechamento] ?: CartaoConfig().fechamentoDia,
-                vencimentoDia = p[Keys.cartaoVencimento] ?: CartaoConfig().vencimentoDia,
+                fechamentoDia = p.diaDoCartao(Keys.cartaoFechamento, CartaoConfig().fechamentoDia),
+                vencimentoDia = p.diaDoCartao(Keys.cartaoVencimento, CartaoConfig().vencimentoDia),
             ),
             comecarOculto = p[Keys.comecarOculto] ?: true,
             // Tolerante a um valor gravado por uma versão futura/antiga do enum.
@@ -242,6 +242,52 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     }
 
     /**
+     * Troca TODOS os ajustes pelos de [novo] — o passo 5 do restaurar.
+     *
+     * Limpa antes de gravar, para uma chave que existia e não existe mais no arquivo sumir de
+     * verdade em vez de sobreviver por baixo. As cinco chaves do backup automático são a exceção
+     * deliberada: a pasta e a permissão persistida do SAF são deste APARELHO, não do arquivo — um
+     * dump exportado noutro celular apontaria para uma árvore que este não pode escrever, e o
+     * backup morreria em `SecurityException` no primeiro disparo. Quem quer esquecer o aparelho
+     * inteiro usa [limpar].
+     */
+    suspend fun substituir(novo: Settings) {
+        dataStore.edit { p ->
+            val pasta = p[Keys.backupPastaUri]
+            val cadencia = p[Keys.backupCadencia]
+            val sucesso = p[Keys.backupUltimoSucessoEpochDay]
+            val erro = p[Keys.backupUltimoErro]
+            val erroEm = p[Keys.backupUltimoErroEpochDay]
+
+            p.clear()
+
+            pasta?.let { p[Keys.backupPastaUri] = it }
+            cadencia?.let { p[Keys.backupCadencia] = it }
+            sucesso?.let { p[Keys.backupUltimoSucessoEpochDay] = it }
+            erro?.let { p[Keys.backupUltimoErro] = it }
+            erroEm?.let { p[Keys.backupUltimoErroEpochDay] = it }
+
+            novo.saldoInicialCentavos?.let { p[Keys.saldoInicial] = it }
+            novo.saldoInicialData?.let { p[Keys.saldoInicialData] = it.toEpochDay() }
+            p[Keys.cartaoNome] = novo.cartao.nome
+            p[Keys.cartaoFechamento] = novo.cartao.fechamentoDia
+            p[Keys.cartaoVencimento] = novo.cartao.vencimentoDia
+            p[Keys.comecarOculto] = novo.comecarOculto
+            p[Keys.tema] = novo.tema.name
+            p[Keys.widgetMostrarValores] = novo.widgetMostrarValores
+            p[Keys.lembreteFaturaAmanha] = novo.lembretes.faturaAmanha
+            p[Keys.lembreteRecorrenciaHoje] = novo.lembretes.recorrenciaHoje
+            p[Keys.lembreteRegistrarGastos] = novo.lembretes.registrarGastos
+            p[Keys.lembreteFechamentoMes] = novo.lembretes.fechamentoMes
+            p[Keys.lembretesHoraInformativos] = novo.lembretes.horaInformativos.toSecondOfDay() / 60
+            p[Keys.lembretesHoraNudge] = novo.lembretes.horaNudge.toSecondOfDay() / 60
+            p[Keys.capturaLigada] = novo.captura.ligada
+            p[Keys.capturaMarcados] = novo.captura.marcados
+            p[Keys.capturaVistos] = novo.captura.vistos
+        }
+    }
+
+    /**
      * Reset das preferências: volta tudo ao default de instalação nova, incluindo o saldo
      * inicial — ou seja, o app cai de volta no onboarding.
      *
@@ -250,6 +296,9 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
      * existir. Note o que ela NÃO faz: o banco de movimentações continua intacto, então
      * um reset sozinho deixaria o ledger com lançamentos e sem saldo inicial — quem
      * chamar precisa limpar o banco também.
+     *
+     * Ao contrário de [substituir], leva TAMBÉM a fiação do backup automático (pasta, cadência e o
+     * último estado): quem apaga os dados está pedindo para o app esquecer este aparelho.
      *
      * Passa pela MESMA instância de [DataStore] de propósito: apagar o arquivo por fora
      * não invalida o cache em memória do singleton, então só isto realmente reseta o
@@ -263,3 +312,11 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 /** Minutos do dia gravados → hora; um valor fora de 0..1439 (versão futura, disco corrompido) cai no padrão. */
 private fun Preferences.hora(key: Preferences.Key<Int>, padrao: LocalTime): LocalTime =
     this[key]?.takeIf { it in 0..1439 }?.let { LocalTime.ofSecondOfDay(it * 60L) } ?: padrao
+
+/**
+ * Dia do cartão gravado → dia; fora de 1..31 (versão futura, disco corrompido, arquivo torto que
+ * escapou da validação) cai no padrão. Sem isto, `ciclo.atDay(minOf(dia, lengthOfMonth))` lança
+ * `DateTimeException` para dia 0 e derruba a projeção inteira — a tela congela sem nada explicando.
+ */
+private fun Preferences.diaDoCartao(key: Preferences.Key<Int>, padrao: Int): Int =
+    this[key]?.takeIf { it in 1..31 } ?: padrao

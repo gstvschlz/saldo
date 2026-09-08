@@ -1,5 +1,6 @@
 package com.scholze.saldo
 
+import com.scholze.saldo.data.Dump
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
@@ -32,4 +33,6 @@ class RepositorioFixo(input: LedgerInput, tags: List<Tag> = emptyList()) : Saldo
     override suspend fun excluirTag(id: Long): TagSnapshot = TagSnapshot(Tag(id, "", 0), emptyList(), emptyList())
     override suspend fun restaurarTag(snapshot: TagSnapshot) = Unit
     override suspend fun recolorirTag(id: Long, cor: Long) = Unit
+    override suspend fun substituirTudo(dump: Dump) = Unit
+    override suspend fun apagarTudo() = Unit
 }

@@ -6,6 +6,7 @@ import com.scholze.saldo.data.db.SaldoDatabase
 import com.scholze.saldo.data.db.toAnoMes
 import com.scholze.saldo.data.db.toDomain
 import com.scholze.saldo.data.db.toEntity
+import com.scholze.saldo.data.db.toEntityFiel
 import com.scholze.saldo.data.db.toYearMonth
 import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
@@ -98,6 +99,19 @@ interface SaldoRepository {
     suspend fun excluirTag(id: Long): TagSnapshot
     suspend fun restaurarTag(snapshot: TagSnapshot)
     suspend fun recolorirTag(id: Long, cor: Long)
+
+    /**
+     * Troca o banco INTEIRO pelo conteúdo de [dump], numa transação só: apaga tudo e insere com os
+     * ids do arquivo. Qualquer falha faz rollback e o banco fica exatamente como estava.
+     *
+     * NÃO toca nos ajustes — Room e DataStore não compartilham transação, e a ordem deliberada é
+     * "banco primeiro, ajustes depois" (decisão 2 do spec): se a transação falhar, nada mudou; se os
+     * ajustes falharem depois do commit, o banco já é o do arquivo e a mensagem diz isso.
+     */
+    suspend fun substituirTudo(dump: Dump)
+
+    /** O "apagar dados": esvazia todas as tabelas na mesma transação de [substituirTudo]. */
+    suspend fun apagarTudo()
 }
 
 class RoomSaldoRepository(
@@ -111,6 +125,7 @@ class RoomSaldoRepository(
     private val recDao = db.recorrenciaDao()
     private val tagDao = db.tagDao()
     private val mesDao = db.mesMaterializadoDao()
+    private val deteccaoDao = db.deteccaoDao()
 
     override val ledger: Flow<LedgerInput> = combine(
         movDao.observeAll(),
@@ -435,6 +450,38 @@ class RoomSaldoRepository(
     }
 
     override suspend fun recolorirTag(id: Long, cor: Long) = tagDao.recolor(id, cor)
+
+    override suspend fun substituirTudo(dump: Dump) = db.withTransaction {
+        limparTabelas()
+        // Tags primeiro: os cruzamentos das recorrências e movimentações apontam para elas, e as FKs
+        // são CASCADE mas não deferred — inserir um cruzamento antes da tag derruba a transação.
+        dump.tags.forEach { tagDao.insertComId(it.toEntity()) }
+        dump.recorrencias.forEach { r ->
+            recDao.insert(r.toEntity())
+            if (r.tags.isNotEmpty()) recDao.setTags(r.id, r.tags.map { it.id })
+        }
+        dump.movimentacoes.forEach { m ->
+            movDao.insert(m.toEntityFiel())
+            if (m.tags.isNotEmpty()) movDao.setTags(m.id, m.tags.map { it.id })
+        }
+        dump.mesesMaterializados.forEach { mesDao.marcar(MesMaterializadoEntity(it.toAnoMes())) }
+    }
+
+    override suspend fun apagarTudo() = db.withTransaction { limparTabelas() }
+
+    /**
+     * A ordem é cruzamentos → movimentações → recorrências → tags → meses → detecções.
+     * `clearAllTables()` não serve: ele abre a própria transação, e isto roda dentro de uma.
+     */
+    private suspend fun limparTabelas() {
+        movDao.deleteTodosCruzamentos()
+        recDao.deleteTodosCruzamentos()
+        movDao.deleteTodas()
+        recDao.deleteTodas()
+        tagDao.deleteTodas()
+        mesDao.deleteTodos()
+        deteccaoDao.deleteTodas()
+    }
 
     /**
      * Núcleo de [abrirMes]: expande todo template ativo em [mes] e marca o mês como materializado.

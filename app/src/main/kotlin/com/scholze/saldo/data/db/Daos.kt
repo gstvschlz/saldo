@@ -18,6 +18,8 @@ interface MesMaterializadoDao {
 
     @Query("SELECT anoMes FROM meses_materializados")
     fun observeTodos(): Flow<List<Int>>
+
+    @Query("DELETE FROM meses_materializados") suspend fun deleteTodos()
 }
 
 @Dao
@@ -86,6 +88,11 @@ interface MovimentacaoDao {
 
     @Query("UPDATE movimentacoes SET recorrenciaId = :recorrenciaId, editadaManualmente = :editada WHERE id = :id")
     suspend fun ligarARecorrencia(id: Long, recorrenciaId: Long, editada: Boolean)
+
+    /** Restaurar/apagar: `clearAllTables` abre a própria transação e não serve aqui dentro. */
+    @Query("DELETE FROM movimentacoes") suspend fun deleteTodas()
+
+    @Query("DELETE FROM movimentacao_tags") suspend fun deleteTodosCruzamentos()
 }
 
 @Dao
@@ -116,6 +123,10 @@ interface RecorrenciaDao {
         clearTags(recId)
         tagIds.forEach { insertTagCross(RecorrenciaTagCross(recId, it)) }
     }
+
+    @Query("DELETE FROM recorrencias") suspend fun deleteTodas()
+
+    @Query("DELETE FROM recorrencia_tags") suspend fun deleteTodosCruzamentos()
 }
 
 @Dao
@@ -163,6 +174,8 @@ interface TagDao {
             "SELECT id, :tagId FROM recorrencias WHERE id IN (:ids)",
     )
     suspend fun religarRecorrencias(tagId: Long, ids: List<Long>)
+
+    @Query("DELETE FROM tags") suspend fun deleteTodas()
 }
 
 @Dao
@@ -181,4 +194,6 @@ interface DeteccaoDao {
     /** A varredura das 24 h. Chamada a cada detecção: é um DELETE indexado, sai barato. */
     @Query("DELETE FROM deteccoes WHERE emMillis < :antesDe")
     suspend fun limpar(antesDe: Long)
+
+    @Query("DELETE FROM deteccoes") suspend fun deleteTodas()
 }

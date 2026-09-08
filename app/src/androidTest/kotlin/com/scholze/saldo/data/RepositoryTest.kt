@@ -4,11 +4,13 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.data.db.SaldoDatabase
+import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.domain.Tag
 import java.io.File
@@ -660,5 +662,97 @@ class RepositoryTest {
         assertEquals(listOf(tag), repo.tags.first())
         assertEquals(listOf(tag), linhas().single { it.id == sobrevivente.id }.tags)
         assertEquals(1, linhas().size)                          // a apagada continua apagada
+    }
+
+    // ---- substituir e apagar (dados-1) ----
+
+    private val tagDump = Tag(id = 7, nome = "mercado", cor = 0xFF112233L)
+
+    private val recDump = Recorrencia(
+        id = 4, descricao = "aluguel", valorCentavos = -1_690_00, natureza = Natureza.DIARIO,
+        diaDoMes = 10, inicio = YearMonth.of(2026, 7), fim = null, ativa = false, tags = listOf(tagDump),
+    )
+
+    private fun dumpDeTeste(
+        movs: List<Movimentacao> = listOf(
+            Movimentacao(
+                id = 11, descricao = "pão", valorCentavos = -8_50, data = LocalDate.parse("2026-07-03"),
+                natureza = Natureza.DIARIO, recorrenciaId = null, editadaManualmente = false,
+                tags = listOf(tagDump), criadaEm = 1_757_000_000_000L,
+            ),
+            Movimentacao(
+                id = 12, descricao = "aluguel", valorCentavos = -1_690_00, data = LocalDate.parse("2026-07-10"),
+                natureza = Natureza.DIARIO, recorrenciaId = 4, editadaManualmente = true,
+                tags = emptyList(), criadaEm = 1_757_000_000_001L,
+            ),
+        ),
+    ) = Dump(
+        exportadoEm = "2026-09-07T10:12:00-03:00",
+        app = "0.6.0",
+        settings = Settings(
+            saldoInicialCentavos = 50_000_00, saldoInicialData = LocalDate.parse("2026-07-01"),
+            cartao = CartaoConfig(), comecarOculto = true, tema = Tema.SISTEMA,
+        ),
+        tags = listOf(tagDump),
+        recorrencias = listOf(recDump),
+        movimentacoes = movs,
+        mesesMaterializados = setOf(YearMonth.of(2026, 7)),
+    )
+
+    @Test
+    fun substituirTudoDeixaExatamenteOConteudoDoDumpComOsIds() = runBlocking {
+        // ruído que tem de sumir
+        repo.criar(mov("2026-06-01", -1_00), RepetirOpcao.TodoMes(1))
+        repo.criarTag("velha", 0xFF000000L)
+        repo.abrirMes(YearMonth.of(2026, 6))
+
+        repo.substituirTudo(dumpDeTeste())
+
+        val input = repo.ledger.first()
+        assertEquals(listOf(11L, 12L), input.movimentacoes.sortedBy { it.id }.map { it.id })
+        assertEquals(listOf(4L), input.recorrencias.map { it.id })
+        assertEquals(false, input.recorrencias.single().ativa)          // `ativa` sobrevive
+        assertEquals(listOf(tagDump), repo.tags.first())
+        assertEquals(setOf(YearMonth.of(2026, 7)), input.mesesMaterializados)
+
+        val pao = input.movimentacoes.first { it.id == 11L }
+        assertEquals(1_757_000_000_000L, pao.criadaEm)                  // criadaEm NÃO é recarimbado
+        assertEquals(listOf(tagDump), pao.tags)
+        val aluguel = input.movimentacoes.first { it.id == 12L }
+        assertEquals(4L, aluguel.recorrenciaId)
+        assertEquals(true, aluguel.editadaManualmente)
+        assertEquals(emptyList<Tag>(), aluguel.tags)
+    }
+
+    /**
+     * Um dump com id repetido — que o `Importers` recusaria, mas que uma chamada direta pode
+     * produzir — explode no meio da inserção. A transação inteira volta atrás.
+     */
+    @Test
+    fun umDumpQuebradoNoMeioDaInsercaoFazRollback() = runBlocking {
+        repo.criar(mov("2026-06-01", -1_00), RepetirOpcao.Nao)
+        val antes = repo.ledger.first().movimentacoes.map { it.id to it.descricao }
+
+        val repetido = dumpDeTeste().let { d -> d.copy(movimentacoes = d.movimentacoes + d.movimentacoes.first()) }
+        val falhou = runCatching { repo.substituirTudo(repetido) }.isFailure
+
+        assertEquals(true, falhou)
+        assertEquals(antes, repo.ledger.first().movimentacoes.map { it.id to it.descricao })
+        assertEquals(0, repo.ledger.first().recorrencias.size)
+    }
+
+    @Test
+    fun apagarTudoEsvaziaTodasAsTabelas() = runBlocking {
+        repo.criar(mov("2026-07-10", -80_00), RepetirOpcao.TodoMes(10))
+        repo.criarTag("mercado", 0xFF112233L)
+        repo.abrirMes(YearMonth.of(2026, 8))
+
+        repo.apagarTudo()
+
+        val input = repo.ledger.first()
+        assertEquals(emptyList<Movimentacao>(), input.movimentacoes)
+        assertEquals(emptyList<Recorrencia>(), input.recorrencias)
+        assertEquals(emptyList<Tag>(), repo.tags.first())
+        assertEquals(emptySet<YearMonth>(), input.mesesMaterializados)
     }
 }
