@@ -26,5 +26,6 @@ Ferramentas via [mise](https://mise.jdx.dev): `mise install` instala JDK, Gradle
 - **totais** — o mês, a tendência e o que ainda vem.
 - **tags** — categorize e veja para onde foi.
 - **widgets e lembretes** — opcionais, desligados por padrão.
-
-Exporte tudo em `mais → exportar dados` (csv ou json).
+- **seus dados** — exportar (csv ou json), restaurar o json de volta, backup automático
+  numa pasta que você escolhe, e apagar tudo. Se essa pasta for sincronizada pelo
+  aparelho, o histórico sobrevive a ele — e o app continua sem tocar na rede.
