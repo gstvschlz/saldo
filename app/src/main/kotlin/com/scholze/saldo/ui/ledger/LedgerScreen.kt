@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -45,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.testTag
@@ -60,6 +63,7 @@ import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.descricaoVisivel
 import com.scholze.saldo.ui.components.BuscaTopBar
 import com.scholze.saldo.ui.components.Carregando
@@ -114,6 +118,10 @@ fun LedgerScreen(
     onLimparTag: () -> Unit,
     onTentar: () -> Unit = {},
     onVerGuardado: () -> Unit = {},
+    onEtiquetar: (Movimentacao, Tag) -> Unit = { _, _ -> },
+    onMaisEtiquetas: (Movimentacao) -> Unit = {},
+    /** A meta de guardar, em %; `0` = sem meta. Vem do `Settings`, que a shell já tem em mãos. */
+    metaGuardarPercent: Int = 0,
     alvo: AlvoLedger? = null,
     onAlvoConsumido: () -> Unit = {},
     busca: String? = null,
@@ -207,12 +215,21 @@ fun LedgerScreen(
                 Carregando()
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
-                    item(key = "hero") { BalanceHero(mes, onTogglePrivacidade, onVerGuardado) }
+                    item(key = "hero") { BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent) }
                     item(key = "filtro") {
+                        // O chip "sem tag" só aparece quando há trabalho — um chip permanente
+                        // anunciando uma tarefa é ruído nos meses em que está tudo etiquetado.
+                        // A exceção: com o filtro JÁ selecionado ele fica (com `0`) até o usuário
+                        // sair, porque a interface não pode se puxar debaixo do próprio toque.
+                        val mostraSemTag = mes.semTag > 0 || state.filtro == FiltroLedger.SEM_TAG
+                        // `SEM_TAG` é o último do enum: cortar o fim mantém `filtro.ordinal` válido
+                        // como índice das duas listas.
+                        val opcoes = if (mostraSemTag) FiltroLedger.entries else FiltroLedger.entries.dropLast(1)
                         FiltroChips(
-                            opcoes = FiltroLedger.entries.map { it.rotulo },
+                            opcoes = opcoes.map { it.rotulo },
                             selecionado = state.filtro.ordinal,
-                            onSelect = { onFiltro(FiltroLedger.entries[it]) },
+                            onSelect = { onFiltro(opcoes[it]) },
+                            contagens = opcoes.map { if (it == FiltroLedger.SEM_TAG) mes.semTag else null },
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp),
                         )
                     }
@@ -234,7 +251,7 @@ fun LedgerScreen(
                         }
                     }
                     if (mes.dias.all { it.itens.isEmpty() }) {
-                        item(key = "vazio") { EmptyMonth(comTagFiltro = state.tagFiltro != null) }
+                        item(key = "vazio") { EmptyMonth(comTagFiltro = state.tagFiltro != null, filtro = state.filtro) }
                     } else {
                         itemsIndexed(mes.dias, key = { _, d -> d.data.toEpochDay() }) { _, dia ->
                             DayRow(
@@ -244,6 +261,10 @@ fun LedgerScreen(
                                 onItemClick = onItemClick,
                                 onExcluir = onExcluir,
                                 onFaturaClick = { faturaAberta = it },
+                                // A fileira só existe sob `sem tag` (decisão 4 do spec).
+                                etiquetas = if (state.filtro == FiltroLedger.SEM_TAG) state.tagsSugeridas else emptyList(),
+                                onEtiquetar = onEtiquetar,
+                                onMaisEtiquetas = onMaisEtiquetas,
                             )
                         }
                     }
@@ -313,7 +334,13 @@ internal fun MesLedger.faixaSaldos(): ClosedRange<Long> {
 
 /** O card do saldo projetado. `internal` porque o board mostra exatamente o mesmo. */
 @Composable
-internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit, onVerGuardado: () -> Unit = {}) {
+internal fun BalanceHero(
+    mes: MesLedger,
+    onTogglePrivacidade: () -> Unit,
+    onVerGuardado: () -> Unit = {},
+    /** A meta de guardar, em %; `0` = sem meta, e aí a pill é exatamente a de antes. */
+    metaGuardarPercent: Int = 0,
+) {
     val colors = SaldoTheme.colors
     Column(
         Modifier
@@ -361,6 +388,21 @@ internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit, onVerG
             }
             // Do que entrou, quanto foi guardado. Não é dinheiro: a privacidade não a esconde.
             mes.taxaGuardada?.let { taxa ->
+                // Batida a meta, a pill INVERTE: fundo `onPrimaryContainer`, texto
+                // `primaryContainer`. O hero já é um cartão verde, então pintar de verde o que
+                // está em cima dele não mudaria nada; a inversão é diferença de luminância, não de
+                // matiz — sobrevive ao daltonismo e ao tema escuro, onde os dois tokens já trocam
+                // de lado sozinhos, e lê como "acendeu" à distância de um olhar.
+                val bateu = metaGuardarPercent > 0 && taxa >= metaGuardarPercent
+                val fundo = if (bateu) colors.onPrimaryContainer else colors.onPrimaryContainer.copy(alpha = 0.10f)
+                val tinta = if (bateu) colors.primaryContainer else colors.onPrimaryContainer
+                // A cor sozinha não diz o NÚMERO, então o TalkBack diz. Sem meta a frase continua
+                // a de antes: não há alvo nenhum para anunciar.
+                val leitura = when {
+                    metaGuardarPercent <= 0 -> "guardou $taxa% do que entrou"
+                    bateu -> "guardou $taxa%, meta de $metaGuardarPercent% batida"
+                    else -> "guardou $taxa%, meta $metaGuardarPercent%"
+                }
                 // O alvo de toque (44 dp) fica no Box de fora, invisível; a pill pintada é a de
                 // dentro, do mesmo tamanho da "no mês" — o fundo não pode denunciar o alvo.
                 Box(
@@ -368,16 +410,16 @@ internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit, onVerG
                         .sizeIn(minHeight = 44.dp)
                         .clickable(onClick = onVerGuardado)
                         .testTag(TAG_PILL_GUARDADO)
-                        .semantics { contentDescription = "guardou $taxa% do que entrou" },
+                        .semantics { contentDescription = leitura },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "guardou $taxa%",
                         Modifier
                             .clip(RoundedCornerShape(percent = 50))
-                            .background(colors.onPrimaryContainer.copy(alpha = 0.10f))
+                            .background(fundo)
                             .padding(horizontal = 11.dp, vertical = 5.dp),
-                        style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer,
+                        style = SaldoTheme.type.subhead, color = tinta,
                     )
                 }
             }
@@ -396,22 +438,27 @@ internal fun BalanceHero(mes: MesLedger, onTogglePrivacidade: () -> Unit, onVerG
 }
 
 @Composable
-private fun EmptyMonth(comTagFiltro: Boolean = false) {
+private fun EmptyMonth(comTagFiltro: Boolean = false, filtro: FiltroLedger = FiltroLedger.TODAS) {
     val colors = SaldoTheme.colors
+    // Sob `sem tag` o mês pode estar cheiíssimo e a fila vazia: é a mensagem de tarefa cumprida,
+    // não a de mês vazio. Ela é o outro lado da exceção do chip — ele fica com `0`, e a lista
+    // explica o que aquele zero quer dizer.
+    val (titulo, ajuda) = when {
+        filtro == FiltroLedger.SEM_TAG ->
+            "tudo etiquetado neste mês" to "toque em outro filtro para ver o mês inteiro"
+        // Sob filtro de tag o mês pode estar cheio: mandar "toque em +" seria mentira.
+        comTagFiltro ->
+            "nenhuma movimentação com essa tag" to "toque no × acima para ver o mês inteiro"
+        else ->
+            "sem movimentações neste mês" to "toque em + para adicionar"
+    }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // Sob filtro de tag o mês pode estar cheio: mandar "toque em +" seria mentira.
-        Text(
-            if (comTagFiltro) "nenhuma movimentação com essa tag" else "sem movimentações neste mês",
-            style = SaldoTheme.type.row, color = colors.secondaryLabel,
-        )
-        Text(
-            if (comTagFiltro) "toque no × acima para ver o mês inteiro" else "toque em + para adicionar",
-            style = SaldoTheme.type.footnote, color = colors.secondaryLabel,
-        )
+        Text(titulo, style = SaldoTheme.type.row, color = colors.secondaryLabel)
+        Text(ajuda, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
     }
 }
 
@@ -425,6 +472,10 @@ internal fun DayRow(
     onExcluir: (Movimentacao) -> Unit,
     onFaturaClick: (Fatura) -> Unit,
     mostrarSaldo: Boolean = true,
+    /** Não vazia só sob o filtro `sem tag`: a fileira de etiquetas embaixo de cada linha. */
+    etiquetas: List<Tag> = emptyList(),
+    onEtiquetar: (Movimentacao, Tag) -> Unit = { _, _ -> },
+    onMaisEtiquetas: (Movimentacao) -> Unit = {},
 ) {
     val colors = SaldoTheme.colors
     val ehHoje = dia.data == hoje
@@ -474,41 +525,50 @@ internal fun DayRow(
                                     dismissState.reset()
                                 }
                             }
-                            SwipeToDismissBox(
-                                state = dismissState,
-                                enableDismissFromStartToEnd = false,
-                                backgroundContent = {
-                                    Box(
-                                        Modifier
-                                            .fillMaxSize()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(colors.categoryVariable),
-                                        contentAlignment = Alignment.CenterEnd,
-                                    ) {
-                                        Text(
-                                            "excluir",
-                                            Modifier.padding(end = 12.dp),
-                                            style = SaldoTheme.type.footnote,
-                                            // `categoryVariable` inverte de claridade entre os
-                                            // esquemas igual ao tint: branco fixo dava 2,46:1 no
-                                            // escuro. `inverseOnSurface` tem exatamente a
-                                            // polaridade certa - tinta clara no tema claro,
-                                            // escura no escuro - e da 5,4:1 nos dois.
-                                            color = MaterialTheme.colorScheme.inverseOnSurface,
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                SwipeToDismissBox(
+                                    state = dismissState,
+                                    enableDismissFromStartToEnd = false,
+                                    backgroundContent = {
+                                        Box(
+                                            Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(colors.categoryVariable),
+                                            contentAlignment = Alignment.CenterEnd,
+                                        ) {
+                                            Text(
+                                                "excluir",
+                                                Modifier.padding(end = 12.dp),
+                                                style = SaldoTheme.type.footnote,
+                                                // `categoryVariable` inverte de claridade entre os
+                                                // esquemas igual ao tint: branco fixo dava 2,46:1 no
+                                                // escuro. `inverseOnSurface` tem exatamente a
+                                                // polaridade certa - tinta clara no tema claro,
+                                                // escura no escuro - e da 5,4:1 nos dois.
+                                                color = MaterialTheme.colorScheme.inverseOnSurface,
+                                            )
+                                        }
+                                    },
+                                ) {
+                                    // Base opaca: o SwipeToDismissBox mantem o backgroundContent
+                                    // ("excluir", vermelho) sempre desenhado atras do conteudo, entao
+                                    // sem ela o vermelho vazaria atraves da linha mesmo parada.
+                                    Box(Modifier.background(fundo)) {
+                                        LinhaMov(
+                                            descricao = item.descricao,
+                                            centavos = item.valorCentavos,
+                                            recorrente = item.recorrente,
+                                            natureza = mov.natureza,
+                                            onClick = { onItemClick(mov) },
                                         )
                                     }
-                                },
-                            ) {
-                                // Base opaca: o SwipeToDismissBox mantem o backgroundContent
-                                // ("excluir", vermelho) sempre desenhado atras do conteudo, entao
-                                // sem ela o vermelho vazaria atraves da linha mesmo parada.
-                                Box(Modifier.background(fundo)) {
-                                    LinhaMov(
-                                        descricao = item.descricao,
-                                        centavos = item.valorCentavos,
-                                        recorrente = item.recorrente,
-                                        natureza = mov.natureza,
-                                        onClick = { onItemClick(mov) },
+                                }
+                                if (etiquetas.isNotEmpty()) {
+                                    FileiraDeEtiquetas(
+                                        etiquetas = etiquetas,
+                                        onEtiquetar = { onEtiquetar(mov, it) },
+                                        onMais = { onMaisEtiquetas(mov) },
                                     )
                                 }
                             }
@@ -639,6 +699,70 @@ private fun ResultadosBusca(
                     mostrarSaldo = false,
                 )
             }
+        }
+    }
+}
+
+/**
+ * A fileira de etiquetas da fila de "sem tag": até seis chips e um `+`.
+ *
+ * Um toque aplica e a linha sai da lista; o `+` abre a sheet, onde escolher várias — e criar uma
+ * etiqueta na hora (`criarTagInline`) — já existe. A fileira **só** é desenhada sob aquele filtro:
+ * em `todas` ela seria um segundo jeito de editar cada linha, competindo com o toque que abre o
+ * editor e engordando toda linha do mês por um trabalho que quase nenhuma delas tem.
+ *
+ * Rola na horizontal: seis chips com nomes longos não cabem numa tela estreita, e uma fileira que
+ * corta a sexta etiqueta em silêncio é pior do que uma que se arrasta.
+ */
+@Composable
+private fun FileiraDeEtiquetas(etiquetas: List<Tag>, onEtiquetar: (Tag) -> Unit, onMais: () -> Unit) {
+    val colors = SaldoTheme.colors
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        etiquetas.forEach { tag ->
+            // O alvo de toque (44 dp) fica no Box de fora, invisível; o chip pintado é o de
+            // dentro — mesmo desenho da pill do hero, pela mesma razão: o fundo não pode
+            // denunciar o alvo.
+            Box(
+                Modifier
+                    .sizeIn(minHeight = 44.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .clickable { onEtiquetar(tag) }
+                    .semantics(mergeDescendants = true) { contentDescription = "etiquetar como ${tag.nome}" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .border(1.dp, colors.separator, RoundedCornerShape(percent = 50))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(6.dp).background(Color(tag.cor), CircleShape))
+                    Text(tag.nome, style = SaldoTheme.type.caption, color = colors.secondaryLabel)
+                }
+            }
+        }
+        Box(
+            Modifier
+                .sizeIn(minWidth = 44.dp, minHeight = 44.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onMais)
+                .semantics { contentDescription = "mais etiquetas" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "+",
+                Modifier
+                    .clip(CircleShape)
+                    .border(1.dp, colors.separator, CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                style = SaldoTheme.type.caption, color = colors.tint,
+            )
         }
     }
 }

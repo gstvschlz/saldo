@@ -116,6 +116,8 @@ fun BoardScreen(
     onTogglePrivacidade: () -> Unit,
     onVerGuardado: () -> Unit,
     onTentar: () -> Unit = {},
+    /** A meta de guardar, em %; `0` = sem meta. O mesmo hero da lista, então a mesma pill. */
+    metaGuardarPercent: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val colors = SaldoTheme.colors
@@ -157,7 +159,7 @@ fun BoardScreen(
                 return@Column
             }
 
-            BalanceHero(mes, onTogglePrivacidade, onVerGuardado)
+            BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent)
             CabecalhoColunas()
 
             Column(

@@ -30,6 +30,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -76,9 +77,12 @@ class LedgerScreenTest {
     }
 
     /** Semeia direto no repositório da activity — é o mesmo objeto que a tela lê. */
-    private fun semear(descricao: String, centavos: Long, data: LocalDate) = runBlocking {
+    private fun semear(descricao: String, centavos: Long, data: LocalDate) =
+        semearCom(descricao, centavos, data, Natureza.DIARIO)
+
+    private fun semearCom(descricao: String, centavos: Long, data: LocalDate, natureza: Natureza) = runBlocking {
         ApplicationProvider.getApplicationContext<SaldoApplication>().container.repository.criar(
-            Movimentacao(descricao = descricao, valorCentavos = centavos, data = data, natureza = Natureza.DIARIO),
+            Movimentacao(descricao = descricao, valorCentavos = centavos, data = data, natureza = natureza),
             RepetirOpcao.Nao,
         )
     }
@@ -91,6 +95,35 @@ class LedgerScreenTest {
         rule.waitUntil(5_000) { rule.onAllNodesWithTag(TAG_BOARD_GRADE).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithContentDescription("ver como lista").performClick()
         rule.waitUntil(5_000) { rule.onAllNodesWithContentDescription("buscar").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /** Cria uma etiqueta no repositório da activity — é o mesmo objeto que a tela lê. */
+    private fun criarTag(nome: String, cor: Long) = runBlocking {
+        ApplicationProvider.getApplicationContext<SaldoApplication>().container.repository.criarTag(nome, cor)
+    }
+
+    /** Etiqueta a primeira linha por FORA da tela, para exercitar o chip reagindo ao dado. */
+    private fun etiquetarPorFora(nomeTag: String) = runBlocking {
+        val repo = ApplicationProvider.getApplicationContext<SaldoApplication>().container.repository
+        val tagId = repo.criarTag(nomeTag, 0xFFB63C62L)
+        repo.definirTags(repo.ledger.first().movimentacoes.first().id, listOf(tagId))
+    }
+
+    /**
+     * Semeia UMA linha no dia 1 do mês corrente e abre a lista.
+     *
+     * O dia 1, e não hoje: sob `sem tag` a lista desenha os trinta dias do mês, e a linha de hoje
+     * cairia fora da viewport num mês adiantado — um `performClick` num nó fora dela não chega ao
+     * `onClick`. No dia 1 a linha é sempre o primeiro item depois do hero e dos chips.
+     *
+     * O [garantirSaldoInicialAntesDe] vem junto porque o onboarding grava o saldo inicial em HOJE,
+     * e `efetivas` corta tudo que é anterior a ele — sem isso a linha do dia 1 nunca apareceria.
+     */
+    private fun semearNoDia1EAbrir(descricao: String) {
+        val dia1 = LocalDate.now().withDayOfMonth(1)
+        semear(descricao, -12_00, dia1)
+        abrirLista()
+        garantirSaldoInicialAntesDe(dia1)
     }
 
     /**
@@ -148,5 +181,101 @@ class LedgerScreenTest {
         rule.onNodeWithContentDescription("buscar").performClick()
         rule.onNodeWithContentDescription("fechar busca").performClick()
         rule.onNodeWithText(YearMonth.now().format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("pt-BR")))).assertIsDisplayed()
+    }
+
+    // ---- a fila de sem tag (arrumacao-1) ----
+
+    /** O chip aparece com a contagem quando há trabalho, e some quando não há. */
+    @Test
+    fun oChipSemTagTrazAContagemESomeQuandoNaoHaFila() {
+        semearNoDia1EAbrir("padaria")
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithContentDescription("sem tag, 1 lançamento").fetchSemanticsNodes().isNotEmpty()
+        }
+        etiquetarPorFora("comida")
+        // Sem o filtro selecionado, a fila zerada tira o chip da barra: um chip permanente
+        // anunciando uma tarefa é ruído nos meses em que está tudo etiquetado.
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("sem tag").fetchSemanticsNodes().isEmpty() }
+    }
+
+    /** Selecionado, o chip fica com `0` e a lista explica — a interface não se puxa debaixo do toque. */
+    @Test
+    fun selecionadoOChipSobreviveAoZerar() {
+        semearNoDia1EAbrir("padaria")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("sem tag").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("sem tag").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("padaria").fetchSemanticsNodes().isNotEmpty() }
+
+        etiquetarPorFora("comida")
+
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithText("tudo etiquetado neste mês").fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithContentDescription("sem tag, 0 lançamentos").assertIsDisplayed()
+
+        // e sair do filtro tira o chip da barra
+        rule.onNodeWithText("todas").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("sem tag").fetchSemanticsNodes().isEmpty() }
+    }
+
+    /** Um toque etiqueta, a linha sai da fila, e o "desfazer" do snackbar a traz de volta sem etiqueta. */
+    @Test
+    fun umToqueEtiquetaEODesfazerTrazDeVolta() {
+        criarTag("comida", 0xFFB63C62L)
+        semearNoDia1EAbrir("padaria")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("sem tag").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("sem tag").performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithContentDescription("etiquetar como comida").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        rule.onNodeWithContentDescription("etiquetar como comida").performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithText("tudo etiquetado neste mês").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        rule.onNodeWithText("desfazer").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("padaria").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription("etiquetar como comida").assertIsDisplayed()
+    }
+
+    /** A fileira só existe sob `sem tag`: em `todas` a linha é só a linha. */
+    @Test
+    fun aFileiraDeEtiquetasSoApareceSobSemTag() {
+        criarTag("comida", 0xFFB63C62L)
+        semearNoDia1EAbrir("padaria")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("padaria").fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodesWithContentDescription("etiquetar como comida").assertCountEquals(0)
+    }
+
+    // ---- a meta no hero (arrumacao-1) ----
+
+    /** Batida a meta, a leitura do TalkBack diz que ela bateu — a cor sozinha não diz o número. */
+    @Test
+    fun aPillDoHeroLeAMetaBatida() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        runBlocking { app.container.settings.definirMetaGuardar(20) }
+        semearCom("salário", 1_000_00, hoje, Natureza.DIARIO)
+        semearCom("reserva", -300_00, hoje, Natureza.ECONOMIA)   // 30% do que entrou
+        abrirLista()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithContentDescription("guardou 30%, meta de 20% batida").fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithContentDescription("guardou 30%, meta de 20% batida").assertIsDisplayed()
+    }
+
+    /** Abaixo da meta, a leitura traz o alvo — e a pill continua a de sempre. */
+    @Test
+    fun aPillDoHeroLeAMetaNaoBatida() {
+        val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
+        val hoje = LocalDate.now()
+        runBlocking { app.container.settings.definirMetaGuardar(20) }
+        semearCom("salário", 1_000_00, hoje, Natureza.DIARIO)
+        semearCom("reserva", -100_00, hoje, Natureza.ECONOMIA)   // 10%
+        abrirLista()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithContentDescription("guardou 10%, meta 20%").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

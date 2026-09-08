@@ -97,4 +97,34 @@ class SaldoColorsTest {
 
     /** O quanto o vermelho se destaca do verde. */
     private fun rosidade(c: Color): Float = c.red - c.green
+
+    /**
+     * A pill do hero INVERTE quando a meta bate: fundo `onPrimaryContainer`, texto
+     * `primaryContainer`. São os dois tokens do próprio cartão, trocados de lado — então o que
+     * precisa ser verdade é que o par se lê nos dois sentidos, nos dois temas. Pintar de verde o
+     * que já está sobre um cartão verde não mudaria nada; a inversão é diferença de LUMINÂNCIA,
+     * que sobrevive ao daltonismo.
+     */
+    @Test
+    fun aPillInvertidaSeLeNosDoisTemas() {
+        for (cores in listOf(LightSaldoColors, DarkSaldoColors)) {
+            val razao = contraste(cores.onPrimaryContainer, cores.primaryContainer)
+            assertTrue("contraste ${"%.2f".format(razao)}:1 em isDark=${cores.isDark}", razao >= 4.5)
+        }
+    }
+
+    /** Contraste WCAG entre duas cores opacas; simétrico, então serve para os dois sentidos. */
+    private fun contraste(a: Color, b: Color): Double {
+        val la = luminancia(a)
+        val lb = luminancia(b)
+        return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+    }
+
+    private fun luminancia(c: Color): Double {
+        fun canal(v: Float): Double {
+            val d = v.toDouble()
+            return if (d <= 0.03928) d / 12.92 else Math.pow((d + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * canal(c.red) + 0.7152 * canal(c.green) + 0.0722 * canal(c.blue)
+    }
 }

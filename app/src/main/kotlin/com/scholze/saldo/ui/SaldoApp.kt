@@ -251,6 +251,18 @@ fun SaldoApp(
         }
     }
 
+    // Etiquetar pela fila é um toque só, e um toque errado tira a linha da única tela em que ela
+    // era fácil de achar: o "desfazer" é obrigatório, como em toda remoção do app.
+    LaunchedEffect(Unit) {
+        ledgerVm.eventoEtiqueta.collect { e ->
+            val resultado = snackbar.showSnackbar(
+                message = "etiquetado como ${e.tagNome}",
+                actionLabel = "desfazer",
+            )
+            if (resultado == SnackbarResult.ActionPerformed) ledgerVm.desfazerEtiqueta(e.movId)
+        }
+    }
+
     LaunchedEffect(Unit) {
         entryVm.erros.collect { snackbar.showSnackbar(it) }
     }
@@ -363,6 +375,7 @@ fun SaldoApp(
                             onTogglePrivacidade = privacidade::alternar,
                             onVerGuardado = { verGuardado(boardVm.mesAtualAgora) },
                             onTentar = boardVm::tentarDeNovo,
+                            metaGuardarPercent = s.metaGuardarPercent,
                         )
                     } else {
                         LedgerScreen(
@@ -392,6 +405,11 @@ fun SaldoApp(
                             contentPadding = PaddingValues(bottom = 24.dp),
                             onVerGuardado = { verGuardado(ledgerVm.mesAtualAgora) },
                             onTentar = ledgerVm::tentarDeNovo,
+                            onEtiquetar = { mov, tag -> ledgerVm.etiquetar(mov.id, tag) },
+                            // O `+` cai na sheet, onde escolher várias etiquetas e criar uma na
+                            // hora já existe — e ela já recusa `id == 0` sozinha.
+                            onMaisEtiquetas = abrirMovimentacao,
+                            metaGuardarPercent = s.metaGuardarPercent,
                         )
                     }
                     SaldoTab.TOTAIS -> if (abrindoRecorrencias) {
