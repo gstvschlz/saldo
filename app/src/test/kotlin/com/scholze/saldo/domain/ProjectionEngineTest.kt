@@ -373,4 +373,104 @@ class ProjectionEngineTest {
         val longe = YearMonth.from(input.hoje).plusMonths(24)
         assertEquals(1, ProjectionEngine.mes(input, longe, FiltroLedger.TODAS).dias[9].itens.size)
     }
+
+    // ---- a fila de sem tag (arrumacao-1) ----
+
+    /** Linha real, de ontem, sem etiqueta: é o caso que a fila existe para mostrar. */
+    @Test
+    fun semTagPegaSoALinhaRealPassadaSemEtiqueta() {
+        val movs = listOf(
+            mov("2026-07-19", -10_00).copy(id = 1),                             // entra
+            mov("2026-07-25", -20_00).copy(id = 2),                             // futuro: fica fora
+            mov("2026-07-18", -30_00, tags = listOf(comida)).copy(id = 3),      // já etiquetada
+            mov("2026-07-17", -40_00, natureza = Natureza.CARTAO).copy(id = 4), // vira fatura
+        )
+        val m = ProjectionEngine.mes(input(movs), jul, FiltroLedger.SEM_TAG)
+        assertEquals(
+            listOf(1L),
+            m.dias.flatMap { d -> d.itens.filterIsInstance<ItemDia.Mov>().map { it.mov.id } },
+        )
+        assertEquals(1, m.semTag)
+    }
+
+    /** Ocorrência virtual (id 0) não tem linha no banco para receber etiqueta: fora da fila. */
+    @Test
+    fun semTagIgnoraAOcorrenciaVirtual() {
+        val rec = Recorrencia(
+            id = 7, descricao = "academia", valorCentavos = -120_00,
+            natureza = Natureza.DIARIO, diaDoMes = 5, inicio = YearMonth.of(2026, 1),
+        )
+        val m = ProjectionEngine.mes(
+            input(recs = listOf(rec), materializados = emptySet()), jul, FiltroLedger.SEM_TAG,
+        )
+        assertEquals(emptyList<String>(), m.dias.flatMap { d -> d.itens.map { it.descricao } })
+        assertEquals(0, m.semTag)
+    }
+
+    /** A fatura não entra na fila: um agregado de ciclo não carrega etiqueta. */
+    @Test
+    fun semTagNaoMostraFatura() {
+        // fecha 28 / vence 5: a compra de 20/07 cai no ciclo de julho, que vence em 05/08.
+        val ago = YearMonth.of(2026, 8)
+        val movs = listOf(mov("2026-07-20", -100_00, natureza = Natureza.CARTAO).copy(id = 1))
+        val entrada = input(movs, materializados = setOf(jul, ago))
+        assertEquals(
+            1,
+            ProjectionEngine.mes(entrada, ago, FiltroLedger.TODAS)
+                .dias.flatMap { it.itens }.filterIsInstance<ItemDia.FaturaDia>().size,
+        )
+        assertEquals(
+            0,
+            ProjectionEngine.mes(entrada, ago, FiltroLedger.SEM_TAG)
+                .dias.flatMap { it.itens }.filterIsInstance<ItemDia.FaturaDia>().size,
+        )
+    }
+
+    /** A coluna de saldo sob `sem tag` corre sobre o conjunto filtrado, como sob `diários`. */
+    @Test
+    fun aColunaDeSaldoSobSemTagSoSomaOFiltrado() {
+        val movs = listOf(
+            mov("2026-07-05", -10_00, tags = listOf(comida)).copy(id = 1), // etiquetada: fora
+            mov("2026-07-10", -25_00).copy(id = 2),                        // na fila
+        )
+        val m = ProjectionEngine.mes(input(movs), jul, FiltroLedger.SEM_TAG)
+        assertEquals(100_000_00L, m.dias[4].saldoCentavos)   // dia 5: a etiquetada não desce nada
+        assertEquals(99_975_00L, m.dias[9].saldoCentavos)    // dia 10: só os 25,00 da fila
+    }
+
+    /** `semTag` conta o mesmo conjunto que a lista mostra — inclusive quando é zero. */
+    @Test
+    fun semTagZeraQuandoTudoEstaEtiquetado() {
+        val movs = listOf(mov("2026-07-10", -25_00, tags = listOf(comida)).copy(id = 1))
+        assertEquals(0, ProjectionEngine.mes(input(movs), jul, FiltroLedger.TODAS).semTag)
+    }
+
+    /** A contagem é do mês, não do chip aceso: `diários` e `sem tag` dizem o mesmo número. */
+    @Test
+    fun semTagNaoMudaComOFiltroAceso() {
+        val movs = listOf(
+            mov("2026-07-10", -25_00).copy(id = 1),          // avulsa, sem etiqueta: na fila
+            mov("2026-07-11", -30_00, rec = 2L).copy(id = 2), // fixa, sem etiqueta: também na fila
+        )
+        val entrada = input(movs)
+        assertEquals(2, ProjectionEngine.mes(entrada, jul, FiltroLedger.TODAS).semTag)
+        assertEquals(2, ProjectionEngine.mes(entrada, jul, FiltroLedger.DIARIOS).semTag)
+        assertEquals(2, ProjectionEngine.mes(entrada, jul, FiltroLedger.SEM_TAG).semTag)
+        assertEquals(2, ProjectionEngine.mes(entrada, jul, FiltroLedger.TODAS, tagId = 1).semTag)
+    }
+
+    /** A projeção do hero é do mês inteiro: o quarto filtro não a move, como o de tag não move. */
+    @Test
+    fun projecaoIgnoraOFiltroSemTag() {
+        val movs = listOf(
+            mov("2026-07-10", -100_00, tags = listOf(comida)).copy(id = 1),
+            mov("2026-07-10", -900_00).copy(id = 2),
+        )
+        val todas = ProjectionEngine.mes(input(movs), jul, FiltroLedger.TODAS)
+        val fila = ProjectionEngine.mes(input(movs), jul, FiltroLedger.SEM_TAG)
+        assertEquals(todas.saldoProjetadoCentavos, fila.saldoProjetadoCentavos)
+        assertEquals(todas.estimativaCentavos, fila.estimativaCentavos)
+        assertEquals(todas.deltaNoMesCentavos, fila.deltaNoMesCentavos)
+        assertEquals(todas.taxaGuardada, fila.taxaGuardada)
+    }
 }

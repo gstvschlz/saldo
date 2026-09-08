@@ -74,6 +74,18 @@ data class MesLedger(
     val projetadoEm: LocalDate,
     /** Quanto do que entrou no mês foi para economia, em %; `null` num mês sem entrada. */
     val taxaGuardada: Int? = null,
+    /**
+     * Quantas linhas do mês estão sem etiqueta e já aconteceram — o número do chip `sem tag`.
+     *
+     * Conta exatamente o conjunto que a lista mostra sob [FiltroLedger.SEM_TAG]: linha real
+     * (`id != 0`), sem etiqueta, `data <= hoje`, e que não seja compra no cartão. Uma compra de
+     * cartão nunca aparece como linha no ledger — ela entra no total da fatura, no dia do
+     * vencimento —, então contá-la faria o chip prometer um trabalho que a fila não sabe entregar.
+     *
+     * É do mês inteiro, não do que o filtro corrente mostra: o número do chip não pode mudar
+     * conforme o chip que está aceso.
+     */
+    val semTag: Int = 0,
 )
 
 data class TotaisMes(
@@ -124,21 +136,36 @@ object ProjectionEngine {
         // reaproveitam em vez de varrer `efetivas` de novo cada um por conta própria.
         val doMes = efetivas.filter { YearMonth.from(it.data) == mes }
 
+        // Nem `diários` nem `sem tag` mostram faturas: a primeira porque só quer as avulsas do dia
+        // a dia, a segunda porque uma fatura é o agregado de um ciclo e não carrega etiqueta — ela
+        // apareceria na fila sem nada que o usuário pudesse fazer com ela.
+        val semFaturas = filtro == FiltroLedger.DIARIOS || filtro == FiltroLedger.SEM_TAG || tagId != null
+
+        // A contagem da fila, uma vez, a partir da partição que já existe. `natureza != CARTAO` é
+        // o mesmo corte que `movsDoMes` faz logo abaixo: o número do chip e o tamanho da lista têm
+        // de ser a mesma coisa. O preço é uma compra de cartão sem etiqueta ficar fora da fila para
+        // sempre — aceitável porque a captura de notificação, que é a fonte do buraco, grava DIARIO.
+        val quantasSemTag = doMes.count {
+            it.natureza != Natureza.CARTAO &&
+                passaFiltro(it, FiltroLedger.SEM_TAG, tagId = null, hoje = input.hoje)
+        }
+
         // Itens do mês segundo o filtro.
         val movsDoMes = doMes.asSequence()
             .filter { it.natureza != Natureza.CARTAO }
-            .filter { passaFiltro(it, filtro, tagId) }
+            .filter { passaFiltro(it, filtro, tagId, input.hoje) }
             .toList()
         val faturasDoMes =
-            if (filtro == FiltroLedger.DIARIOS || tagId != null) emptyList()
+            if (semFaturas) emptyList()
             else faturas.filter { YearMonth.from(it.vencimento) == mes }
 
         // Coluna de saldo corre sobre o conjunto filtrado.
         var corrente = input.saldoInicialCentavos +
-            efetivas.filter { it.natureza != Natureza.CARTAO && it.data <= fimAnterior && passaFiltro(it, filtro, tagId) }
-                .sumOf { it.valorCentavos } +
-            (if (filtro == FiltroLedger.DIARIOS || tagId != null) 0L
-             else faturas.filter { it.vencimento <= fimAnterior }.sumOf { it.totalCentavos })
+            efetivas.filter {
+                it.natureza != Natureza.CARTAO && it.data <= fimAnterior &&
+                    passaFiltro(it, filtro, tagId, input.hoje)
+            }.sumOf { it.valorCentavos } +
+            (if (semFaturas) 0L else faturas.filter { it.vencimento <= fimAnterior }.sumOf { it.totalCentavos })
 
         // Agrupados uma vez, em vez de varrer o mês inteiro a cada dia; `groupBy` preserva a
         // ordem de `efetivas` (por data, estável), então a ordem dentro do dia não muda.
@@ -170,6 +197,7 @@ object ProjectionEngine {
             deltaNoMesCentavos = projetado - projetadoAnterior,
             projetadoEm = fimMes,
             taxaGuardada = taxaGuardada(entradas, economia),
+            semTag = quantasSemTag,
         )
     }
 
@@ -290,12 +318,17 @@ object ProjectionEngine {
         return input.efetivas.filter { it.data <= fim }
     }
 
-    private fun passaFiltro(mov: Movimentacao, filtro: FiltroLedger, tagId: Long? = null): Boolean {
+    private fun passaFiltro(mov: Movimentacao, filtro: FiltroLedger, tagId: Long?, hoje: LocalDate): Boolean {
         if (tagId != null && mov.tags.none { it.id == tagId }) return false
         return when (filtro) {
             FiltroLedger.TODAS -> true
             FiltroLedger.DIARIOS -> mov.recorrenciaId == null && mov.natureza == Natureza.DIARIO
             FiltroLedger.FIXAS -> mov.recorrenciaId != null
+            // `id != 0`: uma ocorrência virtual — a expansão de uma recorrência num mês ainda não
+            // materializado — não tem linha no banco para receber etiqueta, e materializar o mês
+            // inteiro só para etiquetar criaria linhas que ninguém pediu.
+            // `data <= hoje`: o futuro entra na fila quando virar presente.
+            FiltroLedger.SEM_TAG -> mov.id != 0L && mov.tags.isEmpty() && mov.data <= hoje
         }
     }
 

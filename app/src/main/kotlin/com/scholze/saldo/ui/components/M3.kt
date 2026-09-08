@@ -41,6 +41,11 @@ private val PILL = RoundedCornerShape(percent = 50)
  * Unlike the segmented control there is no sliding thumb: selection is carried by
  * the fill plus a leading check, which is what makes it read as Material and not as
  * a repainted iOS control.
+ *
+ * [contagens] é opcional e **posicional**: um `null` (ou uma lista mais curta que [opcoes]) deixa o
+ * chip exatamente como era. Um número faz o chip carregar a contagem — menor e mais apagada que o
+ * rótulo — e trocar a leitura do TalkBack por "sem tag, 3 lançamentos", porque um numeral solto ao
+ * lado de uma palavra não diz o que ele conta.
  */
 @Composable
 fun FiltroChips(
@@ -48,11 +53,13 @@ fun FiltroChips(
     selecionado: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    contagens: List<Int?> = emptyList(),
 ) {
     val colors = SaldoTheme.colors
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         opcoes.forEachIndexed { index, rotulo ->
             val ativo = index == selecionado
+            val contagem = contagens.getOrNull(index)
             Row(
                 Modifier
                     .clip(PILL)
@@ -63,7 +70,19 @@ fun FiltroChips(
                     .clickable { onSelect(index) }
                     // 32dp de altura + 12dp de padding vertical = 56dp de alvo: acima
                     // do mínimo de 44dp mesmo com o chip visualmente baixo.
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    // Um elemento só, com uma leitura só: sem o merge o TalkBack anunciaria
+                    // "sem tag" e "3" como dois nós, e o número ficaria sem substantivo.
+                    .then(
+                        if (contagem == null) {
+                            Modifier
+                        } else {
+                            Modifier.semantics(mergeDescendants = true) {
+                                contentDescription =
+                                    "$rotulo, $contagem " + if (contagem == 1) "lançamento" else "lançamentos"
+                            }
+                        },
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -75,6 +94,13 @@ fun FiltroChips(
                     style = SaldoTheme.type.footnote,
                     color = if (ativo) colors.onPrimaryContainer else colors.secondaryLabel,
                 )
+                if (contagem != null) {
+                    Text(
+                        text = contagem.toString(),
+                        style = SaldoTheme.type.caption,
+                        color = (if (ativo) colors.onPrimaryContainer else colors.secondaryLabel).copy(alpha = 0.7f),
+                    )
+                }
             }
         }
     }

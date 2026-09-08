@@ -24,6 +24,9 @@ import kotlinx.coroutines.flow.map
 
 enum class Tema { SISTEMA, CLARO, ESCURO }
 
+/** O padrão de "quanto do que entra eu quero guardar". Vale para o app e para o arquivo importado. */
+const val PADRAO_META_GUARDAR = 20
+
 data class Settings(
     val saldoInicialCentavos: Long?,
     val saldoInicialData: LocalDate?,
@@ -39,6 +42,17 @@ data class Settings(
      * e um arquivo restaurado noutro celular apontaria para uma árvore que ele não pode escrever.
      */
     val backup: BackupConfig = BackupConfig(),
+    /**
+     * Quanto do que entra o usuário quer guardar, em %. `0` = **sem meta**: o hero volta a ser o de
+     * antes e nenhuma linha tracejada aparece em tendência. Padrão [PADRAO_META_GUARDAR].
+     */
+    val metaGuardarPercent: Int = PADRAO_META_GUARDAR,
+    /**
+     * As chaves normalizadas (`Busca.normalizar`) que o usuário mandou parar de sugerir como
+     * assinatura. É para sempre, de propósito: um "dispensar" que volta a perguntar quando o preço
+     * muda é um "adiar", e não é o que a palavra promete (decisão 11).
+     */
+    val assinaturasDispensadas: Set<String> = emptySet(),
 )
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -67,6 +81,15 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val backupUltimoSucessoEpochDay = longPreferencesKey("backup_ultimo_sucesso_epoch_day")
         val backupUltimoErro = stringPreferencesKey("backup_ultimo_erro")
         val backupUltimoErroEpochDay = longPreferencesKey("backup_ultimo_erro_epoch_day")
+        val metaGuardarPercent = intPreferencesKey("meta_guardar_percent")
+        val assinaturasDispensadas = stringSetPreferencesKey("assinaturas_dispensadas")
+
+        /**
+         * Estado de APARELHO, não dado do usuário: não vai no dump, e por isso um restore o apaga
+         * junto com o resto — o que é o certo, porque um arquivo antigo pode trazer tags nas cores
+         * velhas, e o arranque seguinte as repinta.
+         */
+        val paletaV2Aplicada = booleanPreferencesKey("paleta_v2_aplicada")
     }
 
     // Um disco ilegível não pode travar a primeira composição: o app cai nos defaults.
@@ -88,6 +111,8 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             lembretes = p.lembretes(),
             captura = p.captura(),
             backup = p.backup(),
+            metaGuardarPercent = p.percentual(Keys.metaGuardarPercent, PADRAO_META_GUARDAR),
+            assinaturasDispensadas = p[Keys.assinaturasDispensadas].orEmpty(),
         )
     }
 
@@ -242,6 +267,35 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     }
 
     /**
+     * Grava a meta **crua**. O clamp é na leitura ([percentual]), não aqui: aparar na escrita
+     * transformaria um `-5` vindo de um bug em `0`, que significa "sem meta" — o app teria
+     * desligado a meta em nome do usuário em vez de ignorar o lixo. O diálogo de `mais` só
+     * produz valores de 0 a 100.
+     */
+    suspend fun definirMetaGuardar(percent: Int) {
+        dataStore.edit { it[Keys.metaGuardarPercent] = percent }
+    }
+
+    /** Uma chave dispensada não volta a ser sugerida — nem quando o preço mudar (decisão 11). */
+    suspend fun dispensarAssinatura(chave: String) {
+        dataStore.edit { it[Keys.assinaturasDispensadas] = it[Keys.assinaturasDispensadas].orEmpty() + chave }
+    }
+
+    /**
+     * A paleta v2 já foi aplicada neste aparelho?
+     *
+     * Sem engolir `IOException`, pela mesma razão de [lerLembretes]: um disco ilegível lido como
+     * "já aplicada" pularia o repintar para sempre e deixaria o rodízio de cores torto sem nenhum
+     * sinal. Ler como "ainda não" é o erro barato — o mapa não acha nada na segunda passada —, e é
+     * o que uma exceção de verdade permite a quem chama.
+     */
+    suspend fun paletaV2Aplicada(): Boolean = dataStore.data.first()[Keys.paletaV2Aplicada] ?: false
+
+    suspend fun marcarPaletaV2Aplicada() {
+        dataStore.edit { it[Keys.paletaV2Aplicada] = true }
+    }
+
+    /**
      * Troca TODOS os ajustes pelos de [novo] — o passo 5 do restaurar.
      *
      * Limpa antes de gravar, para uma chave que existia e não existe mais no arquivo sumir de
@@ -250,6 +304,10 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
      * dump exportado noutro celular apontaria para uma árvore que este não pode escrever, e o
      * backup morreria em `SecurityException` no primeiro disparo. Quem quer esquecer o aparelho
      * inteiro usa [limpar].
+     *
+     * `paleta_v2_aplicada` NÃO é preservada, e isso é deliberado: ela é estado deste aparelho, o
+     * arquivo restaurado pode trazer tags nas cores velhas, e deixar a marca cair faz o próximo
+     * arranque repintá-las. O repintar é idempotente, então perder a marca nunca custa nada.
      */
     suspend fun substituir(novo: Settings) {
         dataStore.edit { p ->
@@ -284,6 +342,8 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             p[Keys.capturaLigada] = novo.captura.ligada
             p[Keys.capturaMarcados] = novo.captura.marcados
             p[Keys.capturaVistos] = novo.captura.vistos
+            p[Keys.metaGuardarPercent] = novo.metaGuardarPercent
+            p[Keys.assinaturasDispensadas] = novo.assinaturasDispensadas
         }
     }
 
@@ -320,3 +380,11 @@ private fun Preferences.hora(key: Preferences.Key<Int>, padrao: LocalTime): Loca
  */
 private fun Preferences.diaDoCartao(key: Preferences.Key<Int>, padrao: Int): Int =
     this[key]?.takeIf { it in 1..31 } ?: padrao
+
+/**
+ * Percentual gravado → percentual; fora de 0..100 (versão futura, disco corrompido) cai no padrão,
+ * como [hora] e [diaDoCartao]. `0` está DENTRO da faixa: ele é "sem meta", e confundi-lo com
+ * ausência ressuscitaria os 20% que o usuário desligou de propósito.
+ */
+private fun Preferences.percentual(key: Preferences.Key<Int>, padrao: Int): Int =
+    this[key]?.takeIf { it in 0..100 } ?: padrao

@@ -5,7 +5,18 @@ import java.time.YearMonth
 
 enum class Natureza { DIARIO, ECONOMIA, CARTAO }
 
-enum class FiltroLedger(val rotulo: String) { TODAS("todas"), DIARIOS("diários"), FIXAS("fixas") }
+enum class FiltroLedger(val rotulo: String) {
+    TODAS("todas"),
+    DIARIOS("diários"),
+    FIXAS("fixas"),
+
+    /**
+     * A fila de trabalho: linhas reais, sem etiqueta, até hoje. **Último de propósito** — a barra
+     * do ledger desenha `entries` e corta o fim quando não há fila, e a posição do chip é a ordem
+     * do enum.
+     */
+    SEM_TAG("sem tag"),
+}
 
 data class Tag(val id: Long = 0, val nome: String, val cor: Long)
 

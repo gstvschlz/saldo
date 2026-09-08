@@ -201,4 +201,73 @@ class SettingsStoreTest {
 
         assertEquals(BackupConfig(), st.settings.first().backup)
     }
+
+    // ---- meta de guardar e assinaturas dispensadas (arrumacao-1) ----
+
+    /** Sem ninguém escrever nada, a meta já vale 20%. */
+    @Test
+    fun aMetaComecaEmVinte() = runBlocking {
+        assertEquals(PADRAO_META_GUARDAR, store().settings.first().metaGuardarPercent)
+    }
+
+    /** O clamp é na LEITURA: um valor impossível no disco vira o padrão, não um zero. */
+    @Test
+    fun metaForaDaFaixaCaiNoPadrao() = runBlocking {
+        val st = store()
+        st.definirMetaGuardar(-5)
+        assertEquals(PADRAO_META_GUARDAR, st.settings.first().metaGuardarPercent)
+        st.definirMetaGuardar(120)
+        assertEquals(PADRAO_META_GUARDAR, st.settings.first().metaGuardarPercent)
+    }
+
+    /** `0` é "sem meta" e está DENTRO da faixa: não pode ser confundido com "nunca escrito". */
+    @Test
+    fun zeroSignificaSemMetaESobreviveAReleitura() = runBlocking {
+        val st = store()
+        st.definirMetaGuardar(0)
+        assertEquals(0, st.settings.first().metaGuardarPercent)
+    }
+
+    @Test
+    fun dispensarAcumulaENaoDuplica() = runBlocking {
+        val st = store()
+        st.dispensarAssinatura("netflix")
+        st.dispensarAssinatura("spotify")
+        st.dispensarAssinatura("netflix")
+        assertEquals(setOf("netflix", "spotify"), st.settings.first().assinaturasDispensadas)
+    }
+
+    /** A marca da paleta é de APARELHO: começa falsa e não volta atrás sozinha. */
+    @Test
+    fun aMarcaDaPaletaComecaFalsaEFicaVerdadeira() = runBlocking {
+        val st = store()
+        assertEquals(false, st.paletaV2Aplicada())
+        st.marcarPaletaV2Aplicada()
+        assertEquals(true, st.paletaV2Aplicada())
+    }
+
+    /** `substituir` leva as duas chaves novas junto — elas são dado do usuário, não do aparelho. */
+    @Test
+    fun substituirLevaMetaEDispensadas() = runBlocking {
+        val st = store()
+        st.definirMetaGuardar(35)
+        st.dispensarAssinatura("antiga")
+        st.substituir(
+            st.settings.first().copy(metaGuardarPercent = 7, assinaturasDispensadas = setOf("nova")),
+        )
+        val depois = st.settings.first()
+        assertEquals(7, depois.metaGuardarPercent)
+        assertEquals(setOf("nova"), depois.assinaturasDispensadas)
+    }
+
+    /** A marca da paleta é de APARELHO: `substituir` (o restore) a apaga, de propósito. */
+    @Test
+    fun substituirApagaAMarcaDaPaleta() = runBlocking {
+        val st = store()
+        st.marcarPaletaV2Aplicada()
+
+        st.substituir(st.settings.first())
+
+        assertEquals(false, st.paletaV2Aplicada())
+    }
 }

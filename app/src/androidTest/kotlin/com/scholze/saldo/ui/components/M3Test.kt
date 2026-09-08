@@ -112,4 +112,57 @@ class M3Test {
         rule.onNodeWithContentDescription("fechar busca").performClick()
         assertEquals(true, fechou)
     }
+
+    // ---- chip com contagem (arrumacao-1) ----
+
+    @Test
+    fun oChipComContagemMostraONumeroEDizQuantosSao() {
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                FiltroChips(
+                    opcoes = listOf("todas", "diários", "fixas", "sem tag"),
+                    selecionado = 0,
+                    onSelect = {},
+                    contagens = listOf(null, null, null, 3),
+                )
+            }
+        }
+        // O chip vira um nó só (mergeDescendants): o numeral vive na árvore não-mesclada.
+        rule.onNodeWithText("3", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithContentDescription("sem tag, 3 lançamentos").assertIsDisplayed()
+    }
+
+    /** O plural não pode sair de uma concatenação preguiçosa. */
+    @Test
+    fun oChipComUmaLinhaFalaNoSingular() {
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                FiltroChips(opcoes = listOf("sem tag"), selecionado = 0, onSelect = {}, contagens = listOf(1))
+            }
+        }
+        rule.onNodeWithContentDescription("sem tag, 1 lançamento").assertIsDisplayed()
+    }
+
+    /** Zero também é um número: sob o filtro selecionado o chip fica, e diz zero. */
+    @Test
+    fun oChipComZeroContinuaDizendoZero() {
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                FiltroChips(opcoes = listOf("sem tag"), selecionado = 0, onSelect = {}, contagens = listOf(0))
+            }
+        }
+        rule.onNodeWithContentDescription("sem tag, 0 lançamentos").assertIsDisplayed()
+    }
+
+    /** Sem contagens, os três chips antigos continuam exatamente como são. */
+    @Test
+    fun semContagemOChipNaoGanhaDescricao() {
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                FiltroChips(opcoes = listOf("todas", "diários", "fixas"), selecionado = 0, onSelect = {})
+            }
+        }
+        rule.onAllNodesWithContentDescription("todas, 0 lançamentos").assertCountEquals(0)
+        rule.onNodeWithText("todas").assertIsDisplayed()
+    }
 }
