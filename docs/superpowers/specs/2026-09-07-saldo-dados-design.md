@@ -1,7 +1,10 @@
 # saldo — dados: restaurar, apagar, e o motor sem surpresas
 
 **Data:** 2026-09-07 · **Branch:** `dados-1`, a criar de `main` depois do merge de
-`uso-diario-1` · **Fatia 2 de 4** da rodada de endurecimento.
+`uso-diario-1` · **Fatia 2 de 5** da rodada de endurecimento.
+**Emendado em 2026-09-08** com o *backup automático*: ele grava o mesmo arquivo desta
+fatia, nos mesmos arquivos de código, e separá-lo em fatia própria só faria duas mãos
+editarem `Exporters.kt` e `mais/` na mesma semana.
 
 ## Objetivo
 
@@ -14,6 +17,11 @@ sempre, a fatura de fevereiro sem carência, a compra no cartão anterior ao sal
 que some da fatura, a estimativa de dezembro que conta cem dias, o saldo inicial que
 apaga a história sem avisar, e as telas que congelam em silêncio quando o banco falha.
 
+A emenda de 2026-09-08 fecha o resto do mesmo buraco: um ciclo que só funciona quando o
+usuário lembra de exportar não é backup, é boa intenção. O **backup automático** grava o
+arquivo desta fatia sozinho, numa pasta que ele escolhe — e se essa pasta for sincronizada,
+o histórico sobrevive ao aparelho sem o app jamais tocar a rede.
+
 ## Decisões do usuário
 
 | Decisão | Escolha | Consequência |
@@ -22,6 +30,7 @@ apaga a história sem avisar, e as telas que congelam em silêncio quando o banc
 | CSV | **O que o app mostra** | Movimentações efetivas do saldo inicial até hoje, recorrências expandidas mesmo em mês nunca aberto. O JSON continua o dump fiel, porque é o que restaurar precisa. |
 | Saldo inicial | **Avisa e deixa escolher a data** | O diálogo mostra quantos lançamentos saem das contas com a data escolhida; manter a data original custa zero. |
 | Apagar dados | **Sim, com confirmação digitada** | Escrever "apagar" libera o botão; tudo some e o app volta ao onboarding. |
+| Backup | **Auto-export para uma pasta escolhida** | O app grava o JSON sozinho na pasta que você apontar uma vez. Se ela for sincronizada, o arquivo chega à conta do Google sem o app tocar a rede. Sem notificação de falha. |
 
 ## Decisões que eu tomei
 
@@ -52,6 +61,29 @@ deixa de ser teórico.
 "tentar de novo" que reassina o fluxo. Carregando continua um retângulo, mas com um
 `CircularProgressIndicator` depois de 300 ms — o suficiente para não piscar num aparelho
 rápido e para dizer "estou vivo" num lento.
+
+**6. O backup é um export automatizado, não um backup novo.** Ele grava exatamente o
+`Exporters.json` desta fatia, na pasta que o usuário apontou com `OpenDocumentTree` e cuja
+permissão o app persistiu. `allowBackup="false"` e os três atributos do manifesto ficam
+onde estão: o app não fala com a rede, não conhece conta nenhuma, e quem sincroniza a
+pasta — se alguém sincroniza — é o aparelho. A frase do README continua verdadeira letra
+por letra, e é por isso que este caminho foi escolhido no lugar do Auto Backup do Android.
+
+**7. Sete arquivos datados, e a rotação só apaga os seus.** `saldo-AAAA-MM-DD.json`, um por
+dia em que o backup rodar; ao gravar, o worker apaga o que passar de sete — e só o que casa
+com esse padrão exato. Um nome fixo sobrescrito seria mais simples e deixaria um export
+corrompido comer o único arquivo bom; apagar qualquer coisa que esteja na pasta seria o app
+se achando dono de uma pasta que é do usuário.
+
+**8. Grava com sufixo e renomeia.** O JSON inteiro é montado em memória (já é uma `String`),
+escrito em `saldo-AAAA-MM-DD.json.parcial` e só então renomeado. Um backup pela metade que
+*parece* válido é pior que backup nenhum — e é o que uma escrita interrompida deixa.
+
+**9. A falha mora na tela, não numa notificação** — a escolha foi dele. A linha de `backup
+automático` mostra a data do último sucesso e, quando a última tentativa falhou, o motivo em
+uma linha. Erro de I/O é `Result.retry()`. `SecurityException` (permissão da pasta revogada,
+pasta apagada) é diferente: desliga o backup e troca a linha por "escolha a pasta de novo",
+porque um agendamento que não pode gravar não deve tentar para sempre em silêncio.
 
 ## Comportamento
 
@@ -85,6 +117,37 @@ a **única** função que conhece o formato do arquivo.
 `Exporters.csv` recebe `ProjectionEngine.movimentacoesAte(input, YearMonth.from(hoje))`
 filtrado por `data <= hoje` — a função existe e hoje não tem chamador — em vez de
 `input.movimentacoes`. Colunas iguais às de hoje.
+
+### Backup automático
+
+`mais → exportar dados` ganha a vizinha `backup automático`, com o resumo na própria linha:
+`semanal · último em 07/09`, `desligado`, ou `falhou em 07/09`. A subtela tem três controles
+e um estado:
+
+- **pasta** — `ActivityResultContracts.OpenDocumentTree`; na volta,
+  `takePersistableUriPermission` com `FLAG_GRANT_WRITE_URI_PERMISSION`, e o `Uri` guardado
+  como texto no DataStore. A linha mostra o nome legível da pasta.
+- **quando** — `diário`, `semanal` (padrão) ou `mensal`, às 03:00.
+- **agora** — grava na hora. Sem isto o usuário liga o backup e fica uma semana sem saber se
+  funciona; com isto ele vê o arquivo aparecer antes de precisar confiar nele.
+- **estado** — último sucesso, e o último erro quando houve.
+
+Sem pasta escolhida, `quando` e `agora` ficam desabilitados e nada é agendado.
+
+O agendamento copia o `LembretesScheduler` à risca: um `OneTimeWorkRequest` para a próxima
+ocorrência, reagendado pelo próprio worker ao terminar (`APPEND_OR_REPLACE`, porque roda de
+dentro do próprio unique work), inexato de propósito, sem alarme exato e sem receiver de
+boot — o WorkManager sobrevive ao reboot sozinho.
+
+`BackupWorker`, na ordem: lê ledger e ajustes uma vez → monta o `Exporters.json` → grava
+`saldo-AAAA-MM-DD.json.parcial` → renomeia para `saldo-AAAA-MM-DD.json` → apaga os arquivos
+do próprio padrão além dos sete mais recentes → grava `backupUltimoSucesso`, limpa
+`backupUltimoErro` → reagenda.
+
+O acesso à árvore fica atrás de `PastaBackup` (criar, renomear, listar, apagar) — uma
+interface, com `PastaSaf` por cima do `DocumentsContract` e uma implementação de pasta
+temporária nos testes. Sem ela o worker só seria testável num aparelho com uma árvore SAF de
+verdade, que é exatamente o tipo de teste que ninguém roda.
 
 ### Restaurar
 
@@ -199,13 +262,19 @@ ui/tags/TagsViewModel.kt                soma pelo motor
 ui/entry/EntryViewModel.kt              snapshot original; dia do template no salvar
 lembretes/LembretesScheduler.kt         cancelarTudo, sincronizar
 captura/NotificacaoSugestao.kt          cancelarTodas
+backup/PastaBackup.kt                   novo — interface (criar, renomear, listar, apagar) + PastaSaf
+backup/BackupScheduler.kt               novo — próxima ocorrência por cadência, unique work
+backup/BackupWorker.kt                  novo — monta, grava .parcial, renomeia, rotaciona, reagenda
+ui/mais/BackupScreen.kt                 novo — pasta, quando, agora, último sucesso/erro
 ```
 
 ## Fora de escopo
 
 - Merge de dois arquivos, leitura de schema 1, importação de CSV.
-- Backup automático em nuvem (contradiz o produto) e lembrete de "exporte de vez em
-  quando" (fica para depois de ver se restaurar é usado).
+- Backup em nuvem *pelo app* — conta, rede, API do Drive: continua fora, e é o que o
+  auto-export existe para não precisar. Restaurar automático (o app achar o arquivo sozinho
+  e oferecer) também fica fora: restaurar substitui tudo, e isso é um ato deliberado.
+- Lembrete de "exporte de vez em quando": o backup automático o torna desnecessário.
 - Desfazer para `editar(DAQUI_EM_DIANTE)`.
 - Paginação do ledger e o índice em `dataEpochDay`: o `distinctUntilChanged` e a expansão
   única resolvem o custo que existe hoje; janela de consulta por data e índice (que
@@ -235,6 +304,11 @@ captura/NotificacaoSugestao.kt          cancelarTodas
 - `TagsViewModelTest`: total de uma tag inclui a recorrência virtual e exclui o que é
   anterior à âncora.
 
+- `BackupSchedulerTest`: a próxima ocorrência de cada cadência a partir de uma hora fixa
+  (diário atravessando a meia-noite, semanal, mensal no dia 31); sem pasta, nada é agendado.
+- `RotacaoTest`: nove arquivos do padrão mais dois de outro nome — sobram os sete mais
+  recentes, e os dois estranhos ficam intactos.
+
 **Instrumentados**
 - `RepositoryTest`: `substituirTudo` deixa exatamente o conteúdo do dump, com os ids;
   um dump com vínculo quebrado no meio da inserção faz rollback e o banco fica como estava;
@@ -247,3 +321,9 @@ captura/NotificacaoSugestao.kt          cancelarTodas
 - `EstadosTest`: `ErroDeLeitura` aparece quando o fluxo falha (repositório falso que lança)
   e "tentar de novo" reassina.
 - `EntryFlowTest`: editar o valor e depois excluir; desfazer traz o valor original.
+- `BackupWorkerTest` (`work-testing` + `PastaBackup` de pasta temporária): grava o arquivo do
+  dia e o `.parcial` some; o conteúdo volta pelo `Importers` idêntico ao dump; uma falha de
+  escrita deixa o último sucesso intacto e devolve `retry`; `SecurityException` desliga o
+  backup e não reagenda; rodar duas vezes no mesmo dia deixa um arquivo só.
+- `BackupScreenTest`: sem pasta, `quando` e `agora` desabilitados; com pasta, o resumo mostra
+  a data do último sucesso; um erro gravado aparece na linha.
