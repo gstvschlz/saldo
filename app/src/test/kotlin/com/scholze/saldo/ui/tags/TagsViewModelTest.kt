@@ -1,5 +1,6 @@
 package com.scholze.saldo.ui.tags
 
+import androidx.lifecycle.viewModelScope
 import com.scholze.saldo.RepositorioFixo
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.LedgerInput
@@ -10,9 +11,11 @@ import com.scholze.saldo.domain.Tag
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -50,11 +53,24 @@ class TagsViewModelTest {
     )
 
     @Before fun setMain() = Dispatchers.setMain(dispatcher)
-    @After fun resetMainDispatcher() = Dispatchers.resetMain()
+    // Um teste que COLETA o `state` mantém o `WhileSubscribed` do `viewModelScope` vivo além
+    // do fim do teste: em produção `onCleared()` o cancela, aqui ninguém chama. Sem cancelar à
+    // mão, ele tenta retomar depois que `resetMain()` invalidou o dispatcher, e a exceção
+    // assíncrona é atribuída ao PRÓXIMO teste da suíte. Mesmo cuidado do LedgerViewModelTest.
+    private val criados = mutableListOf<TagsViewModel>()
+
+    @After fun resetMainDispatcher() {
+        // `cancel()` só INICIA o cancelamento; drenar o scheduler antes do
+        // `resetMain()` deixa as corrotinas terminarem de morrer enquanto o Main
+        // ainda existe. Sem isto a exceção assíncrona cai num teste de outra classe.
+        criados.forEach { it.viewModelScope.cancel() }
+        dispatcher.scheduler.advanceUntilIdle()
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun oTotalDaTagIncluiAVirtualEExcluiOAnteriorAAncora() = runTest(dispatcher) {
-        val vm = TagsViewModel(RepositorioFixo(input, tags = listOf(mercado)))
+        val vm = TagsViewModel(RepositorioFixo(input, tags = listOf(mercado))).also { criados += it }
         val estado = vm.state.first { it.tags.isNotEmpty() }
         // 80,00 da linha real + 120,00 da ocorrência virtual; os 500,00 de agosto ficam de fora
         assertEquals(listOf(mercado to 200_00L), estado.tags)

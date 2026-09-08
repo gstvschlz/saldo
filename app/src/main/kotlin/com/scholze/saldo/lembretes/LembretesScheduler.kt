@@ -41,6 +41,12 @@ class LembretesScheduler(private val context: Context) {
         agendarSlot(slot, ligado, hora, ExistingWorkPolicy.APPEND_OR_REPLACE, agora)
     }
 
+    /** O "apagar dados": nenhum slot volta a disparar até alguém religar um lembrete. */
+    fun cancelarTudo() {
+        val wm = WorkManager.getInstance(context)
+        Slot.entries.forEach { wm.cancelUniqueWork(nome(it)) }
+    }
+
     private fun agendarSlot(slot: Slot, ligado: Boolean, hora: LocalTime, politica: ExistingWorkPolicy, agora: LocalDateTime) {
         val wm = WorkManager.getInstance(context)
         if (!ligado) {

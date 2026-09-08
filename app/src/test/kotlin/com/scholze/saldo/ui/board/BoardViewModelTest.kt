@@ -1,5 +1,6 @@
 package com.scholze.saldo.ui.board
 
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.SavedStateHandle
 import com.scholze.saldo.RepositorioFixo
 import com.scholze.saldo.domain.CartaoConfig
@@ -7,8 +8,10 @@ import com.scholze.saldo.domain.LedgerInput
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -27,15 +30,25 @@ class BoardViewModelTest {
     )
 
     @Before fun setMain() = Dispatchers.setMain(dispatcher)
-    @After fun resetMainDispatcher() = Dispatchers.resetMain()
+    // Os ViewModels criados aqui lançam corrotinas no `viewModelScope` (salvar, excluir,
+    // sincronizar). Em produção `onCleared()` cancela o escopo; no teste ninguém chama, e
+    // uma corrotina que retoma depois do `resetMain()` estoura num teste de OUTRA classe.
+    // `cancel()` só inicia o cancelamento, por isso o scheduler é drenado antes do reset.
+    private val criados = mutableListOf<BoardViewModel>()
+
+    @After fun resetMainDispatcher() {
+        criados.forEach { it.viewModelScope.cancel() }
+        dispatcher.scheduler.advanceUntilIdle()
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun oMesEODiaAbertoSobrevivemNoSavedState() {
         val saved = SavedStateHandle()
-        val vm = BoardViewModel(RepositorioFixo(input), saved)
+        val vm = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }
         vm.irPara(YearMonth.of(2026, 5), dia = 12)              // grava direto no handle (Task 9)
 
-        val outro = BoardViewModel(RepositorioFixo(input), saved)   // "processo novo", mesmo handle
+        val outro = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }   // "processo novo", mesmo handle
         assertEquals(YearMonth.of(2026, 5), outro.mesAtualAgora)
         assertEquals(LocalDate.parse("2026-05-12"), outro.diaAbertoAgora)
     }
@@ -43,22 +56,22 @@ class BoardViewModelTest {
     @Test
     fun fecharODiaTambemSobrevive() {
         val saved = SavedStateHandle()
-        val vm = BoardViewModel(RepositorioFixo(input), saved)
+        val vm = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }
         vm.alternarDia(LocalDate.now())                         // hoje estava aberto: fecha
-        val outro = BoardViewModel(RepositorioFixo(input), saved)
+        val outro = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }
         assertEquals(null, outro.diaAbertoAgora)
     }
 
     @Test
     fun semSavedStateAbreNoMesCorrenteComHojeAberto() {
-        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle())
+        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
         assertEquals(YearMonth.now(), vm.mesAtualAgora)
         assertEquals(LocalDate.now(), vm.diaAbertoAgora)
     }
 
     @Test
     fun sincronizarMesComOMesmoMesPreservaODiaAberto() {
-        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle())
+        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
         vm.alternarDia(LocalDate.now().withDayOfMonth(5))
         vm.sincronizarMes(YearMonth.now())
         assertEquals(LocalDate.now().withDayOfMonth(5), vm.diaAbertoAgora)

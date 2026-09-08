@@ -2,6 +2,7 @@ package com.scholze.saldo.captura
 
 import android.Manifest
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -63,6 +64,19 @@ object NotificacaoSugestao {
 
     fun cancelar(context: Context, deteccaoId: Long) {
         NotificationManagerCompat.from(context).cancel(idDe(deteccaoId))
+    }
+
+    /**
+     * Tira da barra toda sugestão pendente. Filtra pelo canal em vez de varrer os ids: as sugestões
+     * são deste canal e de mais nenhum, e um `cancelAll` levaria os lembretes junto — que é uma
+     * decisão de outra tela.
+     */
+    fun cancelarTodas(context: Context) {
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return
+        val nmc = NotificationManagerCompat.from(context)
+        nm.activeNotifications
+            .filter { it.notification.channelId == CANAL }
+            .forEach { nmc.cancel(it.id) }
     }
 
     /**

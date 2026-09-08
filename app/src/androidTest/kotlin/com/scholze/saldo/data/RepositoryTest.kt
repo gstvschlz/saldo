@@ -604,6 +604,46 @@ class RepositoryTest {
         assertEquals(-70_00L, agosto.valorCentavos)
     }
 
+    // ---- o dia do template (dados-1) ----
+
+    /** Editar a instância de fevereiro de uma recorrência de dia 31 não pode achatar a série em 28. */
+    @Test
+    fun editarDaquiEmDianteEmFevereiroMantemODia31NoTemplate() = runBlocking {
+        repo.criar(mov("2026-01-31", -200_00), RepetirOpcao.TodoMes(31))
+        repo.abrirMes(YearMonth.of(2026, 2))
+        repo.abrirMes(YearMonth.of(2026, 3))
+
+        val fev = linhas().first { it.data == LocalDate.parse("2026-02-28") }
+        repo.editar(fev.copy(valorCentavos = -250_00), EscopoEdicao.DAQUI_EM_DIANTE, diaDoMes = 31)
+
+        assertEquals(31, templates().single().diaDoMes)
+        // e março volta ao dia 31, com o valor novo
+        val marco = linhas().first { YearMonth.from(it.data) == YearMonth.of(2026, 3) }
+        assertEquals(LocalDate.parse("2026-03-31"), marco.data)
+        assertEquals(-250_00L, marco.valorCentavos)
+    }
+
+    /** Mover o dia de propósito continua funcionando: quem manda é o parâmetro, não a data. */
+    @Test
+    fun editarDaquiEmDianteComDiaExplicitoMudaOTemplate() = runBlocking {
+        repo.criar(mov("2026-07-10", -50_00), RepetirOpcao.TodoMes(10))
+        repo.abrirMes(YearMonth.of(2026, 8))
+        val ago = linhas().first { it.data == LocalDate.parse("2026-08-10") }
+
+        repo.editar(ago.copy(data = LocalDate.parse("2026-08-20")), EscopoEdicao.DAQUI_EM_DIANTE, diaDoMes = 20)
+
+        assertEquals(20, templates().single().diaDoMes)
+    }
+
+    /** Sem o parâmetro, o comportamento é o de sempre — a data manda. */
+    @Test
+    fun editarDaquiEmDianteSemDiaExplicitoDerivaDaData() = runBlocking {
+        repo.criar(mov("2026-07-10", -50_00), RepetirOpcao.TodoMes(10))
+        val jul = linhas().single()
+        repo.editar(jul.copy(data = LocalDate.parse("2026-07-15")), EscopoEdicao.DAQUI_EM_DIANTE)
+        assertEquals(15, templates().single().diaDoMes)
+    }
+
     // ---- tags: desfazer e cor (uso-diario-1) ----
 
     @Test

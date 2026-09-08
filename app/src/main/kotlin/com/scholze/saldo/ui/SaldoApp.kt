@@ -128,7 +128,9 @@ fun SaldoApp(
     val boardVm: BoardViewModel = viewModel(factory = remember(container) { BoardViewModel.factory(container) })
     val tagsFactory = remember(container) { TagsViewModel.factory(container) }
     val tagsVm: TagsViewModel = viewModel(factory = tagsFactory)
-    val maisFactory = remember(container) { MaisViewModel.factory(container) }
+    // Fora do `when` das abas: o launcher do restaurar e o coletor dos avisos precisam dele
+    // mesmo com outra aba na tela.
+    val maisVm: MaisViewModel = viewModel(factory = remember(container) { MaisViewModel.factory(container) })
     val recorrenciasFactory = remember(container) { RecorrenciasViewModel.factory(container) }
     val ledgerState by ledgerVm.state.collectAsState()
     val totaisState by totaisVm.state.collectAsState()
@@ -252,6 +254,11 @@ fun SaldoApp(
         entryVm.erros.collect { snackbar.showSnackbar(it) }
     }
 
+    // "dados restaurados" e os avisos do caso raro em que o banco entrou e os ajustes não.
+    LaunchedEffect(Unit) {
+        maisVm.avisos.collect { snackbar.showSnackbar(it) }
+    }
+
     LaunchedEffect(Unit) {
         tagsVm.exclusoes.collect { snapshot ->
             val resultado = snackbar.showSnackbar(message = "tag excluída", actionLabel = "desfazer")
@@ -302,6 +309,14 @@ fun SaldoApp(
             }
         }
     }
+
+    // Restaurar: o Uri vem do seletor do sistema, e a leitura/validação acontece no ViewModel —
+    // aqui só se entrega o Uri. `OpenDocument` com mime de json; alguns gerenciadores devolvem
+    // "application/octet-stream" para .json, então o filtro é uma dica, não uma garantia, e o
+    // `Importers` é quem realmente decide se o arquivo serve.
+    val escolherArquivo = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) maisVm.prepararRestauracao(uri) }
 
     Box(modifier.fillMaxSize().background(colors.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -386,8 +401,11 @@ fun SaldoApp(
                         onTagClick = { ledgerVm.definirTagFiltro(it); vistaSaldos = VistaSaldos.TAG; tab = SaldoTab.SALDOS },
                     )
                     SaldoTab.MAIS -> MaisScreen(
-                        vm = viewModel(factory = maisFactory),
+                        vm = maisVm,
                         onExportar = { escolhendoFormato = true },
+                        onEscolherArquivo = {
+                            escolherArquivo.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        },
                     )
                 }
             }

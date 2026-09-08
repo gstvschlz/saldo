@@ -105,24 +105,33 @@ class TotaisViewModel(
         limparErro = { it.copy(erro = null) },
         rotulo = "fluxo de totais",
     ) {
-        combine(repo.ledger, mesAtual) { input, mes ->
-            TotaisUiState(
+        combine(repo.ledger, mesAtual, _segmento) { input, mes, seg ->
+            // O cabeçalho (saldo do mês, estimativa) vale para os três segmentos; o resto é só do
+            // segmento aberto — `InsightsEngine.tendencia` sozinho roda `ProjectionEngine.totais`
+            // seis vezes (uma por mês, cada uma com sua própria expansão e cálculo de fatura), e
+            // fazer isso a cada emissão do ledger para uma aba fechada era o gasto mais caro da
+            // tela inteira.
+            val base = TotaisUiState(
                 mesAtual = mes,
                 totais = ProjectionEngine.totais(input, mes),
                 estimativaCentavos = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).estimativaCentavos,
-                insights = InsightsEngine.paraOndeFoi(input, mes),
-                tendencia = InsightsEngine.tendencia(input, mes),
-                aCaminho = InsightsEngine.aCaminho(input, mes),
-                recorrencias = InsightsEngine.recorrencias(input, mes),
-                ritmo = RitmoEngine.ritmo(input, mes),
-                tagsNoTempo = InsightsEngine.tagsAoLongoDoTempo(input, mes),
             )
+            when (seg) {
+                SegmentoTotais.MES -> base.copy(
+                    insights = InsightsEngine.paraOndeFoi(input, mes),
+                    ritmo = RitmoEngine.ritmo(input, mes),
+                    tagsNoTempo = InsightsEngine.tagsAoLongoDoTempo(input, mes),
+                )
+                SegmentoTotais.TENDENCIA -> base.copy(
+                    tendencia = InsightsEngine.tendencia(input, mes),
+                    tagsNoTempo = InsightsEngine.tagsAoLongoDoTempo(input, mes),
+                )
+                SegmentoTotais.A_CAMINHO -> base.copy(
+                    aCaminho = InsightsEngine.aCaminho(input, mes),
+                    recorrencias = InsightsEngine.recorrencias(input, mes),
+                )
+            }
         }
-            // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma
-            // mais duas passadas de `movimentacoesDoMes` (mês atual e anterior) e os padrões;
-            // `tendencia` roda mais seis passagens INTEIRAS de ProjectionEngine.totais (uma por mês,
-            // cada uma com sua própria expansão e cálculo de fatura) — a cada emissão do ledger,
-            // esteja a aba "tendência" aberta ou não. Tudo isso fica fora da main thread.
             .flowOn(Dispatchers.Default)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), inicial)

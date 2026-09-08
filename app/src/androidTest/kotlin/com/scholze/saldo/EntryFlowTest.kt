@@ -113,6 +113,42 @@ class EntryFlowTest {
         rule.onNode(hasSetTextAction()).assertTextEquals("mercado")
     }
 
+    /**
+     * Editar o valor e, sem sair da sheet, excluir. O "desfazer" tem de trazer a linha COMO ELA ERA
+     * no ledger — o formulário aberto não é a verdade, é um rascunho.
+     */
+    @Test
+    fun desfazerDepoisDeEditarEExcluirTrazOValorOriginal() {
+        abrirBoardRevelado()
+
+        rule.onNodeWithTag(TAG_ADD).performClick()
+        rule.onNodeWithText("opcional").performClick()
+        rule.onNode(hasSetTextAction()).performTextInput("mercado")
+        digitarValor("8000")                                     // R$ 80,00
+        rule.onNodeWithText("adicionar diário").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("mercado").fetchSemanticsNodes().isNotEmpty() }
+
+        // reabre a linha na sheet e mexe SÓ no formulário: um zero a mais faz 80,00 virar 800,00
+        rule.onAllNodesWithText("mercado").onFirst().performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithText("editar movimentação").fetchSemanticsNodes().isNotEmpty()
+        }
+        // O valor da sheet é um bloco clicável só — "R$", o número e a legenda caem no mesmo nó —,
+        // e a legenda é o texto dele que não colide com o board, que continua composto atrás.
+        rule.onNodeWithText("gasto variável · sai do saldo").performClick()
+        rule.onNode(hasAnyAncestor(hasTestTag(TAG_TECLADO)) and hasText("0")).performClick()
+        rule.onNodeWithText("continuar").performClick()
+        rule.onNodeWithText("800,00").assertIsDisplayed()         // o rascunho está mesmo mexido
+
+        rule.onNodeWithText("excluir movimentação").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("desfazer").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("desfazer").performClick()
+
+        // volta o que estava no ledger (−80,00), não o que estava sendo digitado (−800,00)
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("−80,00").fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodesWithText("−800,00").assertCountEquals(0)
+    }
+
     /** `5`, `0`, `00` = R$ 50,00: a tecla do ponto de venda que a vírgula inerte ocupava. */
     @Test
     fun aTeclaDuploZeroAnexaDoisZeros() {

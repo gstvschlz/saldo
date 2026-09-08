@@ -77,10 +77,8 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     private val form = MutableStateFlow(EntryUiState())
 
-    /** A linha COMO ESTÁ no ledger, para o rodapé descontar o que ela já contribui. */
-    private data class Original(val valorCentavos: Long, val data: LocalDate, val natureza: Natureza)
-
-    private val original = MutableStateFlow<Original?>(null)
+    /** A linha COMO ESTÁ no ledger: o rodapé desconta o que ela já contribui, e o "desfazer" a reinsere. */
+    private val original = MutableStateFlow<Movimentacao?>(null)
 
     private val _erros = MutableSharedFlow<String>(extraBufferCapacity = 1)
     private val _exclusoes = MutableSharedFlow<Movimentacao>(extraBufferCapacity = 1)
@@ -136,7 +134,7 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
      * template na primeira edição de fevereiro.
      */
     fun iniciarEdicao(mov: Movimentacao, diaDoTemplate: Int? = null) {
-        original.value = Original(mov.valorCentavos, mov.data, mov.natureza)
+        original.value = mov
         val repetir = if (mov.recorrenciaId != null) RepetirOpcao.TodoMes(diaDoTemplate ?: mov.data.dayOfMonth) else RepetirOpcao.Nao
         form.value = EntryUiState(
             editandoId = mov.id,
@@ -211,21 +209,22 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
                     // "repetir", e a série tem de acabar no mês de origem, não no de destino.
                     repo.encerrarRecorrencia(mov, YearMonth.from(original.value!!.data))
                 }
-                else -> repo.editar(mov, escopo)
+                // O dia do TEMPLATE vem do formulário, não de `mov.data`: numa instância
+                // clamped (31 → 28 em fevereiro) derivar o dia da data achataria a série.
+                else -> repo.editar(mov, escopo, diaDoMes = (f.repetir as? RepetirOpcao.TodoMes)?.dia)
             }
         }
     }
 
+    /**
+     * Exclui a linha que a sheet abriu — o `original`, não o formulário.
+     *
+     * O formulário pode já ter sido mexido (o usuário trocou o valor e depois desistiu de tudo), e o
+     * "desfazer" reinsere exatamente o que este método emitir: sair daqui com o rascunho faria a
+     * linha voltar com um valor que nunca esteve no ledger.
+     */
     fun excluir(onDone: () -> Unit) {
-        val f = form.value
-        val id = f.editandoId ?: return
-        // As tags entram no snapshot: é ele que o "desfazer" reinsere, e sem elas a linha
-        // voltaria pelada.
-        val mov = Movimentacao(
-            id = id, descricao = f.descricao, valorCentavos = f.valorAssinado,
-            data = f.data, natureza = f.natureza, recorrenciaId = f.recorrenciaId,
-            tags = f.tagsSelecionadas,
-        )
+        val mov = original.value ?: return
         escrever("excluir", "não foi possível excluir", onDone) {
             _exclusoes.emit(repo.excluir(mov))
         }

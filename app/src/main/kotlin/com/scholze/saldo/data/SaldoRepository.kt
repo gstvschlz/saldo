@@ -46,8 +46,14 @@ interface SaldoRepository {
      * abrir o editor para uma linha com `id == 0`. Cuidado também com a data: mover uma
      * instância para um mês nunca aberto materializa aquele mês inteiro (comportamento
      * documentado, ver `moverInstanciaParaMesNaoAbertoMaterializaDestino`).
+     *
+     * [diaDoMes] só vale para [EscopoEdicao.DAQUI_EM_DIANTE] e é o dia do TEMPLATE, não o da linha.
+     * `null` deriva de `mov.data.dayOfMonth`, que é o comportamento antigo — e é justamente o que
+     * quebra no dia 31: em fevereiro a instância cai no dia 28 (clamp), e escrever 28 no template
+     * achata a série para sempre, inclusive nos meses de 31 dias. Quem edita pela sheet manda o dia
+     * do formulário, que nasce do template.
      */
-    suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao)
+    suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao, diaDoMes: Int? = null)
 
     /**
      * Apaga a linha e devolve o snapshot para o "desfazer".
@@ -192,7 +198,7 @@ class RoomSaldoRepository(
         }
     }
 
-    override suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao) = db.withTransaction {
+    override suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao, diaDoMes: Int?) = db.withTransaction {
         when (escopo) {
             EscopoEdicao.SO_ESTE_MES -> {
                 require(mov.id != 0L) { "movimentação virtual — abra o mês antes de editar" }
@@ -231,7 +237,7 @@ class RoomSaldoRepository(
                 congelarAte(templateAntigo.inicio, mesInicio.minusMonths(1))
                 val templateNovo = templateAntigo.copy(
                     descricao = mov.descricao, valorCentavos = mov.valorCentavos,
-                    natureza = mov.natureza, diaDoMes = mov.data.dayOfMonth, tags = mov.tags,
+                    natureza = mov.natureza, diaDoMes = diaDoMes ?: mov.data.dayOfMonth, tags = mov.tags,
                 )
                 recDao.update(templateNovo.toEntity())
                 recDao.setTags(recId, mov.tags.map { it.id })
@@ -267,8 +273,9 @@ class RoomSaldoRepository(
                         val existentes = movDao.countInstancias(
                             recId, m.atDay(1).toEpochDay(), m.atEndOfMonth().toEpochDay(),
                         )
-                        // Em `mesInicio` a expansão já cai exatamente em `mov.data`:
-                        // `templateNovo.diaDoMes` é `mov.data.dayOfMonth`, sempre válido no mês.
+                        // Em `mesInicio` a linha real já foi atualizada acima (ou não existe, se a
+                        // ocorrência era virtual); nos meses seguintes a expansão usa `diaDoMes`,
+                        // clamped ao tamanho de cada mês por `RecurrenceExpander`.
                         if (existentes == 0) {
                             RecurrenceExpander.ocorrenciaNoMes(templateNovo, m)?.let { insertComTags(it) }
                         }
@@ -422,12 +429,21 @@ class RoomSaldoRepository(
             }
     }
 
-    /** Materializa todo mês de [de] a [ate] (inclusive) que ainda não foi aberto, com os templates como estão. */
+    /**
+     * Materializa todo mês de [de] a [ate] (inclusive) que ainda não foi aberto, com os templates
+     * como estão. Lê os templates e os meses marcados UMA vez: congelar doze meses fazia doze
+     * leituras idênticas das mesmas duas tabelas dentro da mesma transação.
+     */
     private suspend fun congelarAte(de: YearMonth, ate: YearMonth) {
-        val marcados = mesDao.todos().map { it.toYearMonth() }.toSet()
+        if (de > ate) return
+        val marcados = mesDao.todos().map { it.toYearMonth() }.toMutableSet()
+        val templates = recDao.todos().map { it.toDomain() }
         var m = de
         while (m <= ate) {
-            if (m !in marcados) materializar(m)
+            if (m !in marcados) {
+                materializar(m, templates = templates)
+                marcados += m
+            }
             m = m.plusMonths(1)
         }
     }
@@ -494,13 +510,17 @@ class RoomSaldoRepository(
     /**
      * Núcleo de [abrirMes]: expande todo template ativo em [mes] e marca o mês como materializado.
      * [excetoRecorrenciaId] pula um template cuja instância do mês já foi inserida à mão.
+     * [templates] é a leitura pronta de quem já a fez (ver [congelarAte]); `null` lê aqui.
      * O chamador é responsável por só chamar quando [mes] ainda não estiver materializado.
      */
-    private suspend fun materializar(mes: YearMonth, excetoRecorrenciaId: Long? = null) {
-        val templates = recDao.todos()
-            .map { it.toDomain() }
+    private suspend fun materializar(
+        mes: YearMonth,
+        excetoRecorrenciaId: Long? = null,
+        templates: List<Recorrencia>? = null,
+    ) {
+        val lista = (templates ?: recDao.todos().map { it.toDomain() })
             .filter { it.id != excetoRecorrenciaId }
-        RecurrenceExpander.ocorrenciasNoMes(templates, mes).forEach { insertComTags(it) }
+        RecurrenceExpander.ocorrenciasNoMes(lista, mes).forEach { insertComTags(it) }
         mesDao.marcar(MesMaterializadoEntity(mes.toAnoMes()))
     }
 

@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.BuildConfig
+import com.scholze.saldo.data.Dump
 import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.CapturaConfig
@@ -38,6 +39,9 @@ import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private fun rotulo(t: Tema) = when (t) {
     Tema.SISTEMA -> "sistema"
@@ -58,8 +62,26 @@ private fun resumo(l: LembretesConfig): String = when (l.ativos) {
     else -> "${l.ativos} ativos"
 }
 
+private val dataLonga = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale.forLanguageTag("pt-BR"))
+
+/**
+ * A pergunta do diálogo, com o que vai entrar e de quando é. Números concretos, não "tem certeza?":
+ * é a última tela antes de o aparelho perder o que tem.
+ */
+private fun resumoDoDump(dump: Dump): String {
+    val quando = runCatching { OffsetDateTime.parse(dump.exportadoEm).toLocalDate().format(dataLonga) }
+        .getOrDefault(dump.exportadoEm)
+    return "substituir tudo neste aparelho por ${dump.movimentacoes.size} lançamentos, " +
+        "${dump.recorrencias.size} recorrências e ${dump.tags.size} tags, exportados em $quando?"
+}
+
 @Composable
-fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = Modifier) {
+fun MaisScreen(
+    vm: MaisViewModel,
+    onExportar: () -> Unit,
+    onEscolherArquivo: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = SaldoTheme.colors
     val settings by vm.settings.collectAsState()
     val erro by vm.erro.collectAsState()
@@ -175,6 +197,7 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
 
             InsetGroup {
                 InsetRow(label = "exportar dados", onClick = onExportar)
+                InsetRow(label = "restaurar dados", value = "substitui tudo", onClick = onEscolherArquivo)
             }
 
             InsetGroup {
@@ -245,6 +268,26 @@ fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = M
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { escolhendoTema = false }) { Text("fechar") } },
+        )
+    }
+
+    // O restaurar tem dois diálogos porque tem dois desfechos: o arquivo não serve (uma frase e
+    // "fechar"), ou serve e a próxima tela é a última chance de desistir.
+    val restauracao by vm.restauracao.collectAsState()
+    when (val r = restauracao) {
+        null -> {}
+        is Restauracao.Erro -> AlertDialog(
+            onDismissRequest = vm::cancelarRestauracao,
+            title = { Text("restaurar dados") },
+            text = { Text(r.mensagem) },
+            confirmButton = { TextButton(onClick = vm::cancelarRestauracao) { Text("fechar") } },
+        )
+        is Restauracao.Confirmar -> AlertDialog(
+            onDismissRequest = vm::cancelarRestauracao,
+            title = { Text("restaurar dados") },
+            text = { Text(resumoDoDump(r.dump)) },
+            confirmButton = { TextButton(onClick = { vm.restaurar(r.dump) }) { Text("substituir") } },
+            dismissButton = { TextButton(onClick = vm::cancelarRestauracao) { Text("cancelar") } },
         )
     }
 }

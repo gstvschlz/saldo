@@ -39,7 +39,14 @@ class LembretesScreenTest {
     @Test
     fun ligarUmLembreteGravaAConfig() {
         val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
-        val vm = MaisViewModel(app.container.settings, app.container.lembretesScheduler)
+        val vm = MaisViewModel(
+            settingsStore = app.container.settings,
+            repository = app.container.repository,
+            scheduler = app.container.lembretesScheduler,
+            leitor = app.container.leitorDeArquivo,
+            limparNotificacoes = {},
+            limparSugestoes = {},
+        )
         rule.setContent {
             SaldoTheme {
                 val settings by vm.settings.collectAsState()

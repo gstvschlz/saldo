@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -58,7 +59,11 @@ class LedgerViewModelTest {
     @Before fun setMain() = Dispatchers.setMain(dispatcher)
 
     @After fun resetMainDispatcher() {
+        // `cancel()` só INICIA o cancelamento; drenar o scheduler antes do
+        // `resetMain()` deixa as corrotinas terminarem de morrer enquanto o Main
+        // ainda existe. Sem isto a exceção assíncrona cai num teste de outra classe.
         criados.forEach { it.viewModelScope.cancel() }
+        dispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
     }
 

@@ -1,5 +1,6 @@
 package com.scholze.saldo.ui.entry
 
+import androidx.lifecycle.viewModelScope
 import com.scholze.saldo.RepositorioFixo
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.CartaoConfig
@@ -11,7 +12,9 @@ import com.scholze.saldo.domain.RepetirOpcao
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -35,7 +38,13 @@ class EntryViewModelTest {
     /** Anota qual escrita foi chamada. */
     private class RepoEspiao(input: LedgerInput) : SaldoRepository by RepositorioFixo(input) {
         val chamadas = mutableListOf<String>()
-        override suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao) { chamadas += "editar:$escopo" }
+        override suspend fun editar(mov: Movimentacao, escopo: EscopoEdicao, diaDoMes: Int?) {
+            chamadas += "editar:$escopo:$diaDoMes"
+        }
+        override suspend fun excluir(mov: Movimentacao): Movimentacao {
+            chamadas += "excluir:${mov.valorCentavos}"
+            return mov
+        }
         override suspend fun converterEmRecorrencia(mov: Movimentacao, diaDoMes: Int) { chamadas += "converter:$diaDoMes" }
         override suspend fun encerrarRecorrencia(mov: Movimentacao, mesDaSerie: YearMonth) { chamadas += "encerrar:$mesDaSerie" }
         override suspend fun criar(mov: Movimentacao, repetir: RepetirOpcao) { chamadas += "criar" }
@@ -45,12 +54,22 @@ class EntryViewModelTest {
     private val instancia = avulsa.copy(id = 6, recorrenciaId = 3)
 
     @Before fun setMain() = Dispatchers.setMain(dispatcher)
-    @After fun resetMainDispatcher() = Dispatchers.resetMain()
+    // Os ViewModels criados aqui lançam corrotinas no `viewModelScope` (salvar, excluir,
+    // sincronizar). Em produção `onCleared()` cancela o escopo; no teste ninguém chama, e
+    // uma corrotina que retoma depois do `resetMain()` estoura num teste de OUTRA classe.
+    // `cancel()` só inicia o cancelamento, por isso o scheduler é drenado antes do reset.
+    private val criados = mutableListOf<EntryViewModel>()
+
+    @After fun resetMainDispatcher() {
+        criados.forEach { it.viewModelScope.cancel() }
+        dispatcher.scheduler.advanceUntilIdle()
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun avulsaQueViraMensalConverte() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo)
+        val vm = EntryViewModel(repo).also { criados += it }
         vm.iniciarEdicao(avulsa)
         vm.definirRepetir(RepetirOpcao.TodoMes(10))
         vm.salvar(EscopoEdicao.SO_ESTE_MES) {}
@@ -63,7 +82,7 @@ class EntryViewModelTest {
     @Test
     fun mensalQueParaEncerra() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo)
+        val vm = EntryViewModel(repo).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         vm.definirRepetir(RepetirOpcao.Nao)
         vm.salvar(EscopoEdicao.SO_ESTE_MES) {}
@@ -80,7 +99,7 @@ class EntryViewModelTest {
     @Test
     fun mensalQueParaComADataMovidaEncerraNoMesOriginal() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo)
+        val vm = EntryViewModel(repo).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10) // instancia.data = 2026-09-10
         vm.definirData(LocalDate.parse("2026-12-25"))
         vm.definirRepetir(RepetirOpcao.Nao)
@@ -92,33 +111,73 @@ class EntryViewModelTest {
     @Test
     fun mensalQueContinuaMensalSoEdita() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo)
+        val vm = EntryViewModel(repo).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         vm.definirCentavos(130_00)
         vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
         advanceUntilIdle()
-        assertEquals(listOf("editar:DAQUI_EM_DIANTE"), repo.chamadas)
+        // O dia que vai junto é o do template (10), não o da data da linha.
+        assertEquals(listOf("editar:DAQUI_EM_DIANTE:10"), repo.chamadas)
     }
 
     /**
      * Mudar só o dia do "todo mês" (continua `TodoMes`, nos dois lados) não é conversão nem
-     * encerramento — é uma edição normal do template. O dia em si ainda não chega ao
-     * repositório por aqui (fatia "dados-1"); o que este teste fixa é o roteamento.
+     * encerramento — é uma edição normal do template, e o dia novo do formulário é que manda.
      */
     @Test
     fun trocarODiaDoTodoMesRoteiaParaEditar() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo)
+        val vm = EntryViewModel(repo).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         vm.definirRepetir(RepetirOpcao.TodoMes(15))
         vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
         advanceUntilIdle()
-        assertEquals(listOf("editar:DAQUI_EM_DIANTE"), repo.chamadas)
+        assertEquals(listOf("editar:DAQUI_EM_DIANTE:15"), repo.chamadas)
+    }
+
+    /**
+     * A instância de fevereiro de uma série de dia 31 cai no dia 28 (clamp). Salvar "daqui em
+     * diante" sem mexer em nada tem de mandar 31 — o dia do template, que o formulário guarda —
+     * e não os 28 da data da linha, que achatariam a série para sempre.
+     */
+    @Test
+    fun oDia31SobreviveASalvarAInstanciaDeFevereiro() = runTest(dispatcher) {
+        val repo = RepoEspiao(input)
+        val vm = EntryViewModel(repo).also { criados += it }
+        vm.iniciarEdicao(instancia.copy(data = LocalDate.parse("2026-02-28")), diaDoTemplate = 31)
+        vm.definirCentavos(130_00)
+        vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
+        advanceUntilIdle()
+        assertEquals(listOf("editar:DAQUI_EM_DIANTE:31"), repo.chamadas)
+    }
+
+    /**
+     * Mexer no valor e, sem sair da sheet, excluir: o que vai para o "desfazer" é a linha COMO
+     * ESTAVA no ledger, não o rascunho do formulário — senão o desfazer reinsere um valor que
+     * nunca existiu.
+     */
+    @Test
+    fun excluirMandaALinhaOriginalNaoORascunhoDoFormulario() = runTest(dispatcher) {
+        val repo = RepoEspiao(input)
+        val vm = EntryViewModel(repo).also { criados += it }
+        vm.iniciarEdicao(avulsa)                                // ledger: -120_00
+        vm.definirCentavos(999_00)                              // rascunho: -999_00
+        val excluidas = mutableListOf<Movimentacao>()
+        val coleta = launch { vm.exclusoes.collect { excluidas += it } }
+        advanceUntilIdle()                                      // o coletor assina antes da emissão
+
+        vm.excluir {}
+        advanceUntilIdle()
+        coleta.cancel()
+
+        assertEquals(listOf("excluir:-12000"), repo.chamadas)
+        assertEquals(listOf(-120_00L), excluidas.map { it.valorCentavos })
+        assertEquals(listOf(avulsa.id), excluidas.map { it.id })
     }
 
     @Test
     fun oDiaMostradoEODoTemplateNaoODaData() {
-        val vm = EntryViewModel(RepoEspiao(input))
+        val vm = EntryViewModel(RepoEspiao(input)).also { criados += it }
         vm.iniciarEdicao(instancia.copy(data = LocalDate.parse("2026-02-28")), diaDoTemplate = 31)
         assertEquals(RepetirOpcao.TodoMes(31), vm.formAgora.repetir)
         assertEquals(RepetirOpcao.TodoMes(31), vm.formAgora.repetirOriginal)
@@ -126,7 +185,7 @@ class EntryViewModelTest {
 
     @Test
     fun soPedeEscopoQuandoContinuaMensal() {
-        val vm = EntryViewModel(RepoEspiao(input))
+        val vm = EntryViewModel(RepoEspiao(input)).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         assertEquals(true, vm.formAgora.precisaEscopo)
         vm.definirRepetir(RepetirOpcao.Nao)

@@ -4,11 +4,14 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.work.ExistingWorkPolicy
 import com.scholze.saldo.backup.BackupScheduler
 import com.scholze.saldo.backup.PastaBackup
 import com.scholze.saldo.backup.PastaSaf
+import com.scholze.saldo.data.LeitorDeArquivo
+import com.scholze.saldo.data.LeitorSaf
 import com.scholze.saldo.data.RoomSaldoRepository
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.data.SettingsStore
@@ -54,6 +57,21 @@ class AppContainer(context: Context) {
      * e um backup sem teste é uma promessa, não um recurso.
      */
     var pastaBackup: (Uri) -> PastaBackup = { PastaSaf(context.applicationContext, it) }
+
+    /** Como o restaurar lê o arquivo escolhido no seletor do sistema. */
+    val leitorDeArquivo: LeitorDeArquivo = LeitorSaf(context.applicationContext)
+
+    /**
+     * O "apagar dados" tira TODA notificação do app da barra — lembretes e sugestões. Um lambda, e
+     * não um `Context` no ViewModel: o teste passa um contador e não precisa de um sistema de
+     * notificações vivo.
+     */
+    val limparNotificacoes: () -> Unit = {
+        NotificationManagerCompat.from(context.applicationContext).cancelAll()
+    }
+
+    /** As sugestões pendentes apontam para lançamentos que podem não existir mais depois de um restore. */
+    val limparSugestoes: () -> Unit = { NotificacaoSugestao.cancelarTodas(context.applicationContext) }
 }
 
 class SaldoApplication : Application() {
