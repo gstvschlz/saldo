@@ -2,10 +2,13 @@ package com.scholze.saldo
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.work.ExistingWorkPolicy
 import com.scholze.saldo.backup.BackupScheduler
+import com.scholze.saldo.backup.PastaBackup
+import com.scholze.saldo.backup.PastaSaf
 import com.scholze.saldo.data.RoomSaldoRepository
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.data.SettingsStore
@@ -42,6 +45,15 @@ class AppContainer(context: Context) {
     val widgetRefresher: WidgetRefresher = WidgetRefresher(context.applicationContext, repository, settings, scope)
     val lembretesScheduler: LembretesScheduler = LembretesScheduler(context.applicationContext)
     val backupScheduler: BackupScheduler = BackupScheduler(context.applicationContext)
+
+    /**
+     * Como o worker abre a pasta do backup.
+     *
+     * `var` por um motivo só: o `BackupWorkerTest` a troca por uma pasta de arquivos temporários.
+     * Sem essa costura o worker só seria testável num aparelho com uma árvore SAF escolhida à mão —
+     * e um backup sem teste é uma promessa, não um recurso.
+     */
+    var pastaBackup: (Uri) -> PastaBackup = { PastaSaf(context.applicationContext, it) }
 }
 
 class SaldoApplication : Application() {

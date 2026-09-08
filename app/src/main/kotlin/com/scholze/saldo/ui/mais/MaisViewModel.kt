@@ -13,10 +13,16 @@ import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.LembretesConfig
 import com.scholze.saldo.lembretes.LembretesScheduler
+import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
 import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -25,8 +31,33 @@ class MaisViewModel(
     private val scheduler: LembretesScheduler,
 ) : ViewModel() {
 
-    val settings: StateFlow<Settings?> =
-        settingsStore.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val tentativas = MutableStateFlow(0)
+    private val _erro = MutableStateFlow<String?>(null)
+
+    /** Mensagem de falha ao ler os ajustes; `null` = está tudo bem. */
+    val erro: StateFlow<String?> = _erro
+
+    /** O botão "tentar de novo" da tela: reassina o fluxo dos ajustes. */
+    fun tentarDeNovo() {
+        _erro.value = null
+        tentativas.value++
+    }
+
+    // O estado desta tela é o `Settings?` cru — não há um UiState para carregar um campo `erro`,
+    // e inventar um wrapper só por isto custaria mais do que compra. Então o erro anda ao lado,
+    // num fluxo próprio; o `flatMapLatest` sobre [tentativas] faz o mesmo papel de `fluxoComErro`:
+    // o botão REASSINA a leitura, em vez de só apagar a mensagem de uma tela morta.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val settings: StateFlow<Settings?> = tentativas
+        .flatMapLatest {
+            settingsStore.settings
+                .onEach { _erro.value = null }
+                .catch { e ->
+                    Log.e(TAG, "fluxo de ajustes falhou", e)
+                    _erro.value = MENSAGEM_ERRO_LEITURA
+                }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
      * Reancora o saldo inicial em hoje — é a semântica pretendida ("meu saldo HOJE é X"),

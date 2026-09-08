@@ -12,6 +12,8 @@ import com.scholze.saldo.domain.InsightsEngine
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.ResumoRecorrencias
+import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
+import com.scholze.saldo.ui.fluxoComErro
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
@@ -19,25 +21,38 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** O resumo do mês visto, e a falha de leitura quando ela acontece. */
+data class RecorrenciasUiState(val resumo: ResumoRecorrencias? = null, val erro: String? = null)
+
 /** A tela de recorrências: um resumo do mês visto na aba totais, mais a ponte para o editor. */
 class RecorrenciasViewModel(private val repo: SaldoRepository) : ViewModel() {
 
     private val mes = MutableStateFlow(YearMonth.now())
 
-    val state: StateFlow<ResumoRecorrencias?> = combine(repo.ledger, mes) { input, m ->
-        InsightsEngine.recorrencias(input, m)
+    private val tentativas = MutableStateFlow(0)
+
+    /** O botão "tentar de novo" da tela: reassina o fluxo do banco. */
+    fun tentarDeNovo() {
+        tentativas.value++
     }
-        .flowOn(Dispatchers.Default)
-        // Mesma razão do TotaisViewModel: uma exceção do banco não pode congelar a tela em silêncio.
-        .catch { Log.e(TAG, "fluxo de recorrências falhou", it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val state: StateFlow<RecorrenciasUiState> = fluxoComErro(
+        tentativas = tentativas,
+        inicial = RecorrenciasUiState(),
+        marcarErro = { it.copy(erro = MENSAGEM_ERRO_LEITURA) },
+        limparErro = { it.copy(erro = null) },
+        rotulo = "fluxo de recorrências",
+    ) {
+        combine(repo.ledger, mes) { input, m -> RecorrenciasUiState(InsightsEngine.recorrencias(input, m)) }
+            .flowOn(Dispatchers.Default)
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecorrenciasUiState())
 
     /** O mês visto é o da aba totais; esta tela é só uma leitura dele. */
     fun verMes(m: YearMonth) {

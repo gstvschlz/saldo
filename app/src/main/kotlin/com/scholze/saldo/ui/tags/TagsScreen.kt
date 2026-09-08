@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.PaletaTags
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.IconeRedondo
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.SaldoIcon
@@ -61,6 +62,12 @@ fun TagsScreen(vm: TagsViewModel, onTagClick: (Tag) -> Unit, modifier: Modifier 
             Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
             style = SaldoTheme.type.navTitle, color = colors.label,
         )
+
+        val erro = state.erro
+        if (erro != null) {
+            ErroDeLeitura(erro, vm::tentarDeNovo)
+            return@Column
+        }
 
         Column(
             Modifier

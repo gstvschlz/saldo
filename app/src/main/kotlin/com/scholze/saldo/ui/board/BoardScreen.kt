@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.DiaBoard
 import com.scholze.saldo.domain.Fatura
 import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.ui.components.Carregando
+import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.IconeRedondo
 import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.components.SaldoIcon
@@ -113,6 +115,7 @@ fun BoardScreen(
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
     onVerGuardado: () -> Unit,
+    onTentar: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = SaldoTheme.colors
@@ -144,8 +147,13 @@ fun BoardScreen(
             )
 
             val mes = state.mes
+            val erro = state.erro
+            if (erro != null) {
+                ErroDeLeitura(erro, onTentar)
+                return@Column
+            }
             if (board == null || mes == null) {
-                Box(Modifier.fillMaxSize())
+                Carregando()
                 return@Column
             }
 

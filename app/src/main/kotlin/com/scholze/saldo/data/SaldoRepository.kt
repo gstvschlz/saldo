@@ -8,6 +8,7 @@ import com.scholze.saldo.data.db.toDomain
 import com.scholze.saldo.data.db.toEntity
 import com.scholze.saldo.data.db.toEntityFiel
 import com.scholze.saldo.data.db.toYearMonth
+import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
 import com.scholze.saldo.domain.LedgerInput
@@ -21,6 +22,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 interface SaldoRepository {
@@ -131,19 +133,25 @@ class RoomSaldoRepository(
         movDao.observeAll(),
         recDao.observeAll(),
         mesDao.observeTodos(),
-        settingsStore.settings,
+        settingsStore.settings
+            .map { AjustesDoLedger(it.saldoInicialCentavos, it.saldoInicialData, it.cartao) }
+            .distinctUntilChanged(),
         hoje,
-    ) { movs, recs, meses, settings, hoje ->
+    ) { movs, recs, meses, ajustes, hoje ->
         LedgerInput(
-            saldoInicialCentavos = settings.saldoInicialCentavos ?: 0L,
-            saldoInicialData = settings.saldoInicialData ?: hoje,
+            saldoInicialCentavos = ajustes.saldoInicialCentavos ?: 0L,
+            saldoInicialData = ajustes.saldoInicialData ?: hoje,
             movimentacoes = movs.map { it.toDomain() },
             recorrencias = recs.map { it.toDomain() },
             mesesMaterializados = meses.map { it.toYearMonth() }.toSet(),
-            cartao = settings.cartao,
+            cartao = ajustes.cartao,
             hoje = hoje,
         )
     }
+        // A segunda trava: o `diaAtual` emite a cada virada de dia e os DAOs reemitem em toda
+        // escrita, idempotente ou não. `LedgerInput` é uma data class de listas — se o conteúdo é
+        // igual, ninguém precisa recalcular nada.
+        .distinctUntilChanged()
 
     override val tags: Flow<List<Tag>> = tagDao.observeAll().map { list -> list.map { it.toDomain() } }
 
@@ -501,3 +509,16 @@ class RoomSaldoRepository(
         if (mov.tags.isNotEmpty()) movDao.setTags(id, mov.tags.map { it.id })
     }
 }
+
+/**
+ * O que o ledger REALMENTE usa dos ajustes.
+ *
+ * O `combine` original assinava `settingsStore.settings` inteiro: ligar um lembrete, trocar o tema,
+ * marcar um app na captura ou gravar o estado do backup emitia um `Settings` novo, o ledger inteiro
+ * era reemitido e as seis telas recalculavam a projeção do mês — por nada.
+ */
+private data class AjustesDoLedger(
+    val saldoInicialCentavos: Long?,
+    val saldoInicialData: LocalDate?,
+    val cartao: CartaoConfig,
+)

@@ -62,7 +62,9 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.descricaoVisivel
 import com.scholze.saldo.ui.components.BuscaTopBar
+import com.scholze.saldo.ui.components.Carregando
 import com.scholze.saldo.ui.components.DescricaoTexto
+import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.components.DiaBadge
 import com.scholze.saldo.ui.components.FiltroChips
@@ -110,6 +112,7 @@ fun LedgerScreen(
     onTogglePrivacidade: () -> Unit,
     onVerBoard: () -> Unit,
     onLimparTag: () -> Unit,
+    onTentar: () -> Unit = {},
     onVerGuardado: () -> Unit = {},
     alvo: AlvoLedger? = null,
     onAlvoConsumido: () -> Unit = {},
@@ -197,8 +200,11 @@ fun LedgerScreen(
                 return@Column
             }
 
-            if (mes == null) {
-                Box(Modifier.fillMaxSize())
+            val erro = state.erro
+            if (erro != null) {
+                ErroDeLeitura(erro, onTentar)
+            } else if (mes == null) {
+                Carregando()
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
                     item(key = "hero") { BalanceHero(mes, onTogglePrivacidade, onVerGuardado) }

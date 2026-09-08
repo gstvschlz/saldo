@@ -3,17 +3,22 @@ package com.scholze.saldo.ui.ledger
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.scholze.saldo.RepositorioFixo
+import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
+import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -45,8 +50,10 @@ class LedgerViewModelTest {
     // dispatcher, e a exceção assíncrona é atribuída ao próximo teste da suíte inteira
     // (`UncaughtExceptionsBeforeTest`) — não a este arquivo.
     private val criados = mutableListOf<LedgerViewModel>()
-    private fun vm(saved: SavedStateHandle = SavedStateHandle()) =
-        LedgerViewModel(RepositorioFixo(input), saved).also { criados += it }
+    private fun vm(saved: SavedStateHandle = SavedStateHandle()) = vmCom(RepositorioFixo(input), saved)
+
+    private fun vmCom(repo: SaldoRepository, saved: SavedStateHandle = SavedStateHandle()) =
+        LedgerViewModel(repo, saved).also { criados += it }
 
     @Before fun setMain() = Dispatchers.setMain(dispatcher)
 
@@ -85,5 +92,41 @@ class LedgerViewModelTest {
         assertEquals(FiltroLedger.FIXAS, outro.filtroAgora)
         assertEquals(9L, outro.tagFiltroIdAgora)
         assertEquals("ub", outro.busca.value)
+    }
+
+    // ---- erro de leitura e tentar de novo (dados-1) ----
+
+    /** Falha na PRIMEIRA assinatura e responde nas seguintes: é como se prova que o botão reassina. */
+    private class RepositorioQueFalhaUmaVez(private val input: LedgerInput) : SaldoRepository by RepositorioFixo(input) {
+        var assinaturas = 0
+            private set
+
+        override val ledger: Flow<LedgerInput> = flow {
+            assinaturas++
+            if (assinaturas == 1) throw IllegalStateException("disco ruim")
+            emit(input)
+        }
+    }
+
+    @Test
+    fun umaFalhaDeLeituraViraErroNoEstado() = runTest(dispatcher) {
+        val vm = vmCom(RepositorioQueFalhaUmaVez(input))
+        assertEquals(MENSAGEM_ERRO_LEITURA, vm.state.first { it.erro != null }.erro)
+    }
+
+    @Test
+    fun tentarDeNovoReassinaOFluxo() = runTest(dispatcher) {
+        val repo = RepositorioQueFalhaUmaVez(input)
+        val vm = vmCom(repo)
+        val coleta = backgroundScope.launch { vm.state.collect { } }   // mantém o WhileSubscribed vivo
+        vm.state.first { it.erro != null }
+
+        vm.tentarDeNovo()
+
+        // Não basta a mensagem sumir: o dado tem de CHEGAR, e só a segunda assinatura o traz.
+        val depois = vm.state.first { it.erro == null && it.mes != null }
+        assertNull(depois.erro)
+        assertEquals(2, repo.assinaturas)
+        coleta.cancel()
     }
 }

@@ -2,7 +2,6 @@ package com.scholze.saldo.ui.totais
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,6 +26,8 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Ritmo
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.ui.components.Carregando
+import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.FiltroChips
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
@@ -60,6 +61,7 @@ fun TotaisScreen(
         onVerTag = onVerTag, onAbrirMovimentacao = onAbrirMovimentacao, onIrParaMes = vm::irPara,
         onIrParaDia = onIrParaDia, onAbrirRecorrencias = onAbrirRecorrencias,
         segmento = segmento, onSegmento = vm::selecionarSegmento,
+        onTentar = vm::tentarDeNovo,
         modifier = modifier,
     )
 }
@@ -77,6 +79,7 @@ fun TotaisContent(
     onAbrirRecorrencias: () -> Unit = {},
     segmento: SegmentoTotais,
     onSegmento: (SegmentoTotais) -> Unit,
+    onTentar: () -> Unit = {},
 ) {
     val colors = SaldoTheme.colors
     val t = state.totais
@@ -88,10 +91,15 @@ fun TotaisContent(
             onProximo = onProximoMes,
         )
 
-        // `null` só enquanto o primeiro LedgerInput não chegou: tela vazia, sem spinner
-        // (a mesma escolha do ledger — o primeiro frame do banco é praticamente imediato).
+        val erro = state.erro
+        if (erro != null) {
+            ErroDeLeitura(erro, onTentar)
+            return@Column
+        }
+        // `null` só enquanto o primeiro LedgerInput não chegou — e o `Carregando` só desenha o
+        // indicador depois de 300 ms, então no aparelho rápido continua não piscando nada.
         if (t == null) {
-            Box(Modifier.fillMaxSize())
+            Carregando()
             return@Column
         }
 

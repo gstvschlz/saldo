@@ -17,6 +17,8 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
+import com.scholze.saldo.ui.fluxoComErro
 import com.scholze.saldo.ui.toLongChave
 import com.scholze.saldo.ui.toYearMonth
 import java.time.LocalDate
@@ -45,6 +47,8 @@ data class LedgerUiState(
     val tagFiltro: Tag? = null,
     /** Os templates, para a shell achar o dia da recorrência de uma linha ao abrir a sheet. */
     val recorrencias: List<Recorrencia> = emptyList(),
+    /** Mensagem de falha de leitura; `null` = está tudo bem. Ver `fluxoComErro`. */
+    val erro: String? = null,
 )
 
 /** Dia para o qual o ledger deve rolar assim que [mes] estiver na tela — pedido por um deep link. */
@@ -91,7 +95,24 @@ class LedgerViewModel(
 
     private val controles = combine(mesAtual, filtro, tagFiltroId) { m, f, t -> Controles(m, f, t) }
 
-    val state: StateFlow<LedgerUiState> =
+    private val tentativas = MutableStateFlow(0)
+
+    /** O botão "tentar de novo" da tela: reassina o fluxo do banco. */
+    fun tentarDeNovo() {
+        tentativas.value++
+    }
+
+    private val inicial = LedgerUiState(
+        mes = null, mesAtual = mesAtual.value, filtro = filtro.value, hoje = LocalDate.now(),
+    )
+
+    val state: StateFlow<LedgerUiState> = fluxoComErro(
+        tentativas = tentativas,
+        inicial = inicial,
+        marcarErro = { it.copy(erro = MENSAGEM_ERRO_LEITURA) },
+        limparErro = { it.copy(erro = null) },
+        rotulo = "fluxo do ledger",
+    ) {
         combine(repo.ledger, repo.tags, controles) { input, tags, c ->
             val tag = c.tagId?.let { id -> tags.firstOrNull { it.id == id } }
             LedgerUiState(
@@ -105,15 +126,8 @@ class LedgerViewModel(
         }
             // A projeção do mês inteiro roda fora da main thread.
             .flowOn(Dispatchers.Default)
-            // Uma exceção subindo do banco cancelaria o StateFlow e a tela ficaria
-            // congelada para sempre, sem nem um crash que explicasse. Registrar e parar
-            // de emitir preserva o último estado renderizado.
-            .catch { Log.e(TAG, "fluxo do ledger falhou", it) }
-            .stateIn(
-                viewModelScope,
-                SharingStarted.WhileSubscribed(5_000),
-                LedgerUiState(mes = null, mesAtual = mesAtual.value, filtro = filtro.value, hoje = LocalDate.now()),
-            )
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), inicial)
 
     /**
      * Os resultados da busca, à parte do [state]: `state` combina mês, filtro e tag, que não
@@ -128,6 +142,9 @@ class LedgerViewModel(
             }
         }
             .flowOn(Dispatchers.Default)
+            // Continua sendo um `.catch` seco, ao contrário do [state]: uma busca que falha não
+            // congela a tela (o mês continua lá, vindo do outro fluxo) e não há botão só dela
+            // para reassinar — fechar e reabrir a busca já refaz a leitura.
             .catch { Log.e(TAG, "busca do ledger falhou", it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

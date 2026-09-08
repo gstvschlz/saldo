@@ -11,34 +11,54 @@ import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.TagSnapshot
+import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
+import com.scholze.saldo.ui.fluxoComErro
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Cada tag com o total de |saídas| que ela acumulou no mês corrente. */
-data class TagsUiState(val tags: List<Pair<Tag, Long>> = emptyList())
+data class TagsUiState(
+    val tags: List<Pair<Tag, Long>> = emptyList(),
+    /** Mensagem de falha de leitura; `null` = está tudo bem. Ver `fluxoComErro`. */
+    val erro: String? = null,
+)
 
 class TagsViewModel(private val repo: SaldoRepository) : ViewModel() {
 
-    val state: StateFlow<TagsUiState> = combine(repo.ledger, repo.tags) { input, tags ->
-        // Pelo motor, não por `input.movimentacoes`: a lista crua do banco não tem as ocorrências
-        // virtuais de um mês nunca aberto (a tag ficaria zerada num mês que o resto do app mostra
-        // cheio) e tem as linhas anteriores ao saldo inicial, que o resto do app ignora.
-        val totais = ProjectionEngine.movimentacoesDoMes(input, YearMonth.from(input.hoje))
-            .filter { it.valorCentavos < 0 }
-            .flatMap { m -> m.tags.map { it.id to -m.valorCentavos } }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, v) -> v.sum() }
-        TagsUiState(tags.map { it to (totais[it.id] ?: 0L) })
+    private val tentativas = MutableStateFlow(0)
+
+    /** O botão "tentar de novo" da tela: reassina o fluxo do banco. */
+    fun tentarDeNovo() {
+        tentativas.value++
     }
-        .catch { Log.e(TAG, "fluxo de tags falhou", it) }
+
+    val state: StateFlow<TagsUiState> = fluxoComErro(
+        tentativas = tentativas,
+        inicial = TagsUiState(),
+        marcarErro = { it.copy(erro = MENSAGEM_ERRO_LEITURA) },
+        limparErro = { it.copy(erro = null) },
+        rotulo = "fluxo de tags",
+    ) {
+        combine(repo.ledger, repo.tags) { input, tags ->
+            // Pelo motor, não por `input.movimentacoes`: a lista crua do banco não tem as
+            // ocorrências virtuais de um mês nunca aberto (a tag ficaria zerada num mês que o resto
+            // do app mostra cheio) e tem as linhas anteriores ao saldo inicial, que o resto ignora.
+            val totais = ProjectionEngine.movimentacoesDoMes(input, YearMonth.from(input.hoje))
+                .filter { it.valorCentavos < 0 }
+                .flatMap { m -> m.tags.map { it.id to -m.valorCentavos } }
+                .groupBy({ it.first }, { it.second })
+                .mapValues { (_, v) -> v.sum() }
+            TagsUiState(tags.map { it to (totais[it.id] ?: 0L) })
+        }
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TagsUiState())
 
     private val _exclusoes = MutableSharedFlow<TagSnapshot>(extraBufferCapacity = 1)

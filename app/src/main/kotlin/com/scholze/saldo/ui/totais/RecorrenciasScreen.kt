@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.descricaoVisivel
+import com.scholze.saldo.ui.components.Carregando
 import com.scholze.saldo.ui.components.DescricaoTexto
+import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
@@ -60,7 +62,7 @@ fun RecorrenciasScreen(
     BackHandler(onBack = onVoltar)
     // O mês vem da aba: navegar o mês em totais e voltar aqui mostra o mês certo.
     LaunchedEffect(mes) { vm.verMes(mes) }
-    val resumo by vm.state.collectAsState()
+    val estado by vm.state.collectAsState()
 
     Column(modifier.fillMaxSize().background(colors.background)) {
         // Não é o SaldoTopBar: aquele existe para navegar meses e traz duas setas com
@@ -83,9 +85,14 @@ fun RecorrenciasScreen(
             )
         }
 
+        val erroLeitura = estado.erro
+        if (erroLeitura != null) {
+            ErroDeLeitura(erroLeitura, vm::tentarDeNovo)
+            return@Column
+        }
         // `null` só até o primeiro LedgerInput chegar — mesma escolha do resto do app.
-        val r = resumo ?: run {
-            Box(Modifier.fillMaxSize())
+        val r = estado.resumo ?: run {
+            Carregando()
             return@Column
         }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.scholze.saldo.domain.BackupConfig
 import com.scholze.saldo.domain.Cadencia
 import java.time.Duration
@@ -53,12 +54,18 @@ class BackupScheduler(private val context: Context) {
      * Trabalho único SEPARADO do agendado, de propósito. No mesmo nome, `REPLACE` mataria o
      * agendamento das 03:00 e `APPEND` faria o "agora" esperar até lá — nas duas leituras o botão
      * mentiria. `KEEP` aqui só evita dois disparos de um toque duplo.
+     *
+     * E vai marcado como manual: sendo um trabalho de OUTRO nome, o [reagendar] do fim da rodada
+     * não substituiria a cadeia de [NOME] — empilharia um nó nela a cada toque. Uma rodada extra
+     * não muda o ritmo da cadência.
      */
     fun agora() {
         WorkManager.getInstance(context).enqueueUniqueWork(
             NOME_AGORA,
             ExistingWorkPolicy.KEEP,
-            OneTimeWorkRequestBuilder<BackupWorker>().build(),
+            OneTimeWorkRequestBuilder<BackupWorker>()
+                .setInputData(workDataOf(BackupWorker.CHAVE_MANUAL to true))
+                .build(),
         )
     }
 

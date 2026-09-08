@@ -31,6 +31,8 @@ import com.scholze.saldo.data.Tema
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.CapturaConfig
 import com.scholze.saldo.domain.LembretesConfig
+import com.scholze.saldo.ui.components.Carregando
+import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
@@ -60,7 +62,16 @@ private fun resumo(l: LembretesConfig): String = when (l.ativos) {
 fun MaisScreen(vm: MaisViewModel, onExportar: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
     val settings by vm.settings.collectAsState()
-    val s = settings ?: return
+    val erro by vm.erro.collectAsState()
+    val e = erro
+    if (e != null) {
+        ErroDeLeitura(e, vm::tentarDeNovo, modifier)
+        return
+    }
+    val s = settings ?: run {
+        Carregando(modifier)
+        return
+    }
 
     var editandoSaldo by rememberSaveable { mutableStateOf(false) }
     var editandoCartao by remember { mutableStateOf(false) }

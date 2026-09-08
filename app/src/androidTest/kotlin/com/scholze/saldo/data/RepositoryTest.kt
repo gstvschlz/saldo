@@ -7,6 +7,8 @@ import com.scholze.saldo.data.db.SaldoDatabase
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.EscopoEdicao
 import com.scholze.saldo.domain.EscopoExclusao
+import com.scholze.saldo.domain.LedgerInput
+import com.scholze.saldo.domain.LembretesConfig
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
@@ -21,9 +23,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
@@ -35,6 +40,7 @@ import org.junit.runner.RunWith
 class RepositoryTest {
     private lateinit var db: SaldoDatabase
     private lateinit var repo: RoomSaldoRepository
+    private lateinit var settings: SettingsStore
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val hoje = LocalDate.parse("2026-07-20")
 
@@ -46,9 +52,9 @@ class RepositoryTest {
         db = SaldoDatabase.inMemory(ctx)
         // Caminho decidido uma vez, fora da lambda: `produceFile` tem de devolver sempre o mesmo.
         arquivoSettings = File(ctx.cacheDir, "test-${UUID.randomUUID()}.preferences_pb")
-        val store = SettingsStore(PreferenceDataStoreFactory.create(scope = scope) { arquivoSettings })
-        runBlocking { store.definirSaldoInicial(100_000_00, LocalDate.parse("2026-07-01")) }
-        repo = RoomSaldoRepository(db, store, hoje = flowOf(hoje))
+        settings = SettingsStore(PreferenceDataStoreFactory.create(scope = scope) { arquivoSettings })
+        runBlocking { settings.definirSaldoInicial(100_000_00, LocalDate.parse("2026-07-01")) }
+        repo = RoomSaldoRepository(db, settings, hoje = flowOf(hoje))
     }
 
     @After
@@ -754,5 +760,47 @@ class RepositoryTest {
         assertEquals(emptyList<Recorrencia>(), input.recorrencias)
         assertEquals(emptyList<Tag>(), repo.tags.first())
         assertEquals(emptySet<YearMonth>(), input.mesesMaterializados)
+    }
+
+    // ---- o ledger não recomputa por nada (dados-1) ----
+
+    /** Trocar o tema não é notícia para o ledger. */
+    @Test
+    fun mexerNumAjusteQueNaoEDoLedgerNaoReemite() = runBlocking {
+        repo.criar(mov("2026-07-10", -80_00), RepetirOpcao.Nao)
+        val emissoes = mutableListOf<LedgerInput>()
+        val coleta = launch { repo.ledger.collect { emissoes += it } }
+        try {
+            withTimeoutOrNull(2_000) { while (emissoes.isEmpty()) delay(10) }
+            val antes = emissoes.size
+
+            settings.definirTema(Tema.ESCURO)
+            settings.definirWidgetMostrarValores(true)
+            settings.definirLembretes(LembretesConfig(faturaAmanha = true))
+            delay(300)
+
+            assertEquals(antes, emissoes.size)
+        } finally {
+            coleta.cancel()
+        }
+    }
+
+    /** Mas o saldo inicial e o cartão são: esses reemitem. */
+    @Test
+    fun oSaldoInicialEOCartaoReemitem() = runBlocking {
+        val emissoes = mutableListOf<LedgerInput>()
+        val coleta = launch { repo.ledger.collect { emissoes += it } }
+        try {
+            withTimeoutOrNull(2_000) { while (emissoes.isEmpty()) delay(10) }
+            settings.definirSaldoInicial(42_00, LocalDate.parse("2026-07-01"))
+            withTimeoutOrNull(2_000) { while (emissoes.none { it.saldoInicialCentavos == 42_00L }) delay(10) }
+            assertEquals(42_00L, emissoes.last().saldoInicialCentavos)
+
+            settings.definirCartao(CartaoConfig("outro", 20, 1))
+            withTimeoutOrNull(2_000) { while (emissoes.none { it.cartao.nome == "outro" }) delay(10) }
+            assertEquals("outro", emissoes.last().cartao.nome)
+        } finally {
+            coleta.cancel()
+        }
     }
 }

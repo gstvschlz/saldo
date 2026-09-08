@@ -16,6 +16,8 @@ import com.scholze.saldo.domain.DiaRow
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
+import com.scholze.saldo.ui.fluxoComErro
 import com.scholze.saldo.ui.toLongChave
 import com.scholze.saldo.ui.toYearMonth
 import java.time.LocalDate
@@ -25,7 +27,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
@@ -47,6 +48,8 @@ data class BoardUiState(
     val hoje: LocalDate,
     val mesAtual: YearMonth = YearMonth.now(),
     val diaAberto: LocalDate? = null,
+    /** Mensagem de falha de leitura; `null` = está tudo bem. Ver `fluxoComErro`. */
+    val erro: String? = null,
 ) {
     /** A linha do dia aberto, com os lançamentos dele; `null` quando não há dia aberto. */
     val linhaDoDia: DiaRow?
@@ -80,7 +83,24 @@ class BoardViewModel(
     val mesAtualAgora: YearMonth get() = mesAtual.value
     val diaAbertoAgora: LocalDate? get() = diaAberto.value
 
-    val state: StateFlow<BoardUiState> =
+    private val tentativas = MutableStateFlow(0)
+
+    /** O botão "tentar de novo" da tela: reassina o fluxo do banco. */
+    fun tentarDeNovo() {
+        tentativas.value++
+    }
+
+    private val inicial = BoardUiState(
+        board = null, mes = null, hoje = LocalDate.now(), diaAberto = LocalDate.now(),
+    )
+
+    val state: StateFlow<BoardUiState> = fluxoComErro(
+        tentativas = tentativas,
+        inicial = inicial,
+        marcarErro = { it.copy(erro = MENSAGEM_ERRO_LEITURA) },
+        limparErro = { it.copy(erro = null) },
+        rotulo = "fluxo do board",
+    ) {
         combine(repo.ledger, mesAtual, diaAberto) { input, mes, dia ->
             BoardUiState(
                 board = BoardEngine.board(input, mes),
@@ -92,14 +112,8 @@ class BoardViewModel(
         }
             // O agrupamento por dia mais a projeção do mês: fora da main thread.
             .flowOn(Dispatchers.Default)
-            // Mesma razão do LedgerViewModel: uma exceção do banco cancelaria o StateFlow
-            // e a tela congelaria para sempre, sem nem um crash que explicasse.
-            .catch { Log.e(TAG, "fluxo do board falhou", it) }
-            .stateIn(
-                viewModelScope,
-                SharingStarted.WhileSubscribed(5_000),
-                BoardUiState(board = null, mes = null, hoje = LocalDate.now(), diaAberto = LocalDate.now()),
-            )
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), inicial)
 
     init {
         abrir(mesAtual.value)

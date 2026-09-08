@@ -329,6 +329,7 @@ fun SaldoApp(
                             onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
                             onTogglePrivacidade = privacidade::alternar,
                             onVerGuardado = { verGuardado(boardVm.mesAtualAgora) },
+                            onTentar = boardVm::tentarDeNovo,
                         )
                     } else {
                         LedgerScreen(
@@ -357,6 +358,7 @@ fun SaldoApp(
                             onAbrirResultado = { ledgerVm.abrirResultado(it, abrirMovimentacao) },
                             contentPadding = PaddingValues(bottom = 24.dp),
                             onVerGuardado = { verGuardado(ledgerVm.mesAtualAgora) },
+                            onTentar = ledgerVm::tentarDeNovo,
                         )
                     }
                     SaldoTab.TOTAIS -> if (abrindoRecorrencias) {

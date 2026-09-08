@@ -21,6 +21,8 @@ import com.scholze.saldo.domain.RitmoEngine
 import com.scholze.saldo.domain.TagsNoTempo
 import com.scholze.saldo.domain.ResumoRecorrencias
 import com.scholze.saldo.domain.TotaisMes
+import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
+import com.scholze.saldo.ui.fluxoComErro
 import com.scholze.saldo.ui.toLongChave
 import com.scholze.saldo.ui.toYearMonth
 import java.time.YearMonth
@@ -29,7 +31,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
@@ -59,6 +60,8 @@ data class TotaisUiState(
     val ritmo: Ritmo? = null,
     /** As mesmas fatias de "para onde foi", nos 6 meses até o mês visto. */
     val tagsNoTempo: TagsNoTempo? = null,
+    /** Mensagem de falha de leitura; `null` = está tudo bem. Ver `fluxoComErro`. */
+    val erro: String? = null,
 )
 
 class TotaisViewModel(
@@ -86,29 +89,43 @@ class TotaisViewModel(
         savedState[KEY_SEGMENTO] = s.name
     }
 
-    val state: StateFlow<TotaisUiState> = combine(repo.ledger, mesAtual) { input, mes ->
-        TotaisUiState(
-            mesAtual = mes,
-            totais = ProjectionEngine.totais(input, mes),
-            estimativaCentavos = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).estimativaCentavos,
-            insights = InsightsEngine.paraOndeFoi(input, mes),
-            tendencia = InsightsEngine.tendencia(input, mes),
-            aCaminho = InsightsEngine.aCaminho(input, mes),
-            recorrencias = InsightsEngine.recorrencias(input, mes),
-            ritmo = RitmoEngine.ritmo(input, mes),
-            tagsNoTempo = InsightsEngine.tagsAoLongoDoTempo(input, mes),
-        )
+    private val tentativas = MutableStateFlow(0)
+
+    /** O botão "tentar de novo" da tela: reassina o fluxo do banco. */
+    fun tentarDeNovo() {
+        tentativas.value++
     }
-        // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma mais
-        // duas passadas de `movimentacoesDoMes` (mês atual e anterior) e os padrões; `tendencia` roda
-        // mais seis passagens INTEIRAS de ProjectionEngine.totais (uma por mês, cada uma com sua
-        // própria expansão e cálculo de fatura) — a cada emissão do ledger, esteja a aba "tendência"
-        // aberta ou não. Tudo isso fica fora da main thread.
-        .flowOn(Dispatchers.Default)
-        // Mesma razão do LedgerViewModel: uma exceção subindo do banco cancelaria o
-        // StateFlow e a aba ficaria congelada para sempre, sem crash que explicasse.
-        .catch { Log.e(TAG, "fluxo de totais falhou", it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TotaisUiState(mesAtual.value, null))
+
+    private val inicial = TotaisUiState(mesAtual.value, null)
+
+    val state: StateFlow<TotaisUiState> = fluxoComErro(
+        tentativas = tentativas,
+        inicial = inicial,
+        marcarErro = { it.copy(erro = MENSAGEM_ERRO_LEITURA) },
+        limparErro = { it.copy(erro = null) },
+        rotulo = "fluxo de totais",
+    ) {
+        combine(repo.ledger, mesAtual) { input, mes ->
+            TotaisUiState(
+                mesAtual = mes,
+                totais = ProjectionEngine.totais(input, mes),
+                estimativaCentavos = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS).estimativaCentavos,
+                insights = InsightsEngine.paraOndeFoi(input, mes),
+                tendencia = InsightsEngine.tendencia(input, mes),
+                aCaminho = InsightsEngine.aCaminho(input, mes),
+                recorrencias = InsightsEngine.recorrencias(input, mes),
+                ritmo = RitmoEngine.ritmo(input, mes),
+                tagsNoTempo = InsightsEngine.tagsAoLongoDoTempo(input, mes),
+            )
+        }
+            // `totais` projeta o mês inteiro (e `mes` de novo, para a estimativa); `insights` soma
+            // mais duas passadas de `movimentacoesDoMes` (mês atual e anterior) e os padrões;
+            // `tendencia` roda mais seis passagens INTEIRAS de ProjectionEngine.totais (uma por mês,
+            // cada uma com sua própria expansão e cálculo de fatura) — a cada emissão do ledger,
+            // esteja a aba "tendência" aberta ou não. Tudo isso fica fora da main thread.
+            .flowOn(Dispatchers.Default)
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), inicial)
 
     init {
         abrir(mesAtual.value)
