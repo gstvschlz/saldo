@@ -49,3 +49,6 @@ release/
 *.iml
 .DS_Store
 .superpowers/
+
+# Specs e planos ficam fora do repositório, ver 1bb4344.
+docs/
