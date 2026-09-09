@@ -9,4 +9,5 @@
     <string name="widget_acaminho_descricao">o que ainda sai até o fim do mês</string>
     <string name="widget_paraondefoi_descricao">para onde o dinheiro foi neste mês</string>
     <string name="widget_lancar_descricao">lançar saída ou entrada num toque</string>
+    <string name="widget_teto_descricao">quanto ainda dá para gastar hoje</string>
 </resources>

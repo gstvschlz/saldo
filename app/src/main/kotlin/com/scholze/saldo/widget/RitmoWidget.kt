@@ -62,7 +62,7 @@ sealed interface RitmoWidgetEstado {
 /**
  * "ritmo": quanto já saiu no mês, e se isso é muito para a altura do mês em que se está.
  *
- * O widget mais estreito dos sete (4×1) porque a resposta cabe numa linha: um número, um
+ * O widget mais estreito dos oito (4×1) porque a resposta cabe numa linha: um número, um
  * desvio e duas barras — a do mês e a do costume, na mesma escala.
  */
 class RitmoWidget : GlanceAppWidget() {

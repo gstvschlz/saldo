@@ -159,7 +159,7 @@ fun BoardScreen(
                 return@Column
             }
 
-            BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent)
+            BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent, state.teto)
             CabecalhoColunas()
 
             Column(

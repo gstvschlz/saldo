@@ -18,6 +18,8 @@ import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.Recorrencia
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.TagsSugeridas
+import com.scholze.saldo.domain.Teto
+import com.scholze.saldo.domain.TetoEngine
 import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
 import com.scholze.saldo.ui.fluxoComErro
 import com.scholze.saldo.ui.toLongChave
@@ -26,6 +28,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -33,8 +36,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -57,6 +63,12 @@ data class LedgerUiState(
      * passada sobre as linhas do ledger e o `combine` já roda no `Dispatchers.Default`.
      */
     val tagsSugeridas: List<Tag> = emptyList(),
+    /**
+     * O teto do dia; `null` fora do mês corrente e num mês sem entrada nenhuma. O hero some com
+     * a linha nos dois casos — "hoje" não existe em setembro visto de outubro, e sem renda não há
+     * o que dividir (ver [com.scholze.saldo.domain.TetoEngine.teto]).
+     */
+    val teto: Teto? = null,
 )
 
 /** Dia para o qual o ledger deve rolar assim que [mes] estiver na tela — pedido por um deep link. */
@@ -68,6 +80,12 @@ data class EtiquetaAplicada(val movId: Long, val tagNome: String)
 class LedgerViewModel(
     private val repo: SaldoRepository,
     private val savedState: SavedStateHandle = SavedStateHandle(),
+    /**
+     * A meta de guardar, que é a reserva mínima do teto do dia. Um `Flow<Int>` e não o
+     * `SettingsStore` inteiro, como em `TotaisViewModel`: assinar o `Settings` completo faria
+     * toda troca de tema recalcular a projeção do mês.
+     */
+    private val metaGuardar: Flow<Int> = flowOf(0),
 ) : ViewModel() {
 
     // Mês, filtro, tag e busca no SavedStateHandle: sobrevivem à morte do processo. Sem isto,
@@ -129,7 +147,7 @@ class LedgerViewModel(
         limparErro = { it.copy(erro = null) },
         rotulo = "fluxo do ledger",
     ) {
-        combine(repo.ledger, repo.tags, controles) { input, tags, c ->
+        combine(repo.ledger, repo.tags, controles, metaGuardar) { input, tags, c, meta ->
             val tag = c.tagId?.let { id -> tags.firstOrNull { it.id == id } }
             LedgerUiState(
                 mes = ProjectionEngine.mes(input, c.mes, c.filtro, tagId = tag?.id),
@@ -139,6 +157,7 @@ class LedgerViewModel(
                 tagFiltro = tag,
                 recorrencias = input.recorrencias,
                 tagsSugeridas = TagsSugeridas.paraFila(tags, input.movimentacoes, input.hoje),
+                teto = if (c.mes == YearMonth.from(input.hoje)) TetoEngine.teto(input, meta) else null,
             )
         }
             // A projeção do mês inteiro roda fora da main thread.
@@ -332,7 +351,13 @@ class LedgerViewModel(
         private const val KEY_BUSCA = "ledger.busca"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { LedgerViewModel(container.repository, createSavedStateHandle()) }
+            initializer {
+                LedgerViewModel(
+                    container.repository,
+                    createSavedStateHandle(),
+                    container.settings.settings.map { it.metaGuardarPercent }.distinctUntilChanged(),
+                )
+            }
         }
     }
 }

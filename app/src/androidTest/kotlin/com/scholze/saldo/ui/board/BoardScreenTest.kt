@@ -26,7 +26,10 @@ import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.domain.TetoEngine
 import com.scholze.saldo.ui.ledger.TAG_PILL_GUARDADO
+import com.scholze.saldo.ui.ledger.TAG_TETO_HOJE
+import com.scholze.saldo.ui.ledger.TAG_TETO_RESTA
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.PrivacyState
 import com.scholze.saldo.ui.theme.SaldoTheme
@@ -83,12 +86,19 @@ class BoardScreenTest {
         hoje = hoje,
     )
 
-    private fun estado(entrada: LedgerInput = input, diaAberto: LocalDate? = null, mesVisto: YearMonth) = BoardUiState(
+    private fun estado(
+        entrada: LedgerInput = input,
+        diaAberto: LocalDate? = null,
+        mesVisto: YearMonth,
+        meta: Int = 20,
+    ) = BoardUiState(
         board = BoardEngine.board(entrada, mesVisto),
         mes = ProjectionEngine.mes(entrada, mesVisto, FiltroLedger.TODAS),
         hoje = entrada.hoje,
         mesAtual = mesVisto,
         diaAberto = diaAberto,
+        // A mesma regra do `BoardViewModel`: fora do mês corrente não há "hoje" para ter teto.
+        teto = if (mesVisto == YearMonth.from(entrada.hoje)) TetoEngine.teto(entrada, meta) else null,
     )
 
     private var clicado: LocalDate? = null
@@ -103,6 +113,7 @@ class BoardScreenTest {
         escalaFonte: Float = 1f,
         diaAberto: LocalDate? = null,
         mesVisto: YearMonth = YearMonth.from(input.hoje),
+        meta: Int = 20,
     ) {
         rule.setContent {
             val densidade = LocalDensity.current
@@ -112,7 +123,7 @@ class BoardScreenTest {
             ) {
                 SaldoTheme {
                     BoardScreen(
-                        state = estado(entrada, diaAberto, mesVisto),
+                        state = estado(entrada, diaAberto, mesVisto, meta),
                         onDiaClick = { clicado = it },
                         onMesAnterior = { mesesAndados-- },
                         onProximoMes = { mesesAndados++ },
@@ -354,5 +365,69 @@ class BoardScreenTest {
         assertEquals(true, pediuGuardado)
         // O clique na pill não deve vazar para o toggle de privacidade do hero por baixo dela.
         assertEquals(0, alternouPrivacidade)
+    }
+
+    // ---- o teto do dia ----
+    //
+    // Toda busca por tag aqui passa por `useUnmergedTree = true`: a linha do teto é UM nó para o
+    // TalkBack (`mergeDescendants`), e na árvore mesclada os `testTag` dos filhos somem. Sem isso
+    // um `assertCountEquals(0)` fica verde sem provar nada.
+
+    /**
+     * O cenário-base: salário de R$ 7.400 no dia 1, meta de 20% (R$ 1.480), R$ 152,30 gastos
+     * até o dia 19 e onze dias pela frente — R$ 5.767,70 ÷ 11 = R$ 524,33.
+     */
+    @Test
+    fun oHeroMostraOTetoDoDia() {
+        montar()
+        rule.onNodeWithTag(TAG_TETO_HOJE, useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("R$ 524,33").assertIsDisplayed()
+    }
+
+    @Test
+    fun antesDoPrimeiroGastoDoDiaNaoHaLinhaDeRestam() {
+        montar()
+        rule.onAllNodesWithTag(TAG_TETO_RESTA, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun gastarHojeAbreALinhaDeRestamSemMexerNoTeto() {
+        val gastouHoje = input.copy(
+            movimentacoes = input.movimentacoes + Movimentacao(
+                id = 6, descricao = "almoço", valorCentavos = -100_00,
+                data = hoje, natureza = Natureza.DIARIO,
+            ),
+        )
+        montar(entrada = gastouHoje)
+        // O teto é fixado à meia-noite: o gasto de hoje não o move.
+        rule.onNodeWithText("R$ 524,33").assertIsDisplayed()
+        rule.onNodeWithTag(TAG_TETO_RESTA, useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("R$ 424,33").assertIsDisplayed()
+    }
+
+    @Test
+    fun oTetoNaoExisteNoMesAnterior() {
+        montar(mesVisto = YearMonth.of(2026, 8))
+        rule.onAllNodesWithTag(TAG_TETO_HOJE, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun mesSemEntradaNaoTemTeto() {
+        montar(entrada = input.copy(movimentacoes = input.movimentacoes.filter { it.valorCentavos < 0 }))
+        rule.onAllNodesWithTag(TAG_TETO_HOJE, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun oTetoEDinheiroEsomeComAPrivacidade() {
+        montar(oculto = true)
+        rule.onAllNodesWithText("R$ 524,33").assertCountEquals(0)
+        rule.onNodeWithTag(TAG_TETO_HOJE, useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun semMetaOTetoSoDescontaOQueSaiu() {
+        // Sem os R$ 1.480 de reserva sobram R$ 7.247,70 para onze dias.
+        montar(meta = 0)
+        rule.onNodeWithText("R$ 658,88").assertIsDisplayed()
     }
 }

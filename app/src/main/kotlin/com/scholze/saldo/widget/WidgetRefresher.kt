@@ -35,7 +35,7 @@ class WidgetRefresher(
                 .catch { Log.e(TAG, "widget: fluxo de atualização falhou", it) }
                 .collect {
                     try {
-                        // Os SETE tipos: um `updateAll` por provider. Sem widget daquele tipo
+                        // Os OITO tipos: um `updateAll` por provider. Sem widget daquele tipo
                         // na tela a chamada é um no-op barato, então não custa nada varrer todos.
                         SaldoWidget().updateAll(context)
                         ACaminhoWidget().updateAll(context)
@@ -44,6 +44,7 @@ class WidgetRefresher(
                         BoardWidget().updateAll(context)
                         RitmoWidget().updateAll(context)
                         PoupancaWidget().updateAll(context)
+                        TetoWidget().updateAll(context)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {

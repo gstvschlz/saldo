@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -64,6 +66,7 @@ import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.domain.Teto
 import com.scholze.saldo.domain.descricaoVisivel
 import com.scholze.saldo.ui.components.BuscaTopBar
 import com.scholze.saldo.ui.components.Carregando
@@ -77,8 +80,10 @@ import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.components.SaldoPill
 import com.scholze.saldo.ui.components.SaldoTopBar
+import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.LocalPrivacy
+import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
 import java.time.LocalDate
@@ -98,6 +103,12 @@ const val TAG_SALDO_PROJETADO = "ledger:saldoProjetado"
 
 /** A pill "guardou N%" do hero. */
 const val TAG_PILL_GUARDADO = "hero:guardado"
+
+/** O teto do dia no hero — "hoje R$ 87,40". */
+const val TAG_TETO_HOJE = "hero:tetoHoje"
+
+/** O que ainda cabe hoje — só existe depois do primeiro gasto do dia. */
+const val TAG_TETO_RESTA = "hero:tetoResta"
 
 /** A lista de resultados da busca (ou o "nada com …"). */
 const val TAG_RESULTADOS = "ledger:resultados"
@@ -215,7 +226,7 @@ fun LedgerScreen(
                 Carregando()
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
-                    item(key = "hero") { BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent) }
+                    item(key = "hero") { BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent, state.teto) }
                     item(key = "filtro") {
                         // O chip "sem tag" só aparece quando há trabalho — um chip permanente
                         // anunciando uma tarefa é ruído nos meses em que está tudo etiquetado.
@@ -340,6 +351,11 @@ internal fun BalanceHero(
     onVerGuardado: () -> Unit = {},
     /** A meta de guardar, em %; `0` = sem meta, e aí a pill é exatamente a de antes. */
     metaGuardarPercent: Int = 0,
+    /**
+     * O teto do dia; `null` fora do mês corrente e num mês sem entrada, e aí o hero é o de antes.
+     * Quem decide os dois casos é o ViewModel — ver `BoardUiState.teto`.
+     */
+    teto: Teto? = null,
 ) {
     val colors = SaldoTheme.colors
     Column(
@@ -434,7 +450,80 @@ internal fun BalanceHero(
                 Text("em diários", style = SaldoTheme.type.caption, color = colors.onPrimaryContainer.copy(alpha = 0.7f))
             }
         }
+        teto?.let { LinhaDoTeto(it) }
     }
+}
+
+/**
+ * O teto do dia, sob um filete: quanto o dia comporta e quanto ainda cabe nele.
+ *
+ * A segunda linha só existe depois do primeiro gasto do dia — de manhã os dois números são o
+ * mesmo, e repeti-lo seria ruído. O negativo aparece cru, com o U+2212 que [MoneyText] já usa
+ * no delta do mês: o hero não tem cor de alarme, e inventar uma aqui brigaria com o verde.
+ *
+ * É dinheiro, então os dois números passam por [MoneyText] e somem com o mascaramento — ao
+ * contrário da pill da meta, que é porcentagem e continua legível.
+ */
+@Composable
+private fun LinhaDoTeto(teto: Teto) {
+    val colors = SaldoTheme.colors
+    val oculto = LocalPrivacy.current.oculto
+    val rotulo = SaldoTheme.type.footnote
+    val tinta = colors.onPrimaryContainer
+
+    Box(
+        Modifier
+            .padding(top = 12.dp, bottom = 10.dp)
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(tinta.copy(alpha = 0.15f)),
+    )
+    Column(
+        // Um nó só para o TalkBack: linha a linha ele leria "hoje", "R$ 87,40", "restam",
+        // "−R$ 14,60" em quatro paradas, e o sinal do último se perderia no caminho.
+        Modifier.semantics(mergeDescendants = true) { contentDescription = descricaoDoTeto(teto, oculto) },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("hoje", Modifier.width(52.dp), style = rotulo, color = tinta.copy(alpha = 0.72f))
+            MoneyText(
+                centavos = teto.tetoCentavos,
+                modifier = Modifier.testTag(TAG_TETO_HOJE),
+                style = SaldoTheme.type.subhead, color = tinta,
+            )
+        }
+        if (teto.gastoDeHojeCentavos != 0L) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("restam", Modifier.width(52.dp), style = rotulo, color = tinta.copy(alpha = 0.72f))
+                MoneyText(
+                    centavos = teto.restaCentavos,
+                    modifier = Modifier.testTag(TAG_TETO_RESTA),
+                    style = SaldoTheme.type.subhead, color = tinta,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A frase do TalkBack para o teto. [oculto] é passado e não lido do `LocalPrivacy` de propósito:
+ * é uma função pura, testável sem composição, e é ela que impede o leitor de tela de anunciar o
+ * valor que a tela está escondendo. Mesmo desenho de `descricaoDe` no board.
+ */
+internal fun descricaoDoTeto(teto: Teto, oculto: Boolean): String {
+    fun valor(centavos: Long) = if (oculto) MASCARA_PRIVACIDADE else centavos.centavosComSimbolo()
+    val abertura = if (teto.estourouOMes) {
+        "o mês já estourou, hoje ${valor(teto.tetoCentavos)}"
+    } else {
+        "pode gastar ${valor(teto.tetoCentavos)} hoje"
+    }
+    if (teto.gastoDeHojeCentavos == 0L) return abertura
+    val resta = if (teto.estourouODia) {
+        "o dia passou em ${valor(-teto.restaCentavos)}"
+    } else {
+        "restam ${valor(teto.restaCentavos)}"
+    }
+    return "$abertura, $resta"
 }
 
 @Composable

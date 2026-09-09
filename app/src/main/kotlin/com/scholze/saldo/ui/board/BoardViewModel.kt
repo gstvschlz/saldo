@@ -16,6 +16,8 @@ import com.scholze.saldo.domain.DiaRow
 import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.ProjectionEngine
+import com.scholze.saldo.domain.Teto
+import com.scholze.saldo.domain.TetoEngine
 import com.scholze.saldo.ui.components.MENSAGEM_ERRO_LEITURA
 import com.scholze.saldo.ui.fluxoComErro
 import com.scholze.saldo.ui.toLongChave
@@ -24,11 +26,15 @@ import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -50,6 +56,12 @@ data class BoardUiState(
     val diaAberto: LocalDate? = null,
     /** Mensagem de falha de leitura; `null` = está tudo bem. Ver `fluxoComErro`. */
     val erro: String? = null,
+    /**
+     * O teto do dia; `null` fora do mês corrente e num mês sem entrada nenhuma. O hero some com
+     * a linha nos dois casos — "hoje" não existe em setembro visto de outubro, e sem renda não há
+     * o que dividir (ver [com.scholze.saldo.domain.TetoEngine.teto]).
+     */
+    val teto: Teto? = null,
 ) {
     /** A linha do dia aberto, com os lançamentos dele; `null` quando não há dia aberto. */
     val linhaDoDia: DiaRow?
@@ -66,6 +78,12 @@ data class BoardUiState(
 class BoardViewModel(
     private val repo: SaldoRepository,
     private val savedState: SavedStateHandle = SavedStateHandle(),
+    /**
+     * A meta de guardar, que é a reserva mínima do teto do dia. Um `Flow<Int>` e não o
+     * `SettingsStore` inteiro, como em `TotaisViewModel`: assinar o `Settings` completo faria
+     * toda troca de tema recalcular o board inteiro.
+     */
+    private val metaGuardar: Flow<Int> = flowOf(0),
 ) : ViewModel() {
 
     // Mês e dia aberto no SavedStateHandle: sobrevivem à morte do processo, e não só à
@@ -101,13 +119,14 @@ class BoardViewModel(
         limparErro = { it.copy(erro = null) },
         rotulo = "fluxo do board",
     ) {
-        combine(repo.ledger, mesAtual, diaAberto) { input, mes, dia ->
+        combine(repo.ledger, mesAtual, diaAberto, metaGuardar) { input, mes, dia, meta ->
             BoardUiState(
                 board = BoardEngine.board(input, mes),
                 mes = ProjectionEngine.mes(input, mes, FiltroLedger.TODAS),
                 hoje = input.hoje,
                 mesAtual = mes,
                 diaAberto = dia,
+                teto = if (mes == YearMonth.from(input.hoje)) TetoEngine.teto(input, meta) else null,
             )
         }
             // O agrupamento por dia mais a projeção do mês: fora da main thread.
@@ -182,7 +201,13 @@ class BoardViewModel(
         private const val KEY_DIA = "board.dia"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { BoardViewModel(container.repository, createSavedStateHandle()) }
+            initializer {
+                BoardViewModel(
+                    container.repository,
+                    createSavedStateHandle(),
+                    container.settings.settings.map { it.metaGuardarPercent }.distinctUntilChanged(),
+                )
+            }
         }
     }
 }
