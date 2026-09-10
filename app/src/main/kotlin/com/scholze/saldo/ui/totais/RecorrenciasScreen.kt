@@ -45,6 +45,7 @@ import com.scholze.saldo.ui.components.Carregando
 import com.scholze.saldo.ui.components.DescricaoTexto
 import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.InsetGroup
+import com.scholze.saldo.ui.components.LinhaDeValor
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
@@ -151,8 +152,8 @@ fun RecorrenciasScreen(
                 // mas não é uma "fixa" ligada — a contagem só soma as que realmente rodam.
                 Text(fixas(r.ativas.count { it.ativa }), style = SaldoTheme.type.sectionHeader, color = colors.label)
                 InsetGroup {
-                    LinhaMes("entram por mês", r.entramMes, colors.positive)
-                    LinhaMes("saem por mês", -r.saemMes)
+                    LinhaDeValor("entram por mês", r.entramMes, colors.positive)
+                    LinhaDeValor("saem por mês", -r.saemMes)
                 }
             }
 
@@ -201,21 +202,6 @@ fun RecorrenciasScreen(
     }
 }
 
-@Composable
-private fun LinhaMes(rotulo: String, centavos: Long, cor: Color? = null) {
-    val colors = SaldoTheme.colors
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(rotulo, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
-        MoneyText(
-            centavos = centavos,
-            style = SaldoTheme.type.body, color = cor ?: colors.label,
-            formato = FormatoMoney.ASSINADO,
-        )
-    }
-}
 
 @Composable
 private fun LinhaRecorrencia(

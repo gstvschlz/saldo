@@ -30,6 +30,7 @@ import com.scholze.saldo.ui.components.Carregando
 import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.FiltroChips
 import com.scholze.saldo.ui.components.InsetGroup
+import com.scholze.saldo.ui.components.LinhaDeValor
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.components.SaldoTopBar
 import com.scholze.saldo.ui.privacy.FormatoMoney
@@ -139,18 +140,18 @@ fun TotaisContent(
             when (segmento) {
                 SegmentoTotais.MES -> {
                     InsetGroup {
-                        LinhaValor("entradas", t.entradasCentavos, colors.positive)
+                        LinhaDeValor("entradas", t.entradasCentavos, colors.positive)
                         // `saidasPorNatureza` guarda magnitudes positivas; a linha mostra saída.
-                        LinhaValor("saídas diários", -(t.saidasPorNatureza[Natureza.DIARIO] ?: 0))
-                        LinhaValor("saídas economia", -(t.saidasPorNatureza[Natureza.ECONOMIA] ?: 0))
-                        LinhaValor("compras no cartão", -(t.saidasPorNatureza[Natureza.CARTAO] ?: 0))
+                        LinhaDeValor("saídas diários", -(t.saidasPorNatureza[Natureza.DIARIO] ?: 0))
+                        LinhaDeValor("saídas economia", -(t.saidasPorNatureza[Natureza.ECONOMIA] ?: 0))
+                        LinhaDeValor("compras no cartão", -(t.saidasPorNatureza[Natureza.CARTAO] ?: 0))
                         if (state.estimativaCentavos > 0) {
-                            LinhaValor("estimativa restante", -state.estimativaCentavos)
+                            LinhaDeValor("estimativa restante", -state.estimativaCentavos)
                         }
                     }
 
                     InsetGroup {
-                        LinhaValor("reserva acumulada", t.economiaBucketCentavos, colors.balance)
+                        LinhaDeValor("reserva acumulada", t.economiaBucketCentavos, colors.balance)
                     }
 
                     state.ritmo?.let { BlocoRitmo(it) }
@@ -160,7 +161,7 @@ fun TotaisContent(
                         if (fatura == null) {
                             InsetRow(label = "fatura atual", value = "sem compras no ciclo")
                         } else {
-                            LinhaValor("fatura atual", fatura.totalCentavos)
+                            LinhaDeValor("fatura atual", fatura.totalCentavos)
                             InsetRow(
                                 label = "fecha em",
                                 value = t.fechamentoFaturaAtual.format(diaMes).removeSuffix("."),
@@ -192,22 +193,6 @@ fun TotaisContent(
     }
 }
 
-@Composable
-private fun LinhaValor(rotulo: String, centavos: Long, cor: Color? = null) {
-    val colors = SaldoTheme.colors
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(rotulo, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
-        MoneyText(
-            centavos = centavos,
-            style = SaldoTheme.type.body,
-            color = cor ?: colors.label,
-            formato = FormatoMoney.ASSINADO,
-        )
-    }
-}
 
 /**
  * "Estou indo rápido demais?" — o acumulado de saídas do mês contra o costume dos meses

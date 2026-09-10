@@ -21,10 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.descricaoVisivel
+import com.scholze.saldo.ui.privacy.FormatoMoney
+import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
 
 /** An M3 tonal card: 28dp corners, `surfaceContainerLow`, rows separated by space. */
@@ -145,6 +147,36 @@ fun FilledActionButton(
             // no claro, #003919 no escuro, 7,8:1. Sob o HIG o tint era escuro nos dois
             // esquemas, e foi por isso que o branco fixo passou despercebido até aqui.
             color = if (enabled) MaterialTheme.colorScheme.onPrimary else colors.label.copy(alpha = 0.38f),
+        )
+    }
+}
+
+/**
+ * Uma linha de "rótulo à esquerda, valor à direita" dentro de um [InsetGroup].
+ *
+ * Existia duas vezes, quase igual, com nomes diferentes: `LinhaValor` em totais e `LinhaMes` em
+ * recorrências. A única diferença era o respiro vertical — 11 dp contra 8 dp —, e isso era
+ * acidente, não desenho: as duas telas mostram a mesma coisa e agora respiram igual.
+ *
+ * Não é tocável — quem precisa de toque usa [InsetRow], que já garante o alvo mínimo.
+ */
+@Composable
+fun LinhaDeValor(
+    rotulo: String,
+    centavos: Long,
+    cor: Color? = null,
+) {
+    val colors = SaldoTheme.colors
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(rotulo, Modifier.weight(1f), style = SaldoTheme.type.body, color = colors.label)
+        MoneyText(
+            centavos = centavos,
+            style = SaldoTheme.type.body,
+            color = cor ?: colors.label,
+            formato = FormatoMoney.ASSINADO,
         )
     }
 }
