@@ -5,7 +5,7 @@ import androidx.glance.testing.unit.assertHasText
 import androidx.glance.testing.unit.hasTestTag
 import androidx.glance.testing.unit.hasText
 import com.scholze.saldo.data.db.toAnoMes
-import com.scholze.saldo.ui.ledger.SEM_ENTRADA
+import com.scholze.saldo.ui.board.SEM_ENTRADA
 import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
 import java.time.LocalDate

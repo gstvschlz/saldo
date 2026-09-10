@@ -21,7 +21,7 @@ import androidx.glance.semantics.testTag
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import com.scholze.saldo.ui.ledger.SEM_ENTRADA
+import com.scholze.saldo.ui.board.SEM_ENTRADA
 import com.scholze.saldo.ui.money.centavosAssinadoComSimbolo
 import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.nav.Destino

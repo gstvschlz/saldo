@@ -20,8 +20,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * O botão Voltar do sistema: subtela → aba → saldos → sair. Antes, saía do app de qualquer
- * lugar que não tivesse `BackHandler` próprio — do ledger da tag, de totais, de tags.
+ * O botão Voltar do sistema: sobreposição → aba → saldos → sair.
+ *
+ * Antes saía do app de qualquer lugar que não tivesse `BackHandler` próprio. As "sobreposições"
+ * eram a vista de lista e a da etiqueta; desde 2026-09-10 são a busca e o filtro de etiqueta,
+ * que se desenham por cima da mesma grade.
  */
 @RunWith(AndroidJUnit4::class)
 class SaldoAppBackTest {
@@ -72,14 +75,18 @@ class SaldoAppBackTest {
         }
     }
 
+    /**
+     * A busca é o que se sobrepõe à grade desde que a lista saiu: Voltar a fecha e devolve o mês,
+     * sem sair do app. Era o papel que a vista de lista fazia antes.
+     */
     @Test
-    fun daListaOVoltarVaiParaOBoard() {
+    fun daBuscaOVoltarDevolveAGrade() {
         app()
         ActivityScenario.launch(MainActivity::class.java).use {
             esperarBoard()
-            rule.onNodeWithContentDescription("ver como lista").performClick()
-            esperarTexto("todas")
-            assertEquals(true, voltar())
+            rule.onNodeWithContentDescription("buscar").performClick()
+            esperarTexto("descrição, tag ou valor")
+            assertEquals(true, fecharTecladoEVoltar())
             esperarBoard()
         }
     }
@@ -112,40 +119,37 @@ class SaldoAppBackTest {
     }
 
     /**
-     * Sem a guarda "só conta na aba saldos", o primeiro toque em Voltar só fechava a vista de
-     * lista escondida atrás de totais (sem trocar de aba) — precisava de um segundo toque
-     * para o board aparecer. Com a guarda, trocar de aba já devolve a vista para o board, e
-     * um único toque em Voltar mostra a grade.
+     * Sem a guarda "só conta na aba saldos", o primeiro toque em Voltar só fechava a busca
+     * escondida atrás de totais (sem trocar de aba) — precisava de um segundo toque para o
+     * board aparecer. Com a guarda, trocar de aba já limpa a sobreposição, e um único toque
+     * em Voltar mostra a grade.
      */
     @Test
-    fun daListaTocaTotaisEUmVoltarVaiDireitoAoBoard() {
+    fun comBuscaAbertaTocarTotaisEUmVoltarVaiDireitoAoBoard() {
         app()
         ActivityScenario.launch(MainActivity::class.java).use {
             esperarBoard()
-            rule.onNodeWithContentDescription("ver como lista").performClick()
-            esperarTexto("todas")
+            rule.onNodeWithContentDescription("buscar").performClick()
+            esperarTexto("descrição, tag ou valor")
             rule.onNodeWithText("totais").performClick()
             esperarTexto("totais")
-            assertEquals(true, voltar())
+            assertEquals(true, fecharTecladoEVoltar())
             esperarBoard()
             assertEquals(true, rule.onAllNodesWithTag(TAG_BOARD_GRADE).fetchSemanticsNodes().isNotEmpty())
         }
     }
 
     /**
-     * Com a busca aberta a barra da lista mostra só o campo e o × — "ver como grade" some da
-     * árvore enquanto a busca está aberta, então voltar para saldos só é alcançável pela
-     * própria barra de abas. Sair assim tem de fechar a busca também — senão ela fica aberta
-     * e escondida, e o próximo Voltar (no board) a fecharia em vez de sair do app.
+     * Tocar na própria aba `saldos` é pedir a home: limpa a busca. Sem isso ela ficaria aberta
+     * e escondida, e o Voltar seguinte a fecharia em vez de sair do app.
      */
     @Test
-    fun daListaComABuscaAbertaTocarSaldosLimpaEDepoisVoltarSaiDoApp() {
+    fun comBuscaAbertaTocarSaldosLimpaEDepoisVoltarSaiDoApp() {
         app()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             esperarBoard()
-            rule.onNodeWithContentDescription("ver como lista").performClick()
-            esperarTexto("todas")
             rule.onNodeWithContentDescription("buscar").performClick()
+            esperarTexto("descrição, tag ou valor")
             rule.onNodeWithText("saldos").performClick()
             esperarBoard()
             fecharTecladoEVoltar()
@@ -156,23 +160,54 @@ class SaldoAppBackTest {
 
     /**
      * A busca escondida não sobrevivia a uma troca de aba que NÃO fosse para "saldos": tocar em
-     * "totais" com a lista e a busca abertas devolvia a vista ao board (bem) mas deixava a
-     * busca aberta atrás dele (mal) — o Voltar seguinte gastava um toque fechando-a sem nada
-     * mudar na tela, e o board só aparecia no terceiro toque. Corrigido, dois toques bastam.
+     * "totais" com ela aberta deixava-a viva atrás da outra aba — o Voltar seguinte gastava um
+     * toque fechando-a sem nada mudar na tela. Corrigido, dois toques bastam: um para voltar a
+     * saldos, outro para sair.
      */
     @Test
-    fun daListaComABuscaAbertaTocarTotaisEDoisVoltaresSaiDoApp() {
+    fun comBuscaAbertaTocarTotaisEDoisVoltaresSaiDoApp() {
         app()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             esperarBoard()
-            rule.onNodeWithContentDescription("ver como lista").performClick()
-            esperarTexto("todas")
             rule.onNodeWithContentDescription("buscar").performClick()
+            esperarTexto("descrição, tag ou valor")
             rule.onNodeWithText("totais").performClick()
             esperarTexto("totais")
             assertEquals(true, fecharTecladoEVoltar())
             esperarBoard()
             fecharTecladoEVoltar()
+            rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
+            assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
+        }
+    }
+
+    /**
+     * O filtro de etiqueta é a outra sobreposição: Voltar tira o filtro antes de pensar em sair.
+     * A etiqueta é alcançada pela aba `tags`, que é de onde ela passou a levar à grade filtrada.
+     */
+    @Test
+    fun comAGradeFiltradaOVoltarTiraOFiltroAntesDeSair() {
+        app()
+        runBlocking {
+            ApplicationProvider.getApplicationContext<SaldoApplication>()
+                .container.repository.criarTag("comida", 0xFFB63C62L)
+        }
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            esperarBoard()
+            rule.onNodeWithText("tags").performClick()
+            esperarTexto("comida")
+            rule.onNodeWithText("comida").performClick()
+            esperarTexto("tag: comida")
+
+            // Primeiro Voltar: tira o filtro, sem sair.
+            assertEquals(true, voltar())
+            rule.waitUntil(5_000) {
+                rule.onAllNodesWithText("tag: comida").fetchSemanticsNodes().isEmpty()
+            }
+            esperarBoard()
+
+            // Só o segundo fecha o app.
+            voltar()
             rule.waitUntil(5_000) { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
             assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario.state)
         }

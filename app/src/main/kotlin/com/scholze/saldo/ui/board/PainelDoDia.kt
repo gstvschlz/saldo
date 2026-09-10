@@ -1,13 +1,18 @@
-package com.scholze.saldo.ui.ledger
+/*
+ * As peças que a aba `saldos` desenha em volta da grade: o hero do saldo projetado, o painel do
+ * dia (um cartão por lançamento), os resultados da busca e o diálogo da fatura.
+ *
+ * Moraram num arquivo chamado `LedgerScreen.kt` enquanto existia uma tela de lista; ela saiu em
+ * 2026-09-10 a pedido do usuário — "o botão some e a visualização também, não pode ser possível
+ * ver a tela" — e o que era compartilhado entre as duas vistas passou a ser só do board.
+ */
+package com.scholze.saldo.ui.board
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,13 +29,10 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -39,30 +41,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.DiaRow
 import com.scholze.saldo.domain.Fatura
-import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
@@ -70,18 +64,11 @@ import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.domain.Teto
 import com.scholze.saldo.domain.descricaoVisivel
-import com.scholze.saldo.ui.components.BuscaTopBar
-import com.scholze.saldo.ui.components.Carregando
 import com.scholze.saldo.ui.components.DescricaoTexto
-import com.scholze.saldo.ui.components.ErroDeLeitura
-import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.components.DiaBadge
-import com.scholze.saldo.ui.components.FiltroChips
-import com.scholze.saldo.ui.components.IconeRedondo
 import com.scholze.saldo.ui.components.SaldoGlyph
 import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.components.SaldoPill
-import com.scholze.saldo.ui.components.SaldoTopBar
 import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -92,8 +79,6 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
-import kotlinx.coroutines.launch
 
 private val ptBr = Locale.forLanguageTag("pt-BR")
 private val tituloMes = DateTimeFormatter.ofPattern("MMMM yyyy", ptBr)
@@ -101,7 +86,7 @@ private val diaCurto = DateTimeFormatter.ofPattern("d MMM", ptBr)
 private val diaSemanaCurto = DateTimeFormatter.ofPattern("EEE", ptBr)
 
 /** O hero, para os testes: há vários nós de dinheiro mascarados na tela. */
-const val TAG_SALDO_PROJETADO = "ledger:saldoProjetado"
+const val TAG_SALDO_PROJETADO = "board:saldoProjetado"
 
 /** A pill "guardou N%" do hero. */
 const val TAG_PILL_GUARDADO = "hero:guardado"
@@ -122,204 +107,10 @@ const val TAG_TETO_HOJE = "hero:tetoHoje"
 const val TAG_TETO_RESTA = "hero:tetoResta"
 
 /** A lista de resultados da busca (ou o "nada com …"). */
-const val TAG_RESULTADOS = "ledger:resultados"
+const val TAG_RESULTADOS = "board:resultados"
 
 /** A coluna de saldo de um dia — mesma razão do hero: vários nós iguais na tela. */
-fun tagSaldoDoDia(dia: Int): String = "ledger:saldoDia:$dia"
-
-@Composable
-fun LedgerScreen(
-    state: LedgerUiState,
-    onMesAnterior: () -> Unit,
-    onProximoMes: () -> Unit,
-    onFiltro: (FiltroLedger) -> Unit,
-    onItemClick: (Movimentacao) -> Unit,
-    onExcluir: (Movimentacao) -> Unit,
-    onTogglePrivacidade: () -> Unit,
-    onVerBoard: () -> Unit,
-    onLimparTag: () -> Unit,
-    onTentar: () -> Unit = {},
-    onVerGuardado: () -> Unit = {},
-    onEtiquetar: (Movimentacao, Tag) -> Unit = { _, _ -> },
-    onMaisEtiquetas: (Movimentacao) -> Unit = {},
-    /** A meta de guardar, em %; `0` = sem meta. Vem do `Settings`, que a shell já tem em mãos. */
-    metaGuardarPercent: Int = 0,
-    alvo: AlvoLedger? = null,
-    onAlvoConsumido: () -> Unit = {},
-    busca: String? = null,
-    resultados: List<Movimentacao>? = null,
-    onAbrirBusca: () -> Unit = {},
-    onFecharBusca: () -> Unit = {},
-    onBusca: (String) -> Unit = {},
-    onAbrirResultado: (Movimentacao) -> Unit = onItemClick,
-    modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(0.dp),
-) {
-    val colors = SaldoTheme.colors
-    val mes = state.mes
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    // Fatura tocada: abre a lista de compras (Step 1b). Estado de tela, não de ViewModel —
-    // é só uma leitura, não muda dado nenhum, então fechar na rotação é aceitável.
-    var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
-
-    // Índice do item de hoje na LazyColumn: 2 headers antes dos dias (hero, chips), 3
-    // quando o chip de tag entra. O cabeçalho de colunas sumiu com a grade. Num mês sem
-    // movimentação alguma os dias nem viram itens — a pill não teria destino.
-    val cabecalhos = if (state.tagFiltro != null) 3 else 2
-    val indiceHoje = remember(mes, state.hoje, cabecalhos) {
-        mes?.takeIf { m -> m.dias.any { it.itens.isNotEmpty() } }
-            ?.dias?.indexOfFirst { it.data == state.hoje }?.takeIf { it >= 0 }?.plus(cabecalhos)
-    }
-    val mostraPillHoje by remember(indiceHoje) {
-        derivedStateOf {
-            indiceHoje != null &&
-                (listState.firstVisibleItemIndex > indiceHoje ||
-                    listState.firstVisibleItemIndex + listState.layoutInfo.visibleItemsInfo.size <= indiceHoje)
-        }
-    }
-
-    // Chegada por deep link (widget/lembrete) pedindo um dia: rola até ele assim que o mês
-    // pedido está na tela — `mes` pode ainda ser o mês anterior por um quadro — e devolve o
-    // alvo como consumido. Num mês sem movimentação os dias nem viram itens: só consome.
-    LaunchedEffect(alvo, mes) {
-        val a = alvo ?: return@LaunchedEffect
-        val m = mes ?: return@LaunchedEffect
-        if (m.mes != a.mes) return@LaunchedEffect
-        if (m.dias.any { it.itens.isNotEmpty() }) listState.scrollToItem(cabecalhos + a.dia - 1)
-        onAlvoConsumido()
-    }
-
-    Box(
-        modifier
-            .fillMaxSize()
-            .background(colors.background)
-            // O arrasto de mês desliga com a busca aberta: um gesto horizontal sobre os
-            // resultados não tem "mês" para trocar, e brigaria com o scroll da lista.
-            .then(if (busca == null) Modifier.arrastoDeMes(state.mesAtual, onMesAnterior, onProximoMes) else Modifier)
-    ) {
-        Column(Modifier.fillMaxSize()) {
-            SaldoTopBar(
-                titulo = state.mesAtual.format(tituloMes),
-                onAnterior = onMesAnterior,
-                onProximo = onProximoMes,
-                busca = busca?.let { BuscaTopBar(it, onBusca, onFecharBusca) },
-                acoes = {
-                    IconeRedondo(SaldoIcon.LUPA, "buscar", onAbrirBusca)
-                    IconeRedondo(SaldoIcon.GRADE, "ver como grade", onVerBoard)
-                    IconeRedondo(
-                        if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
-                        "alternar privacidade",
-                        onTogglePrivacidade,
-                    )
-                },
-            )
-
-            // Busca com texto: os resultados tomam o lugar do mês. A pill de "hoje" e o
-            // diálogo da fatura ficam no Box de fora e não atrapalham — a pill depende da
-            // lista do mês, que não está composta.
-            if (busca != null && busca.isNotBlank()) {
-                ResultadosBusca(
-                    consulta = busca,
-                    resultados = resultados.orEmpty(),
-                    hoje = state.hoje,
-                    onItemClick = onAbrirResultado,
-                    onExcluir = onExcluir,
-                    contentPadding = contentPadding,
-                )
-                return@Column
-            }
-
-            val erro = state.erro
-            if (erro != null) {
-                ErroDeLeitura(erro, onTentar)
-            } else if (mes == null) {
-                Carregando()
-            } else {
-                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
-                    item(key = "hero") { BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent, state.teto) }
-                    item(key = "filtro") {
-                        // O chip "sem tag" só aparece quando há trabalho — um chip permanente
-                        // anunciando uma tarefa é ruído nos meses em que está tudo etiquetado.
-                        // A exceção: com o filtro JÁ selecionado ele fica (com `0`) até o usuário
-                        // sair, porque a interface não pode se puxar debaixo do próprio toque.
-                        val mostraSemTag = mes.semTag > 0 || state.filtro == FiltroLedger.SEM_TAG
-                        // `SEM_TAG` é o último do enum: cortar o fim mantém `filtro.ordinal` válido
-                        // como índice das duas listas.
-                        val opcoes = if (mostraSemTag) FiltroLedger.entries else FiltroLedger.entries.dropLast(1)
-                        FiltroChips(
-                            opcoes = opcoes.map { it.rotulo },
-                            selecionado = state.filtro.ordinal,
-                            onSelect = { onFiltro(opcoes[it]) },
-                            contagens = opcoes.map { if (it == FiltroLedger.SEM_TAG) mes.semTag else null },
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp),
-                        )
-                    }
-                    state.tagFiltro?.let { tag ->
-                        item(key = "tagchip") {
-                            Row(
-                                Modifier
-                                    .padding(start = 16.dp, bottom = 6.dp)
-                                    .clip(RoundedCornerShape(percent = 50))
-                                    .background(colors.secondaryContainer)
-                                    .clickable { onLimparTag() }
-                                    .padding(horizontal = 12.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Text("tag: ${tag.nome}", style = SaldoTheme.type.footnote, color = colors.label)
-                                Text("×", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
-                            }
-                        }
-                    }
-                    if (mes.dias.all { it.itens.isEmpty() }) {
-                        item(key = "vazio") { EmptyMonth(comTagFiltro = state.tagFiltro != null, filtro = state.filtro) }
-                    } else {
-                        itemsIndexed(mes.dias, key = { _, d -> d.data.toEpochDay() }) { _, dia ->
-                            DayRow(
-                                dia = dia,
-                                faixa = mes.faixaSaldos(),
-                                hoje = state.hoje,
-                                onItemClick = onItemClick,
-                                onExcluir = onExcluir,
-                                onFaturaClick = { faturaAberta = it },
-                                // A fileira só existe sob `sem tag` (decisão 4 do spec).
-                                etiquetas = if (state.filtro == FiltroLedger.SEM_TAG) state.tagsSugeridas else emptyList(),
-                                onEtiquetar = onEtiquetar,
-                                onMaisEtiquetas = onMaisEtiquetas,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        AnimatedVisibility(
-            // Sem isto a pill flutuava por cima dos resultados da busca, apontando para um
-            // "hoje" que nem está na tela.
-            visible = mostraPillHoje && busca == null,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 18.dp),
-        ) {
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(colors.tint)
-                    .clickable { indiceHoje?.let { scope.launch { listState.animateScrollToItem(it) } } }
-                    .padding(horizontal = 16.dp, vertical = 7.dp),
-            ) {
-                Text(
-                    "hoje",
-                    style = SaldoTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
-        }
-
-        faturaAberta?.let { DialogoFatura(it) { faturaAberta = null } }
-    }
-}
+fun tagSaldoDoDia(dia: Int): String = "board:saldoDia:$dia"
 
 /**
  * As compras que formaram uma fatura. Vive fora da tela porque o board também abre esta
@@ -551,32 +342,6 @@ internal fun descricaoDoTeto(teto: Teto, oculto: Boolean): String {
     return "$abertura, $resta"
 }
 
-@Composable
-private fun EmptyMonth(comTagFiltro: Boolean = false, filtro: FiltroLedger = FiltroLedger.TODAS) {
-    val colors = SaldoTheme.colors
-    // Sob `sem tag` o mês pode estar cheiíssimo e a fila vazia: é a mensagem de tarefa cumprida,
-    // não a de mês vazio. Ela é o outro lado da exceção do chip — ele fica com `0`, e a lista
-    // explica o que aquele zero quer dizer.
-    val (titulo, ajuda) = when {
-        filtro == FiltroLedger.SEM_TAG ->
-            "tudo etiquetado neste mês" to "toque em outro filtro para ver o mês inteiro"
-        // Sob filtro de tag o mês pode estar cheio: mandar "toque em +" seria mentira.
-        comTagFiltro ->
-            "nenhuma movimentação com essa tag" to "toque no × acima para ver o mês inteiro"
-        else ->
-            "sem movimentações neste mês" to "toque em + para adicionar"
-    }
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(titulo, style = SaldoTheme.type.row, color = colors.secondaryLabel)
-        Text(ajuda, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 /** O canto dos cartões de lançamento — e do painel vermelho que aparece atrás no arrasto. */
 private val CANTO_CARTAO = 16.dp
 
@@ -824,7 +589,7 @@ private fun nivelDeCalor(saldo: Long, faixa: ClosedRange<Long>): Int {
  * do ledger dentro. Sem saldo do dia — um resultado é uma linha solta, não um dia.
  */
 @Composable
-private fun ResultadosBusca(
+internal fun ResultadosBusca(
     consulta: String,
     resultados: List<Movimentacao>,
     hoje: LocalDate,

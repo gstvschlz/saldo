@@ -1,4 +1,4 @@
-package com.scholze.saldo.ui.ledger
+package com.scholze.saldo.ui.board
 
 import com.scholze.saldo.domain.Teto
 import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE

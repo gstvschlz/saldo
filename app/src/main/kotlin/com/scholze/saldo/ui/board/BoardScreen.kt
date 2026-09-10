@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,8 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,16 +38,14 @@ import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.DiaBoard
 import com.scholze.saldo.domain.Fatura
 import com.scholze.saldo.domain.Movimentacao
+import com.scholze.saldo.domain.Tag
+import com.scholze.saldo.ui.components.BuscaTopBar
 import com.scholze.saldo.ui.components.Carregando
 import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.IconeRedondo
-import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.components.SaldoTopBar
-import com.scholze.saldo.ui.ledger.BalanceHero
-import com.scholze.saldo.ui.ledger.DayRow
-import com.scholze.saldo.ui.ledger.DialogoFatura
-import com.scholze.saldo.ui.ledger.faixaSaldos
+import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.LocalPrivacy
@@ -71,6 +70,9 @@ private val diaLongo = DateTimeFormatter.ofPattern("d 'de' MMMM", ptBr)
  * dentro dele; com fonte 2× a grade sozinha já passa da altura de um telefone.
  */
 const val TAG_BOARD_GRADE = "board:grade"
+
+/** O chip "tag: mercado ×" que aparece quando a grade está filtrada por uma etiqueta. */
+const val TAG_CHIP_TAG = "board:chipTag"
 
 /** A régua no rodapé — os testes leem o "dia típico" por aqui. */
 const val TAG_BOARD_LEGENDA = "board:legenda"
@@ -110,14 +112,22 @@ fun BoardScreen(
     onDiaClick: (LocalDate) -> Unit,
     onMesAnterior: () -> Unit,
     onProximoMes: () -> Unit,
-    onVerLista: () -> Unit,
     onItemClick: (Movimentacao) -> Unit,
     onExcluir: (Movimentacao) -> Unit,
     onTogglePrivacidade: () -> Unit,
     onVerGuardado: () -> Unit,
+    /** Tira o filtro de etiqueta — o `×` do chip. */
+    onLimparTag: () -> Unit = {},
     onTentar: () -> Unit = {},
-    /** A meta de guardar, em %; `0` = sem meta. O mesmo hero da lista, então a mesma pill. */
+    /** A meta de guardar, em %; `0` = sem meta. */
     metaGuardarPercent: Int = 0,
+    /** O texto da busca; `null` = busca fechada, "" = aberta e ainda sem nada digitado. */
+    busca: String? = null,
+    resultados: List<Movimentacao>? = null,
+    onAbrirBusca: () -> Unit = {},
+    onFecharBusca: () -> Unit = {},
+    onBusca: (String) -> Unit = {},
+    onAbrirResultado: (Movimentacao) -> Unit = onItemClick,
     modifier: Modifier = Modifier,
 ) {
     val colors = SaldoTheme.colors
@@ -130,7 +140,12 @@ fun BoardScreen(
         modifier
             .fillMaxSize()
             .background(colors.background)
-            .arrastoDeMes(state.mesAtual, onMesAnterior, onProximoMes),
+            // O arrasto de mês desliga com a busca aberta: um gesto horizontal sobre os
+            // resultados não tem "mês" para trocar, e brigaria com o scroll da lista.
+            .then(
+                if (busca == null) Modifier.arrastoDeMes(state.mesAtual, onMesAnterior, onProximoMes)
+                else Modifier,
+            ),
     ) {
         Column(Modifier.fillMaxSize()) {
             SaldoTopBar(
@@ -138,8 +153,13 @@ fun BoardScreen(
                 onAnterior = onMesAnterior,
                 onProximo = onProximoMes,
                 podeAvancar = state.podeAvancar,
+                busca = busca?.let { BuscaTopBar(it, onBusca, onFecharBusca) },
                 acoes = {
-                    IconeRedondo(SaldoIcon.LISTA, "ver como lista", onVerLista)
+                    // A lupa ocupa o lugar que era do `≡`. A vista de lista saiu inteira a
+                    // pedido do usuário, e a busca — que só existia lá dentro — teria saído
+                    // junto: procurar um lançamento de três meses atrás é a única coisa que
+                    // a grade não sabe fazer sozinha.
+                    IconeRedondo(SaldoIcon.LUPA, "buscar", onAbrirBusca)
                     IconeRedondo(
                         if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
                         "alternar privacidade",
@@ -147,6 +167,19 @@ fun BoardScreen(
                     )
                 },
             )
+
+            // Busca com texto: os resultados tomam o lugar do mês, hero e grade inclusive.
+            if (busca != null && busca.isNotBlank()) {
+                ResultadosBusca(
+                    consulta = busca,
+                    resultados = resultados.orEmpty(),
+                    hoje = state.hoje,
+                    onItemClick = onAbrirResultado,
+                    onExcluir = onExcluir,
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                )
+                return@Column
+            }
 
             val mes = state.mes
             val erro = state.erro
@@ -160,6 +193,7 @@ fun BoardScreen(
             }
 
             BalanceHero(mes, onTogglePrivacidade, onVerGuardado, metaGuardarPercent, state.teto)
+            state.tagFiltro?.let { tag -> ChipDaTag(tag, onLimparTag) }
             CabecalhoColunas()
 
             Column(
@@ -187,7 +221,8 @@ fun BoardScreen(
                 }
                 // Mês sem uma movimentação sequer: a régua explicaria a cor de células que
                 // não têm cor. No lugar dela, o convite — some com o primeiro lançamento.
-                if (mes.dias.all { it.itens.isEmpty() }) BoardVazio() else Legenda(board.unidadeCentavos)
+                if (mes.dias.all { it.itens.isEmpty() }) BoardVazio(state.tagFiltro != null)
+                else Legenda(board.unidadeCentavos)
             }
         }
 
@@ -319,16 +354,26 @@ private fun Celula(
     }
 }
 
+/**
+ * A grade sem nada para mostrar.
+ *
+ * Sob uma etiqueta a frase é OUTRA: o mês pode estar cheiíssimo e ainda assim nenhuma linha
+ * carregar aquela etiqueta, e aí "toque em + para lançar o primeiro" é conselho errado — o que
+ * falta não é lançamento, é o × que devolve o mês inteiro.
+ */
 @Composable
-private fun BoardVazio() {
+private fun BoardVazio(comTagFiltro: Boolean) {
     val colors = SaldoTheme.colors
+    val (titulo, ajuda) =
+        if (comTagFiltro) "nenhuma movimentação com essa tag" to "toque no × acima para ver o mês inteiro"
+        else "nada lançado neste mês" to "toque em + para lançar o primeiro"
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp).testTag(TAG_BOARD_VAZIO),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("nada lançado neste mês", style = SaldoTheme.type.row, color = colors.secondaryLabel)
-        Text("toque em + para lançar o primeiro", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+        Text(titulo, style = SaldoTheme.type.row, color = colors.secondaryLabel)
+        Text(ajuda, style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
     }
 }
 
@@ -392,4 +437,24 @@ private fun LegendaTexto(
         fontWeight = peso,
         textAlign = TextAlign.Center,
     )
+}
+
+/** A etiqueta que a grade está mostrando, e o `×` que devolve o mês inteiro. */
+@Composable
+private fun ChipDaTag(tag: Tag, onLimpar: () -> Unit) {
+    val colors = SaldoTheme.colors
+    Row(
+        Modifier
+            .padding(start = 16.dp, top = 10.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(colors.secondaryContainer)
+            .clickable(onClick = onLimpar)
+            .testTag(TAG_CHIP_TAG)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("tag: ${tag.nome}", style = SaldoTheme.type.footnote, color = colors.label)
+        Text("\u00d7", style = SaldoTheme.type.footnote, color = colors.secondaryLabel)
+    }
 }

@@ -19,7 +19,7 @@ import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.RepetirOpcao
 import com.scholze.saldo.ui.board.TAG_BOARD_GRADE
 import com.scholze.saldo.ui.board.tagCelula
-import com.scholze.saldo.ui.ledger.TAG_PILL_GUARDADO
+import com.scholze.saldo.ui.board.TAG_PILL_GUARDADO
 import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.nav.TAG_ADD
 import com.scholze.saldo.ui.totais.TAG_SEGMENTO_TOTAIS
@@ -33,14 +33,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * A aba `saldos` tem três vistas: a lista é uma vista, o board é a home.
+ * A aba `saldos` tem uma vista só: a grade. A lista saiu em 2026-09-10.
  *
  * O que este teste protege é a home — que ela abra na grade, que as setas troquem de mês,
  * que a seta de avançar não passe do mês corrente, e que quem chega por deep link pedindo
  * um dia caia na grade daquele mês em vez de numa lista que não existe mais.
  */
 @RunWith(AndroidJUnit4::class)
-class VistaSaldosTest {
+class BoardNavegacaoTest {
 
     @get:Rule(order = 0)
     val estadoLimpo = EstadoLimpo()

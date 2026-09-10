@@ -68,12 +68,4 @@ class BoardViewModelTest {
         assertEquals(YearMonth.now(), vm.mesAtualAgora)
         assertEquals(LocalDate.now(), vm.diaAbertoAgora)
     }
-
-    @Test
-    fun sincronizarMesComOMesmoMesPreservaODiaAberto() {
-        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
-        vm.alternarDia(LocalDate.now().withDayOfMonth(5))
-        vm.sincronizarMes(YearMonth.now())
-        assertEquals(LocalDate.now().withDayOfMonth(5), vm.diaAbertoAgora)
-    }
 }

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -27,10 +28,6 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.TetoEngine
-import com.scholze.saldo.ui.ledger.SEM_ENTRADA
-import com.scholze.saldo.ui.ledger.TAG_PILL_GUARDADO
-import com.scholze.saldo.ui.ledger.TAG_TETO_HOJE
-import com.scholze.saldo.ui.ledger.TAG_TETO_RESTA
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.PrivacyState
 import com.scholze.saldo.ui.theme.SaldoTheme
@@ -104,7 +101,6 @@ class BoardScreenTest {
 
     private var clicado: LocalDate? = null
     private var mesesAndados = 0
-    private var pediuLista = false
     private var pediuGuardado = false
     private var alternouPrivacidade = 0
 
@@ -131,7 +127,6 @@ class BoardScreenTest {
                         onItemClick = {},
                         onExcluir = {},
                         onTogglePrivacidade = { alternouPrivacidade++ },
-                        onVerLista = { pediuLista = true },
                         onVerGuardado = { pediuGuardado = true },
                     )
                 }
@@ -264,12 +259,17 @@ class BoardScreenTest {
         assertEquals(1, mesesAndados)
     }
 
+    /** O `≡` saiu da barra em 2026-09-10 junto com a tela que ele abria. */
     @Test
-    fun verComoListaAvisaQuemMontou() {
-        pediuLista = false
+    fun naoHaMaisBotaoDeVerComoLista() {
         montar()
-        rule.onNodeWithContentDescription("ver como lista").performClick()
-        assertEquals(true, pediuLista)
+        rule.onAllNodesWithContentDescription("ver como lista").assertCountEquals(0)
+    }
+
+    @Test
+    fun aLupaEstaNaBarraDoBoard() {
+        montar()
+        rule.onNodeWithContentDescription("buscar").assertIsDisplayed()
     }
 
     @Test

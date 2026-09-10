@@ -65,22 +65,38 @@ object BoardEngine {
      * corrente para em hoje, um mês passado vai até o fim, e um mês futuro devolve grade
      * vazia, porque `hoje` cai antes do dia 1 dele. A tela nem deixa navegar até lá, mas um
      * motor que estoura quando a tela erra é um motor pior.
+     *
+     * Com [tagId], a grade passa a ser sobre AQUELA etiqueta: a célula soma só o que a carrega,
+     * e a mediana que dá a escala é a mediana daqueles dias — sem isso, uma etiqueta pequena
+     * ficaria com o mês inteiro em cinza-claro contra a mediana do mês cheio. É o que a tela
+     * mostra quando se toca numa etiqueta, e a razão de o board ter deixado de ser só "o mês".
      */
-    fun board(input: LedgerInput, mes: YearMonth = YearMonth.from(input.hoje)): Board {
+    fun board(
+        input: LedgerInput,
+        mes: YearMonth = YearMonth.from(input.hoje),
+        tagId: Long? = null,
+    ): Board {
         val inicio = mes.atDay(1)
         val fim = minOf(mes.atEndOfMonth(), input.hoje)
 
         val porDia = ProjectionEngine.movimentacoesDoMes(input, mes)
             .filter { it.data <= fim }
+            .filter { mov -> tagId == null || mov.tags.any { it.id == tagId } }
             .groupBy { it.data }
             .mapValues { (_, movs) -> movs.sumOf { it.valorCentavos } }
 
         // As faturas ainda vêm do histórico inteiro: a que vence neste mês fechou no mês
         // passado, e recortar as compras no dia 1 apagaria o anel.
-        val vencimentos = ProjectionEngine.faturasAte(input, mes)
-            .map { it.vencimento }
-            .filter { it >= inicio && it <= fim }
-            .toSet()
+        //
+        // Sob uma etiqueta não há anel nenhum: uma fatura é o agregado de um ciclo e não carrega
+        // etiqueta, então marcá-la aqui prometeria um dia que a grade filtrada não explica — a
+        // mesma razão pela qual `ProjectionEngine.mes` tira as faturas da lista sob `tagId`.
+        val vencimentos =
+            if (tagId != null) emptySet()
+            else ProjectionEngine.faturasAte(input, mes)
+                .map { it.vencimento }
+                .filter { it >= inicio && it <= fim }
+                .toSet()
 
         val unidade = mediana(porDia.values.filter { it != 0L }.map { abs(it) })
 

@@ -16,7 +16,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -47,22 +46,20 @@ import com.scholze.saldo.BuildConfig
 import com.scholze.saldo.data.Dump
 import com.scholze.saldo.data.Exporters
 import com.scholze.saldo.data.Settings
+import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.ui.board.BoardScreen
 import com.scholze.saldo.ui.board.BoardViewModel
+import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.entry.AmountKeypadScreen
 import com.scholze.saldo.ui.entry.EntryViewModel
 import com.scholze.saldo.ui.entry.NewEntrySheet
-import com.scholze.saldo.ui.ledger.LedgerScreen
-import com.scholze.saldo.ui.ledger.LedgerViewModel
 import com.scholze.saldo.ui.mais.MaisScreen
 import com.scholze.saldo.ui.mais.MaisViewModel
-import com.scholze.saldo.domain.Movimentacao
-import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.nav.ALTURA_BARRA
 import com.scholze.saldo.ui.nav.ALTURA_FAIXA_FAB
+import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.nav.SaldoTab
 import com.scholze.saldo.ui.nav.SaldoTabBar
-import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.tags.TagsScreen
 import com.scholze.saldo.ui.tags.TagsViewModel
@@ -80,12 +77,6 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * O que a aba `saldos` mostra. O board é a home; a lista é o mesmo mês em linhas (o
- * ledger com os chips); a tag é a lista filtrada por uma etiqueta, onde a aba tags e o
- * "ver tag" de totais aterrissam.
- */
-private enum class VistaSaldos { BOARD, LISTA, TAG }
 
 /**
  * The shell: onboarding gate, tabbed content, undo snackbar and the
@@ -123,7 +114,6 @@ fun SaldoApp(
 
     // As factories são lembradas, não reconstruídas: `viewModel()` só consulta a factory na
     // primeira criação, então alocar uma nova a cada recomposição é lixo puro.
-    val ledgerVm: LedgerViewModel = viewModel(factory = remember(container) { LedgerViewModel.factory(container) })
     val entryVm: EntryViewModel = viewModel(factory = remember(container) { EntryViewModel.factory(container) })
     val totaisVm: TotaisViewModel = viewModel(factory = remember(container) { TotaisViewModel.factory(container) })
     val boardVm: BoardViewModel = viewModel(factory = remember(container) { BoardViewModel.factory(container) })
@@ -133,7 +123,6 @@ fun SaldoApp(
     // mesmo com outra aba na tela.
     val maisVm: MaisViewModel = viewModel(factory = remember(container) { MaisViewModel.factory(container) })
     val recorrenciasFactory = remember(container) { RecorrenciasViewModel.factory(container) }
-    val ledgerState by ledgerVm.state.collectAsState()
     val totaisState by totaisVm.state.collectAsState()
     val boardState by boardVm.state.collectAsState()
     val privacidade = LocalPrivacy.current
@@ -145,27 +134,19 @@ fun SaldoApp(
     var sheetAberto by rememberSaveable { mutableStateOf(false) }
     // A tela de recorrências toma a aba totais; sair da aba fecha (voltar depois em "totais"
     // deve mostrar totais, não a subtela onde o usuário estava dez minutos antes).
-    // A aba `saldos` tem três vistas (ver VistaSaldos acima): o board é a home; a lista é o
-    // mesmo mês em linhas, com busca; a tag é a lista filtrada por uma etiqueta, onde a aba
-    // tags e o "ver tag" de totais aterrissam.
-    var vistaSaldos by rememberSaveable { mutableStateOf(VistaSaldos.BOARD) }
     var abrindoRecorrencias by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(tab) { if (tab != SaldoTab.TOTAIS) abrindoRecorrencias = false }
 
-    val alvoLedger by ledgerVm.alvo.collectAsState()
-    val buscaLedger by ledgerVm.busca.collectAsState()
-    val resultadosBusca by ledgerVm.resultados.collectAsState()
+    val buscaBoard by boardVm.busca.collectAsState()
+    val resultadosBusca by boardVm.resultados.collectAsState()
 
-    // Fecha tudo que só faz sentido dentro da lista/etiqueta — a busca e o filtro de tag — e
-    // volta a vista à grade, sincronizando o mês do board com o da lista (limitado a hoje).
-    // Uma função só, chamada de toda saída da lista/etiqueta que não é o botão "voltar" dela
-    // mesma: a barra de abas, o "ir para o dia" de totais, o BackHandler e o deep link de
-    // saldos — para a busca nunca sobreviver aberta e escondida atrás do board.
-    val voltarAoBoard: () -> Unit = {
-        ledgerVm.fecharBusca()
-        ledgerVm.definirTagFiltro(null)
-        boardVm.sincronizarMes(ledgerVm.mesAtualAgora.coerceAtMost(YearMonth.now()))
-        vistaSaldos = VistaSaldos.BOARD
+    // Fecha o que se sobrepõe à grade — a busca e o filtro de etiqueta — devolvendo o board ao
+    // mês inteiro. Uma função só, chamada de toda saída que não é o × do próprio chip: a barra
+    // de abas, o "ir para o dia" de totais, o BackHandler e o deep link de saldos — para uma
+    // busca nunca sobreviver aberta e escondida atrás de outra aba.
+    val limparVista: () -> Unit = {
+        boardVm.fecharBusca()
+        boardVm.definirTagFiltro(null)
     }
 
     // A pill "guardou N%" leva à poupança mês a mês, que mora em totais → tendência.
@@ -180,34 +161,34 @@ fun SaldoApp(
     // moram; a sheet e as subtelas de `mais` têm os seus e ganham por estarem mais fundo na
     // composição. Desabilitado no board para o sistema fechar o app — e só ele.
     //
-    // A busca e a lista/etiqueta só contam enquanto a aba saldos está na tela: por isso o
-    // "aba diferente de saldos" vem ANTES delas no `when` — sem essa guarda, uma busca ou
-    // lista deixada aberta ao trocar de aba fazia Voltar precisar de dois toques para sair
-    // da outra aba (o primeiro só fechava a subtela escondida). `vistaSaldos != BOARD` no
-    // próprio `buscaAberta` é a segunda trava do mesmo problema: enquanto toda saída da
-    // lista/etiqueta passar por `voltarAoBoard`, a busca nunca sobrevive com o board em
-    // tela — mas se algum caminho novo esquecer, essa trava evita que ela prenda o Voltar
-    // ali de qualquer forma.
-    val buscaAberta = buscaLedger != null && vistaSaldos != VistaSaldos.BOARD
+    // A busca e o filtro de etiqueta só contam enquanto a aba saldos está na tela: por isso o
+    // "aba diferente de saldos" vem ANTES deles no `when` — sem essa guarda, uma busca deixada
+    // aberta ao trocar de aba fazia Voltar precisar de dois toques para sair da outra aba (o
+    // primeiro só fechava algo que ninguém estava vendo). O `tab == SALDOS` dentro de
+    // `buscaAberta` é a segunda trava do mesmo problema: enquanto toda troca de aba passar por
+    // `limparVista`, a busca nunca sobrevive escondida — mas se algum caminho novo esquecer,
+    // essa trava evita que ela prenda o Voltar ali de qualquer forma.
+    val buscaAberta = buscaBoard != null && tab == SaldoTab.SALDOS
+    val tagFiltrada = boardState.tagFiltro != null && tab == SaldoTab.SALDOS
     BackHandler(
         enabled = !sheetAberto &&
-            (abrindoRecorrencias || tab != SaldoTab.SALDOS || buscaAberta || vistaSaldos != VistaSaldos.BOARD),
+            (abrindoRecorrencias || tab != SaldoTab.SALDOS || buscaAberta || tagFiltrada),
     ) {
         when {
             abrindoRecorrencias -> abrindoRecorrencias = false
             tab != SaldoTab.SALDOS -> tab = SaldoTab.SALDOS
-            buscaAberta -> ledgerVm.fecharBusca()
-            vistaSaldos != VistaSaldos.BOARD -> voltarAoBoard()
+            buscaAberta -> boardVm.fecharBusca()
+            tagFiltrada -> boardVm.definirTagFiltro(null)
             else -> {}
         }
     }
 
-    // A rota de edição é usada de dois lugares (o ledger e a tela de recorrências), então mora
+    // A rota de edição é usada de dois lugares (o board e a tela de recorrências), então mora
     // aqui: mesma guarda de sempre, ocorrência virtual (id 0) não abre o editor.
     val abrirMovimentacao: (Movimentacao) -> Unit = {
         if (it.id != 0L) {
             // O dia do template, não o da data: a data pode estar clamped (31 → 28 em fevereiro).
-            val dia = it.recorrenciaId?.let { id -> ledgerState.recorrencias.firstOrNull { r -> r.id == id }?.diaDoMes }
+            val dia = it.recorrenciaId?.let { id -> boardState.recorrencias.firstOrNull { r -> r.id == id }?.diaDoMes }
             entryVm.iniciarEdicao(it, diaDoTemplate = dia)
             sheetAberto = true
         }
@@ -220,7 +201,7 @@ fun SaldoApp(
             null -> return@LaunchedEffect
             // Quem chega por widget ou lembrete pediu um dia, não um panorama.
             is Destino.Saldos -> {
-                voltarAoBoard()
+                limparVista()
                 boardVm.irPara(destino.mes, destino.dia)
                 tab = SaldoTab.SALDOS
             }
@@ -239,27 +220,27 @@ fun SaldoApp(
         onDestinoConsumido()
     }
 
-    // Um só "desfazer" para as duas portas de exclusão: o swipe na linha (LedgerViewModel)
+    // Um só "desfazer" para as duas portas de exclusão: o swipe no cartão (BoardViewModel)
     // e o "excluir" dentro da sheet (EntryViewModel), que antes apagava sem volta.
     LaunchedEffect(Unit) {
-        merge(ledgerVm.eventoExclusao, entryVm.exclusoes).collect { snapshot ->
+        merge(boardVm.eventoExclusao, entryVm.exclusoes).collect { snapshot ->
             val resultado = snackbar.showSnackbar(
                 message = "movimentação excluída",
                 actionLabel = "desfazer",
             )
-            if (resultado == SnackbarResult.ActionPerformed) ledgerVm.desfazerExclusao(snapshot)
+            if (resultado == SnackbarResult.ActionPerformed) boardVm.desfazerExclusao(snapshot)
         }
     }
 
     // Etiquetar pela fila é um toque só, e um toque errado tira a linha da única tela em que ela
     // era fácil de achar: o "desfazer" é obrigatório, como em toda remoção do app.
     LaunchedEffect(Unit) {
-        ledgerVm.eventoEtiqueta.collect { e ->
+        boardVm.eventoEtiqueta.collect { e ->
             val resultado = snackbar.showSnackbar(
                 message = "etiquetado como ${e.tagNome}",
                 actionLabel = "desfazer",
             )
-            if (resultado == SnackbarResult.ActionPerformed) ledgerVm.desfazerEtiqueta(e.movId)
+            if (resultado == SnackbarResult.ActionPerformed) boardVm.desfazerEtiqueta(e.movId)
         }
     }
 
@@ -352,66 +333,29 @@ fun SaldoApp(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Box(Modifier.weight(1f)) {
                 when (tab) {
-                    SaldoTab.SALDOS -> if (vistaSaldos == VistaSaldos.BOARD) {
-                        BoardScreen(
-                            state = boardState,
-                            // Tocar num dia abre os lançamentos dele embaixo da grade;
-                            // tocar de novo no mesmo dia fecha.
-                            onDiaClick = boardVm::alternarDia,
-                            onMesAnterior = boardVm::mesAnterior,
-                            onProximoMes = boardVm::proximoMes,
-                            onVerLista = {
-                                // LISTA é "sem filtro": uma etiqueta deixada pela vista TAG
-                                // anterior não pode vazar para cá.
-                                ledgerVm.definirTagFiltro(null)
-                                ledgerVm.irPara(boardVm.mesAtualAgora)
-                                vistaSaldos = VistaSaldos.LISTA
-                            },
-                            onItemClick = abrirMovimentacao,
-                            // Mesmas guardas do ledger: ocorrência virtual (id 0) não abre o
-                            // editor nem passa pelo delete, que a recusaria e faria o
-                            // "desfazer" duplicar a linha.
-                            onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
-                            onTogglePrivacidade = privacidade::alternar,
-                            onVerGuardado = { verGuardado(boardVm.mesAtualAgora) },
-                            onTentar = boardVm::tentarDeNovo,
-                            metaGuardarPercent = s.metaGuardarPercent,
-                        )
-                    } else {
-                        LedgerScreen(
-                            state = ledgerState,
-                            onMesAnterior = ledgerVm::mesAnterior,
-                            onProximoMes = ledgerVm::proximoMes,
-                            onFiltro = ledgerVm::definirFiltro,
-                            // id 0 = ocorrência virtual: o mês ainda não foi materializado (a
-                            // `abrirMes` do ViewModel é assíncrona). Editá-la explodiria no save
-                            // com SO_ESTE_MES, então a linha simplesmente não abre o editor.
-                            onItemClick = abrirMovimentacao,
-                            // Mesma razão: `repo.excluir` recusa id 0 (o delete seria no-op e o
-                            // "desfazer" duplicaria a linha). Sem a guarda o swipe só produziria
-                            // uma IllegalArgumentException engolida pelo ViewModel.
-                            onExcluir = { if (it.id != 0L) ledgerVm.excluir(it) },
-                            onTogglePrivacidade = privacidade::alternar,
-                            onLimparTag = { ledgerVm.definirTagFiltro(null); vistaSaldos = VistaSaldos.LISTA },
-                            onVerBoard = voltarAoBoard,
-                            alvo = alvoLedger,
-                            onAlvoConsumido = ledgerVm::limparAlvo,
-                            busca = buscaLedger,
-                            resultados = resultadosBusca,
-                            onAbrirBusca = ledgerVm::abrirBusca,
-                            onFecharBusca = ledgerVm::fecharBusca,
-                            onBusca = ledgerVm::definirBusca,
-                            onAbrirResultado = { ledgerVm.abrirResultado(it, abrirMovimentacao) },
-                            contentPadding = PaddingValues(bottom = 24.dp),
-                            onVerGuardado = { verGuardado(ledgerVm.mesAtualAgora) },
-                            onTentar = ledgerVm::tentarDeNovo,
-                            onEtiquetar = { mov, tag -> ledgerVm.etiquetar(mov.id, tag) },
-                            // O `+` cai na sheet, onde escolher várias etiquetas e criar uma na
-                            // hora já existe — e ela já recusa `id == 0` sozinha.
-                            onMaisEtiquetas = abrirMovimentacao,
-                            metaGuardarPercent = s.metaGuardarPercent,
-                        )
-                    }
+                    SaldoTab.SALDOS -> BoardScreen(
+                        state = boardState,
+                        // Tocar num dia abre os lançamentos dele embaixo da grade;
+                        // tocar de novo no mesmo dia fecha.
+                        onDiaClick = boardVm::alternarDia,
+                        onMesAnterior = boardVm::mesAnterior,
+                        onProximoMes = boardVm::proximoMes,
+                        onItemClick = abrirMovimentacao,
+                        // Ocorrência virtual (id 0) não abre o editor nem passa pelo delete,
+                        // que a recusaria e faria o "desfazer" duplicar a linha.
+                        onExcluir = { if (it.id != 0L) boardVm.excluir(it) },
+                        onTogglePrivacidade = privacidade::alternar,
+                        onVerGuardado = { verGuardado(boardVm.mesAtualAgora) },
+                        onLimparTag = { boardVm.definirTagFiltro(null) },
+                        onTentar = boardVm::tentarDeNovo,
+                        metaGuardarPercent = s.metaGuardarPercent,
+                        busca = buscaBoard,
+                        resultados = resultadosBusca,
+                        onAbrirBusca = boardVm::abrirBusca,
+                        onFecharBusca = boardVm::fecharBusca,
+                        onBusca = boardVm::definirBusca,
+                        onAbrirResultado = { boardVm.abrirResultado(it, abrirMovimentacao) },
+                    )
                     SaldoTab.TOTAIS -> if (abrindoRecorrencias) {
                         RecorrenciasScreen(
                             vm = viewModel(factory = recorrenciasFactory),
@@ -422,10 +366,12 @@ fun SaldoApp(
                     } else {
                         TotaisScreen(
                             totaisVm,
-                            onVerTag = { ledgerVm.definirTagFiltro(it); vistaSaldos = VistaSaldos.TAG; tab = SaldoTab.SALDOS },
+                            // Uma etiqueta agora FILTRA A GRADE — não há mais lista para
+                            // onde levar. A busca fecha junto: os dois se sobrepõem ao mês.
+                            onVerTag = { boardVm.fecharBusca(); boardVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
                             onAbrirMovimentacao = abrirMovimentacao,
                             onIrParaDia = { mes, dia ->
-                                voltarAoBoard()
+                                limparVista()
                                 boardVm.irPara(mes, dia)
                                 tab = SaldoTab.SALDOS
                             },
@@ -434,7 +380,7 @@ fun SaldoApp(
                     }
                     SaldoTab.TAGS -> TagsScreen(
                         vm = tagsVm,
-                        onTagClick = { ledgerVm.definirTagFiltro(it); vistaSaldos = VistaSaldos.TAG; tab = SaldoTab.SALDOS },
+                        onTagClick = { boardVm.fecharBusca(); boardVm.definirTagFiltro(it); tab = SaldoTab.SALDOS },
                     )
                     SaldoTab.MAIS -> MaisScreen(
                         vm = maisVm,
@@ -448,22 +394,18 @@ fun SaldoApp(
             }
             SaldoTabBar(
                 selected = tab,
-                // Tocar em `saldos` na barra é pedir a home: fecha a subtela da etiqueta.
-                // E trocar de aba PARA FORA de saldos também volta a vista ao board — ela é
-                // estado só da aba saldos, então deixá-la em lista/tag ao sair faria Voltar
-                // (que só olha vistaSaldos com a aba saldos em tela) precisar de dois toques
-                // para sair da aba nova. `voltarAoBoard` roda para QUALQUER destino, não só
-                // "saldos": uma busca deixada aberta ao trocar para "totais", por exemplo,
-                // sobrevivia escondida e fazia o Voltar seguinte gastar um toque fechando-a
-                // sem nada mudar na tela.
+                // Tocar em `saldos` na barra é pedir a home: tira o filtro de etiqueta e
+                // fecha a busca. E vale para QUALQUER destino, não só "saldos": uma busca
+                // deixada aberta ao trocar para "totais" sobrevivia escondida e fazia o
+                // Voltar seguinte gastar um toque fechando-a sem nada mudar na tela.
                 onSelect = { novo ->
-                    if (vistaSaldos != VistaSaldos.BOARD) voltarAoBoard()
+                    limparVista()
                     tab = novo
                 },
-                // O `+` lança no dia aberto do board — é o dia que o usuário está olhando.
-                // Fora do board (lista, outras abas) é hoje, como sempre foi.
+                // O `+` lança no dia aberto da grade — é o dia que o usuário está olhando.
+                // Fora da aba saldos é hoje, como sempre foi.
                 onAdd = {
-                    val dia = if (tab == SaldoTab.SALDOS && vistaSaldos == VistaSaldos.BOARD) boardVm.diaAbertoAgora else null
+                    val dia = if (tab == SaldoTab.SALDOS) boardVm.diaAbertoAgora else null
                     entryVm.iniciarNova(dia ?: LocalDate.now())
                     sheetAberto = true
                 },

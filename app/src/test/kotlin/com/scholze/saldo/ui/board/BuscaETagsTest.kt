@@ -1,11 +1,10 @@
-package com.scholze.saldo.ui.ledger
+package com.scholze.saldo.ui.board
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.scholze.saldo.RepositorioFixo
 import com.scholze.saldo.data.SaldoRepository
 import com.scholze.saldo.domain.CartaoConfig
-import com.scholze.saldo.domain.FiltroLedger
 import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
@@ -24,20 +23,27 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+/**
+ * A busca, o filtro de etiqueta e o etiquetar — tudo o que veio da lista para o board quando ela
+ * foi apagada, em 2026-09-10. O que ficou para trás foi a exclusividade entre o filtro `sem tag`
+ * e o de etiqueta: sem chips de filtro na grade, aquele par proibido deixou de poder existir.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
-class LedgerViewModelTest {
+class BuscaETagsTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val hoje = LocalDate.parse("2026-09-07")
+    private val comida = Tag(id = 5, nome = "comida", cor = 0xFFB63C62L)
     private val input = LedgerInput(
         saldoInicialCentavos = 0, saldoInicialData = LocalDate.parse("2026-01-01"),
         movimentacoes = listOf(
@@ -47,28 +53,30 @@ class LedgerViewModelTest {
         recorrencias = emptyList(), mesesMaterializados = emptySet(), cartao = CartaoConfig(), hoje = hoje,
     )
 
-    // `state` e `resultados` são StateFlow em `viewModelScope` (Task 9); um teste que os
-    // coleta (`.first { }`) mantém aquele `WhileSubscribed` vivo além do teste — em produção
+    // `state` e `resultados` são StateFlow em `viewModelScope`; um teste que os coleta
+    // (`.first { }`) mantém aquele `WhileSubscribed` vivo além do teste — em produção
     // `onCleared()` cancela `viewModelScope`, aqui ninguém chama isso. Sem cancelar, ele
     // sobrevive ao fim do teste e tenta retomar depois que `resetMain()` já invalidou o
     // dispatcher, e a exceção assíncrona é atribuída ao próximo teste da suíte inteira
     // (`UncaughtExceptionsBeforeTest`) — não a este arquivo.
-    private val criados = mutableListOf<LedgerViewModel>()
+    private val criados = mutableListOf<BoardViewModel>()
+
     private fun vm(saved: SavedStateHandle = SavedStateHandle()) = vmCom(RepositorioFixo(input), saved)
 
     private fun vmCom(repo: SaldoRepository, saved: SavedStateHandle = SavedStateHandle()) =
-        LedgerViewModel(repo, saved).also { criados += it }
+        BoardViewModel(repo, saved).also { criados += it }
 
     @Before fun setMain() = Dispatchers.setMain(dispatcher)
 
     @After fun resetMainDispatcher() {
-        // `cancel()` só INICIA o cancelamento; drenar o scheduler antes do
-        // `resetMain()` deixa as corrotinas terminarem de morrer enquanto o Main
-        // ainda existe. Sem isto a exceção assíncrona cai num teste de outra classe.
+        // `cancel()` só INICIA o cancelamento; drenar o scheduler antes do `resetMain()` deixa
+        // as corrotinas terminarem de morrer enquanto o Main ainda existe.
         criados.forEach { it.viewModelScope.cancel() }
         dispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
     }
+
+    // ---- a busca, agora na grade ----
 
     @Test
     fun aBuscaAchaEmTodosOsMeses() = runTest(dispatcher) {
@@ -86,20 +94,71 @@ class LedgerViewModelTest {
     }
 
     @Test
-    fun mesFiltroTagEBuscaSobrevivemNoSavedState() {
+    fun mesTagEBuscaSobrevivemNoSavedState() {
         val saved = SavedStateHandle()
         val vm = vm(saved)
         vm.irPara(YearMonth.of(2026, 4))
-        vm.definirFiltro(FiltroLedger.FIXAS)
         vm.definirTagFiltroId(9L)
         vm.abrirBusca()
         vm.definirBusca("ub")
 
         val outro = vm(saved)
         assertEquals(YearMonth.of(2026, 4), outro.mesAtualAgora)
-        assertEquals(FiltroLedger.FIXAS, outro.filtroAgora)
         assertEquals(9L, outro.tagFiltroIdAgora)
         assertEquals("ub", outro.busca.value)
+    }
+
+    // ---- o filtro de etiqueta na grade ----
+
+    /** As duas linhas de setembro; só uma carrega a etiqueta. */
+    private val comUmaEtiquetada = input.copy(
+        movimentacoes = listOf(
+            Movimentacao(id = 1, descricao = "mercado", valorCentavos = -50_00, data = LocalDate.parse("2026-09-01"), natureza = Natureza.DIARIO, tags = listOf(comida)),
+            Movimentacao(id = 3, descricao = "gasolina", valorCentavos = -80_00, data = LocalDate.parse("2026-09-02"), natureza = Natureza.DIARIO),
+            Movimentacao(id = 4, descricao = "salário", valorCentavos = 500_00, data = LocalDate.parse("2026-09-05"), natureza = Natureza.DIARIO),
+        ),
+    )
+
+    @Test
+    fun aEtiquetaFiltraAGradeEOPainelDoDia() = runTest(dispatcher) {
+        val vm = vmCom(RepositorioFixo(comUmaEtiquetada, listOf(comida)))
+        vm.definirTagFiltro(comida)
+        val estado = vm.state.first { it.mes != null && it.tagFiltro != null }
+
+        // A célula do dia 2 (gasolina, sem etiqueta) fica zerada; a do dia 1 mantém o valor.
+        val porDia = estado.board!!.dias.associate { it.data to it.valorCentavos }
+        assertEquals(-50_00L, porDia[LocalDate.parse("2026-09-01")])
+        assertEquals(0L, porDia[LocalDate.parse("2026-09-02")])
+
+        // E o painel do dia 2 não tem lançamento nenhum para mostrar.
+        val dia2 = estado.mes!!.dias[1]
+        assertEquals(emptyList<Long>(), dia2.itens.map { it.valorCentavos })
+    }
+
+    /**
+     * O hero responde "quanto vai sobrar no mês", e essa conta não muda porque a tela está
+     * filtrada — senão o número do topo mentiria a cada toque numa etiqueta.
+     */
+    @Test
+    fun oSaldoProjetadoNaoMudaComAEtiqueta() = runTest(dispatcher) {
+        val semFiltro = vmCom(RepositorioFixo(comUmaEtiquetada, listOf(comida)))
+        val antes = semFiltro.state.first { it.mes != null }.mes!!.saldoProjetadoCentavos
+
+        val comFiltro = vmCom(RepositorioFixo(comUmaEtiquetada, listOf(comida)))
+        comFiltro.definirTagFiltro(comida)
+        val depois = comFiltro.state.first { it.mes != null && it.tagFiltro != null }.mes!!.saldoProjetadoCentavos
+
+        assertEquals(antes, depois)
+    }
+
+    /** Apagar a etiqueta na aba tags não pode deixar a grade presa a um id que já não existe. */
+    @Test
+    fun etiquetaInexistenteNaoFiltraNada() = runTest(dispatcher) {
+        val vm = vmCom(RepositorioFixo(comUmaEtiquetada, listOf(comida)))
+        vm.definirTagFiltroId(999L)
+        val estado = vm.state.first { it.mes != null }
+        assertNull(estado.tagFiltro)
+        assertTrue(estado.mes!!.dias.any { it.itens.isNotEmpty() })
     }
 
     // ---- erro de leitura e tentar de novo (dados-1) ----
@@ -138,7 +197,7 @@ class LedgerViewModelTest {
         coleta.cancel()
     }
 
-    // ---- a fila de sem tag (arrumacao-1) ----
+    // ---- etiquetar pela fileira (arrumacao-1) ----
 
     /** Anota o que `definirTags` recebeu; todo o resto vem do repositório fixo. */
     private class RepositorioQueAnotaTags(input: LedgerInput, tags: List<Tag>) :
@@ -147,48 +206,6 @@ class LedgerViewModelTest {
         override suspend fun definirTags(movId: Long, tagIds: List<Long>) {
             chamadas += movId to tagIds
         }
-    }
-
-    private val comida = Tag(id = 5, nome = "comida", cor = 0xFFB63C62L)
-
-    @Test
-    fun escolherSemTagLimpaOFiltroDeEtiqueta() {
-        val vm = vm()
-        vm.definirTagFiltroId(5L)
-        vm.definirFiltro(FiltroLedger.SEM_TAG)
-        assertNull(vm.tagFiltroIdAgora)
-        assertEquals(FiltroLedger.SEM_TAG, vm.filtroAgora)
-    }
-
-    @Test
-    fun escolherUmaEtiquetaSaiDeSemTag() {
-        val vm = vm()
-        vm.definirFiltro(FiltroLedger.SEM_TAG)
-        vm.definirTagFiltroId(5L)
-        assertEquals(FiltroLedger.TODAS, vm.filtroAgora)
-        assertEquals(5L, vm.tagFiltroIdAgora)
-    }
-
-    /** `fixas` × etiqueta é uma interseção legítima: escolher uma etiqueta não mexe nela. */
-    @Test
-    fun escolherUmaEtiquetaNaoMexeEmFixas() {
-        val vm = vm()
-        vm.definirFiltro(FiltroLedger.FIXAS)
-        vm.definirTagFiltroId(5L)
-        assertEquals(FiltroLedger.FIXAS, vm.filtroAgora)
-    }
-
-    /** A exclusividade tem de sobreviver à morte do processo: o que grava é o setter. */
-    @Test
-    fun aExclusividadeChegaAoSavedState() {
-        val saved = SavedStateHandle()
-        val vm = vm(saved)
-        vm.definirTagFiltroId(5L)
-        vm.definirFiltro(FiltroLedger.SEM_TAG)
-
-        val outro = vm(saved)
-        assertEquals(FiltroLedger.SEM_TAG, outro.filtroAgora)
-        assertNull(outro.tagFiltroIdAgora)
     }
 
     @Test
