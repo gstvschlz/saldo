@@ -5,6 +5,7 @@ import androidx.glance.testing.unit.assertHasText
 import androidx.glance.testing.unit.hasTestTag
 import androidx.glance.testing.unit.hasText
 import com.scholze.saldo.data.db.toAnoMes
+import com.scholze.saldo.ui.ledger.SEM_ENTRADA
 import com.scholze.saldo.ui.nav.Destino
 import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
 import java.time.LocalDate
@@ -70,18 +71,20 @@ class SaldoWidgetContentTest {
         onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou 20%")
     }
 
+    /** A porcentagem não é dinheiro: mascarar o saldo não a esconde mais (2026-09-10). */
     @Test
-    fun largoMascaradoEscondeOPercentual() = runGlanceAppWidgetUnitTest {
+    fun largoMascaradoAindaDizQuantoGuardou() = runGlanceAppWidgetUnitTest {
         setAppWidgetSize(SaldoWidget.LARGO)
         provideComposable { SaldoWidgetContent(pronto) }
-        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou ••%")
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou 20%")
     }
 
+    /** Sem entrada no mês a linha não some: ela diz por que não há porcentagem. */
     @Test
-    fun semTaxaNaoHaLinha() = runGlanceAppWidgetUnitTest {
+    fun semTaxaALinhaDizOMotivo() = runGlanceAppWidgetUnitTest {
         setAppWidgetSize(SaldoWidget.LARGO)
         provideComposable { SaldoWidgetContent(pronto.copy(mostrarValores = true, taxaGuardada = null)) }
-        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertDoesNotExist()
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText(SEM_ENTRADA)
     }
 
     @Test
@@ -102,32 +105,35 @@ class SaldoWidgetContentTest {
 
     /** A regra inteira num predicado: o composable só escolhe entre duas cores a partir dele. */
     @Test
-    fun comMetaBatidaEValoresAMostraACorMuda() =
+    fun comMetaBatidaACorMuda() =
         assertEquals(
             true,
-            pronto.copy(mostrarValores = true, taxaGuardada = 22, metaGuardarPercent = 20).metaBatidaVisivel,
+            pronto.copy(mostrarValores = true, taxaGuardada = 22, metaGuardarPercent = 20).metaBatida,
         )
 
-    /** Valor escondido é meta escondida: a cor não pode contar o que o `••%` esconde. */
+    /**
+     * A cor não depende mais da máscara. Enquanto o texto era `••%`, deixar a cor mudar contaria
+     * pela cor o que o texto escondia; sem máscara no texto, a trava perdeu a razão de existir.
+     */
     @Test
-    fun comMetaBatidaEValoresMascaradosACorNaoMuda() =
+    fun comMetaBatidaEValoresMascaradosACorTambemMuda() =
         assertEquals(
-            false,
-            pronto.copy(mostrarValores = false, taxaGuardada = 22, metaGuardarPercent = 20).metaBatidaVisivel,
+            true,
+            pronto.copy(mostrarValores = false, taxaGuardada = 22, metaGuardarPercent = 20).metaBatida,
         )
 
     @Test
     fun semMetaACorNuncaMuda() =
         assertEquals(
             false,
-            pronto.copy(mostrarValores = true, taxaGuardada = 99, metaGuardarPercent = 0).metaBatidaVisivel,
+            pronto.copy(mostrarValores = true, taxaGuardada = 99, metaGuardarPercent = 0).metaBatida,
         )
 
     @Test
     fun abaixoDaMetaACorNaoMuda() =
         assertEquals(
             false,
-            pronto.copy(mostrarValores = true, taxaGuardada = 19, metaGuardarPercent = 20).metaBatidaVisivel,
+            pronto.copy(mostrarValores = true, taxaGuardada = 19, metaGuardarPercent = 20).metaBatida,
         )
 
     /** Exatamente na meta já é bater: `>=`, não `>`. */
@@ -135,14 +141,14 @@ class SaldoWidgetContentTest {
     fun exatamenteNaMetaJaBateu() =
         assertEquals(
             true,
-            pronto.copy(mostrarValores = true, taxaGuardada = 20, metaGuardarPercent = 20).metaBatidaVisivel,
+            pronto.copy(mostrarValores = true, taxaGuardada = 20, metaGuardarPercent = 20).metaBatida,
         )
 
     @Test
     fun semTaxaACorNaoMuda() =
         assertEquals(
             false,
-            pronto.copy(mostrarValores = true, taxaGuardada = null, metaGuardarPercent = 20).metaBatidaVisivel,
+            pronto.copy(mostrarValores = true, taxaGuardada = null, metaGuardarPercent = 20).metaBatida,
         )
 
     /** E o texto continua o mesmo, batendo a meta ou não. */
@@ -150,7 +156,7 @@ class SaldoWidgetContentTest {
     fun aMetaNaoMudaOTextoMascarado() = runGlanceAppWidgetUnitTest {
         setAppWidgetSize(SaldoWidget.LARGO)
         provideComposable { SaldoWidgetContent(pronto.copy(taxaGuardada = 22, metaGuardarPercent = 20)) }
-        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou ••%")
+        onNode(hasTestTag(TAG_WIDGET_GUARDADO)).assertHasText("guardou 22%")
     }
 
     @Test

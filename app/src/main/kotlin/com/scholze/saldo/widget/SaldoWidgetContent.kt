@@ -21,6 +21,7 @@ import androidx.glance.semantics.testTag
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import com.scholze.saldo.ui.ledger.SEM_ENTRADA
 import com.scholze.saldo.ui.money.centavosAssinadoComSimbolo
 import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.nav.Destino
@@ -93,16 +94,17 @@ fun SaldoWidgetContent(estado: WidgetEstado) {
                             maxLines = 1,
                         )
                     }
-                    // Do que entrou, quanto foi guardado. Mascarado junto com o valor: o usuário
-                    // escolheu esconder o percentual no widget, ao contrário do hero. E a COR
-                    // segue a máscara — ver `WidgetEstado.Pronto.metaBatidaVisivel`.
+                    // Do que entrou, quanto foi guardado — sempre à mostra, e sempre presente.
+                    // A porcentagem não é dinheiro: mascará-la junto com o saldo escondia o que o
+                    // usuário mais queria ver de relance, e sumir num mês sem entrada tirava a
+                    // linha justo no começo do mês. Ver `SEM_ENTRADA` e `Pronto.metaBatida`.
                     val taxa = estado.taxaGuardada
-                    if (largo && taxa != null) {
+                    if (largo) {
                         Text(
-                            if (estado.mostrarValores) "guardou $taxa%" else "guardou ••%",
+                            if (taxa != null) "guardou $taxa%" else SEM_ENTRADA,
                             modifier = GlanceModifier.semantics { testTag = TAG_WIDGET_GUARDADO },
                             style = TextStyle(
-                                color = if (estado.metaBatidaVisivel) CoresWidget.positivo else CoresWidget.secundario,
+                                color = if (estado.metaBatida) CoresWidget.positivo else CoresWidget.secundario,
                                 fontSize = 12.sp,
                             ),
                             maxLines = 1,

@@ -27,6 +27,7 @@ import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
 import com.scholze.saldo.domain.TetoEngine
+import com.scholze.saldo.ui.ledger.SEM_ENTRADA
 import com.scholze.saldo.ui.ledger.TAG_PILL_GUARDADO
 import com.scholze.saldo.ui.ledger.TAG_TETO_HOJE
 import com.scholze.saldo.ui.ledger.TAG_TETO_RESTA
@@ -335,10 +336,15 @@ class BoardScreenTest {
         rule.onNodeWithText("guardou 20%").assertIsDisplayed()
     }
 
+    /**
+     * A pill não some mais num mês sem entrada — ela diz o motivo. Antes de 2026-09-10 o hero
+     * simplesmente ficava sem ela nos primeiros dias do mês.
+     */
     @Test
-    fun semEntradaNoMesNaoHaPill() {
+    fun semEntradaNoMesAPillDizOMotivo() {
         montar(entrada = input.copy(movimentacoes = input.movimentacoes.filter { it.valorCentavos < 0 }))
-        rule.onAllNodesWithTag(TAG_PILL_GUARDADO).assertCountEquals(0)
+        rule.onNodeWithTag(TAG_PILL_GUARDADO).assertIsDisplayed()
+        rule.onNodeWithText(SEM_ENTRADA).assertIsDisplayed()
     }
 
     @Test

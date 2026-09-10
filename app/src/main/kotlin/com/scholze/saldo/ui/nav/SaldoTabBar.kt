@@ -81,16 +81,16 @@ fun SaldoTabBar(
                 TabItem(SaldoTab.MAIS, selected, onSelect, Modifier.weight(1f))
             }
         }
-        // O FAB desce até ficar CENTRADO na borda de cima da barra: 32dp para dentro, 32dp
-        // para fora. Centrado na faixa de 44dp ele nasce com o centro em 22dp, então os
-        // 22dp de offset levam esse centro exatamente até 44dp, que é onde a barra começa.
-        // `offset` em vez de padding negativo porque só o desenho desce: o alvo de toque
-        // acompanha o deslocamento.
+        // O FAB desce até projetar exatamente [SALIENCIA_FAB] acima da borda da barra.
+        // Centrado na faixa ele nasce com o centro em ALTURA_FAIXA_FAB/2; o offset leva esse
+        // centro até `ALTURA_FAIXA_FAB - SALIENCIA_FAB + LADO_FAB/2`, e a diferença entre os
+        // dois é a conta abaixo. `offset` em vez de padding negativo porque só o desenho
+        // desce: o alvo de toque acompanha o deslocamento.
         Box(
             Modifier.fillMaxWidth().height(ALTURA_FAIXA_FAB).align(Alignment.TopCenter),
             contentAlignment = Alignment.Center,
         ) {
-            AddButton(onAdd, Modifier.offset(y = ALTURA_FAIXA_FAB / 2))
+            AddButton(onAdd, Modifier.offset(y = ALTURA_FAIXA_FAB / 2 - SALIENCIA_FAB + LADO_FAB / 2))
         }
     }
 }
@@ -141,14 +141,27 @@ private fun TabItem(
 /** O `+` central, para os testes: é um glifo desenhado, sem nó de texto para procurar. */
 const val TAG_ADD = "tab-add"
 
+/** O lado do `+`. */
+private val LADO_FAB = 64.dp
+
 /**
- * A faixa que o FAB ocupa acima da barra.
+ * Quanto do `+` fica ACIMA da borda de cima da barra.
  *
- * 44dp e nao 36: o FAB tem 64dp e fica ANCORADO na borda de cima da barra, metade dentro e
- * metade fora. Metade de 64 = 32dp acima da borda, mais 12dp de respiro entre ele e o
- * conteudo da tela. Com os 36dp antigos ele so entrava 18dp na barra e boiava por cima.
+ * Era 32dp — metade do botão, isto é, o FAB centrado na própria borda —, e nessa altura ele
+ * lia como um objeto solto boiando sobre a barra, saliente demais ao lado dos outros quatro
+ * ícones. Com 22dp ele entra 42dp dentro da barra: continua sendo o botão que se destaca,
+ * sem parecer que caiu ali de outra tela.
  */
-val ALTURA_FAIXA_FAB = 44.dp
+val SALIENCIA_FAB = 22.dp
+
+/**
+ * A faixa que o FAB ocupa acima da barra: o que ele projeta para fora, mais 12dp de respiro
+ * entre ele e o conteúdo da tela.
+ *
+ * Não é constante à toa: quem desenha por cima da barra (o SnackbarHost) soma esta faixa com
+ * [ALTURA_BARRA], então mexer na saliência acerta o snackbar sozinho.
+ */
+val ALTURA_FAIXA_FAB = SALIENCIA_FAB + 12.dp
 
 /** A barra em si, do topo até o inset de navegação. */
 val ALTURA_BARRA = 84.dp
@@ -158,11 +171,11 @@ private fun AddButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
     Box(
         modifier
-            // requiredSize, não size: a faixa que hospeda o FAB tem ALTURA_FAIXA_FAB (36dp)
-            // de altura, e `size` se deixa espremer pela restrição máxima do pai — o botão
-            // saía com 36dp. `requiredSize` ignora a restrição, que é o que faz o FAB
+            // requiredSize, não size: a faixa que hospeda o FAB é mais baixa que ele, e
+            // `size` se deixa espremer pela restrição máxima do pai — o botão saía com a
+            // altura da faixa. `requiredSize` ignora a restrição, que é o que faz o FAB
             // TRANSBORDAR para dentro da barra em vez de caber nela.
-            .requiredSize(64.dp)
+            .requiredSize(LADO_FAB)
             .shadow(6.dp, RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
             .background(colors.tint)

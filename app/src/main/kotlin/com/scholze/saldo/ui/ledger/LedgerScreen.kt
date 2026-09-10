@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.DiaRow
 import com.scholze.saldo.domain.Fatura
@@ -103,6 +104,15 @@ const val TAG_SALDO_PROJETADO = "ledger:saldoProjetado"
 
 /** A pill "guardou N%" do hero. */
 const val TAG_PILL_GUARDADO = "hero:guardado"
+
+/**
+ * O que a pill do hero e o widget de saldo dizem num mês em que ainda não entrou nada.
+ *
+ * Um mês sem entrada não tem proporção guardada — e "0%" mentiria para quem guardou antes de
+ * o salário cair. A pill continua na tela dizendo o motivo, que foi a decisão de 2026-09-10:
+ * a % guardada não some, nem por privacidade nem por mês inacabado.
+ */
+const val SEM_ENTRADA = "sem entrada ainda"
 
 /** O teto do dia no hero — "hoje R$ 87,40". */
 const val TAG_TETO_HOJE = "hero:tetoHoje"
@@ -403,26 +413,39 @@ internal fun BalanceHero(
                 Text("no mês", style = SaldoTheme.type.subhead, color = colors.onPrimaryContainer)
             }
             // Do que entrou, quanto foi guardado. Não é dinheiro: a privacidade não a esconde.
-            mes.taxaGuardada?.let { taxa ->
+            //
+            // E a pill NÃO SOME. Antes ela existia só quando havia proporção para mostrar, e o
+            // hero ficava sem ela nos primeiros dias do mês — justo quando a pergunta "quanto
+            // estou guardando" ainda está em aberto. Sem entrada não há porcentagem para
+            // inventar (0% seria mentira para quem guardou antes do salário cair), então a pill
+            // diz o motivo com todas as letras.
+            run {
+                val taxa = mes.taxaGuardada
                 // Batida a meta, a pill INVERTE: fundo `onPrimaryContainer`, texto
                 // `primaryContainer`. O hero já é um cartão verde, então pintar de verde o que
                 // está em cima dele não mudaria nada; a inversão é diferença de luminância, não de
                 // matiz — sobrevive ao daltonismo e ao tema escuro, onde os dois tokens já trocam
                 // de lado sozinhos, e lê como "acendeu" à distância de um olhar.
-                val bateu = metaGuardarPercent > 0 && taxa >= metaGuardarPercent
+                val bateu = taxa != null && metaGuardarPercent > 0 && taxa >= metaGuardarPercent
                 val fundo = if (bateu) colors.onPrimaryContainer else colors.onPrimaryContainer.copy(alpha = 0.10f)
                 val tinta = if (bateu) colors.primaryContainer else colors.onPrimaryContainer
                 // A cor sozinha não diz o NÚMERO, então o TalkBack diz. Sem meta a frase continua
                 // a de antes: não há alvo nenhum para anunciar.
                 val leitura = when {
+                    taxa == null -> "ainda não entrou nada neste mês"
                     metaGuardarPercent <= 0 -> "guardou $taxa% do que entrou"
                     bateu -> "guardou $taxa%, meta de $metaGuardarPercent% batida"
                     else -> "guardou $taxa%, meta $metaGuardarPercent%"
                 }
                 // O alvo de toque (44 dp) fica no Box de fora, invisível; a pill pintada é a de
                 // dentro, do mesmo tamanho da "no mês" — o fundo não pode denunciar o alvo.
+                //
+                // `weight(fill = false)`: a frase "sem entrada ainda" é bem mais larga que
+                // "guardou 12%", e ao lado de um delta de cinco dígitos as duas pills passariam
+                // da largura do hero. Assim a segunda encolhe em vez de a linha estourar.
                 Box(
                     Modifier
+                        .weight(1f, fill = false)
                         .sizeIn(minHeight = 44.dp)
                         .clickable(onClick = onVerGuardado)
                         .testTag(TAG_PILL_GUARDADO)
@@ -430,12 +453,13 @@ internal fun BalanceHero(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "guardou $taxa%",
+                        if (taxa == null) SEM_ENTRADA else "guardou $taxa%",
                         Modifier
                             .clip(RoundedCornerShape(percent = 50))
                             .background(fundo)
                             .padding(horizontal = 11.dp, vertical = 5.dp),
                         style = SaldoTheme.type.subhead, color = tinta,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

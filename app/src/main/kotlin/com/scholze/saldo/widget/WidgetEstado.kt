@@ -19,17 +19,17 @@ sealed interface WidgetEstado {
         val metaGuardarPercent: Int = 0,
     ) : WidgetEstado {
         /**
-         * A meta bateu **e** o número está à mostra — a única condição em que a cor do "guardou"
-         * muda.
+         * A meta bateu — a única condição em que a cor do "guardou" muda.
          *
-         * O `mostrarValores` faz parte da regra de propósito: se a cor mudasse mesmo mascarado, o
-         * widget contaria pela cor exatamente o que escondeu no `••%`. Valor escondido é meta
-         * escondida (decisão 8).
+         * Já dependeu também de [mostrarValores]: enquanto o widget escondia a porcentagem atrás
+         * de `••%`, deixar a cor mudar contaria pela cor exatamente o que o texto escondia. A
+         * porcentagem deixou de ser mascarada em 2026-09-10 — ela não é dinheiro, e o usuário
+         * pediu que ela ficasse sempre visível —, então a máscara saiu dos dois lados de uma vez.
          */
-        val metaBatidaVisivel: Boolean
+        val metaBatida: Boolean
             get() {
                 val taxa = taxaGuardada ?: return false
-                return mostrarValores && metaGuardarPercent > 0 && taxa >= metaGuardarPercent
+                return metaGuardarPercent > 0 && taxa >= metaGuardarPercent
             }
     }
 

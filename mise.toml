@@ -12,6 +12,11 @@ description = "Compile the debug APK"
 run = "./gradlew assembleDebug"
 run_windows = '.\gradlew.bat assembleDebug'
 
+[tasks.compile]
+description = "Compile the debug Kotlin sources (faster than a full build)"
+run = "./gradlew compileDebugKotlin"
+run_windows = '.\gradlew.bat compileDebugKotlin'
+
 [tasks.test]
 description = "Run unit tests"
 run = "./gradlew test"
