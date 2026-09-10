@@ -24,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -167,12 +169,18 @@ private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifi
         ) {
             when (key) {
                 is Key.Digit -> KeyLabel(key.value.toString())
-                Key.DuploZero -> KeyLabel("00")
+                // "00" lido letra a letra vira "zero zero" de qualquer forma, mas o leitor de
+                // tela pronuncia o texto cru como "zero zero" só por acaso — dizer explícito
+                // custa uma linha e não depende do motor de voz.
+                Key.DuploZero -> KeyLabel("00", leitura = "zero zero")
+                // Um glifo desenhado não tem texto nenhum: sem descrição, a tecla de apagar era
+                // um botão anônimo no meio do teclado.
                 Key.Backspace -> SaldoGlyph(
                     SaldoIcon.BACKSPACE,
                     colors.label,
                     size = 28.dp,
                     strokeWidth = 1.7.dp,
+                    modifier = Modifier.semantics { contentDescription = "apagar" },
                 )
             }
         }
@@ -180,9 +188,10 @@ private fun KeyButton(key: Key, onClick: () -> Unit, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun KeyLabel(text: String) {
+private fun KeyLabel(text: String, leitura: String? = null) {
     Text(
         text,
+        modifier = if (leitura == null) Modifier else Modifier.semantics { contentDescription = leitura },
         style = SaldoTheme.type.largeTitle.copy(
             fontSize = 26.sp,
             fontWeight = FontWeight.Normal,

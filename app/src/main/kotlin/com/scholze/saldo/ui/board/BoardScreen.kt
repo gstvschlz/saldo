@@ -45,6 +45,7 @@ import com.scholze.saldo.ui.components.ErroDeLeitura
 import com.scholze.saldo.ui.components.IconeRedondo
 import com.scholze.saldo.ui.components.SaldoIcon
 import com.scholze.saldo.ui.components.SaldoTopBar
+import com.scholze.saldo.ui.components.Semana
 import com.scholze.saldo.ui.components.arrastoDeMes
 import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.privacy.FormatoMoney
@@ -89,7 +90,12 @@ private val CALHA = 22.dp
 /** A partir desta escala de fonte o número do dia não cabe na célula e some. */
 private const val ESCALA_SEM_NUMERO = 1.3f
 
-private val DIAS_SEMANA = listOf("s", "t", "q", "q", "s", "s", "d")
+/**
+ * Era `s t q q s s d`: quatro letras repetidas em sete colunas, que não distinguem terça de
+ * quinta nem sábado de segunda. Agora vem de [Semana], a mesma lista que o `WeekdayBars` de
+ * totais usa — as duas telas escreviam a própria.
+ */
+private val DIAS_SEMANA = Semana.CURTOS
 
 /**
  * O board: um mês em sete colunas de dia da semana, semanas empilhadas, e embaixo os
@@ -168,9 +174,12 @@ fun BoardScreen(
                     // junto: procurar um lançamento de três meses atrás é a única coisa que
                     // a grade não sabe fazer sozinha.
                     IconeRedondo(SaldoIcon.LUPA, "buscar", onAbrirBusca)
+                    // A descrição diz o que o toque FAZ, não o que o botão é: "alternar
+                    // privacidade" era a mesma frase ligado e desligado, então o TalkBack nunca
+                    // dizia em que estado a tela estava.
                     IconeRedondo(
                         if (LocalPrivacy.current.oculto) SaldoIcon.OLHO_RISCADO else SaldoIcon.OLHO,
-                        "alternar privacidade",
+                        if (LocalPrivacy.current.oculto) "mostrar valores" else "ocultar valores",
                         onTogglePrivacidade,
                     )
                 },

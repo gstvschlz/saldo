@@ -22,8 +22,10 @@ import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.ui.components.InsetGroup
 import com.scholze.saldo.ui.components.InsetRow
 import com.scholze.saldo.ui.privacy.FormatoMoney
+import com.scholze.saldo.ui.privacy.LocalPrivacy
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.totais.charts.Descricoes
 import com.scholze.saldo.ui.totais.charts.PoupancaBars
 import com.scholze.saldo.ui.totais.charts.ReservaLine
 import com.scholze.saldo.ui.totais.charts.TrendChart
@@ -112,7 +114,11 @@ fun SegmentoTendencia(
                 },
             )
             if (!poucosMeses) {
-                ReservaLine(pontos.map { it.reservaAcumulada }, Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp))
+                ReservaLine(
+                    pontos.map { it.reservaAcumulada },
+                    Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                    leitura = Descricoes.reserva(pontos, LocalPrivacy.current.oculto),
+                )
             }
             val anterior = pontos.getOrNull(pontos.size - 2)
             InsetRow(

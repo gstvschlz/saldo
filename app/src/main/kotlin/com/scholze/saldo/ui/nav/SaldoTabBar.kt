@@ -2,6 +2,7 @@ package com.scholze.saldo.ui.nav
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.ui.components.SaldoGlyph
@@ -107,9 +112,14 @@ private fun TabItem(
 
     Column(
         modifier
-            .clickable(
+            // `selectable` e não `clickable`: é o que marca o nó como aba E diz qual está
+            // escolhida. Com `clickable` o TalkBack lia "saldos, botão" nas quatro, sem nunca
+            // dizer em qual o usuário está.
+            .selectable(
+                selected = active,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
+                role = Role.Tab,
             ) { onSelect(tab) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -171,6 +181,12 @@ private fun AddButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
     Box(
         modifier
+            // O glifo é um desenho, não um texto: sem isto o TalkBack anuncia "botão" e nada
+            // mais — o botão mais usado do app não tinha nome.
+            .semantics {
+                contentDescription = "nova movimentação"
+                role = Role.Button
+            }
             // requiredSize, não size: a faixa que hospeda o FAB é mais baixa que ele, e
             // `size` se deixa espremer pela restrição máxima do pai — o botão saía com a
             // altura da faixa. `requiredSize` ignora a restrição, que é o que faz o FAB

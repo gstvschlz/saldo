@@ -32,6 +32,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import com.scholze.saldo.ui.privacy.LocalPrivacy
+import com.scholze.saldo.ui.components.Semana
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.PontoMes
 import com.scholze.saldo.domain.TagsNoTempo
@@ -61,10 +65,23 @@ private fun pisoSeNaoZero(fracao: Float, cheio: Dp, piso: Dp): Dp =
 
 /** A barra 100 % de "para onde foi": uma Row com pesos vindos de [ChartMath.larguras]. */
 @Composable
-fun SegmentedBar(shares: List<Float>, cores: List<Color>, modifier: Modifier = Modifier, altura: Dp = 12.dp) {
+fun SegmentedBar(
+    shares: List<Float>,
+    cores: List<Color>,
+    modifier: Modifier = Modifier,
+    altura: Dp = 12.dp,
+    /** A frase do TalkBack; vazia = a barra continua muda (quem já descreve é o pai). */
+    leitura: String = "",
+) {
     val colors = SaldoTheme.colors
     val larguras = remember(shares) { ChartMath.larguras(shares) }
-    Row(modifier.fillMaxWidth().height(altura).clip(RoundedCornerShape(altura / 2))) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(altura)
+            .clip(RoundedCornerShape(altura / 2))
+            .then(if (leitura.isEmpty()) Modifier else Modifier.semantics { contentDescription = leitura }),
+    ) {
         larguras.forEachIndexed { i, w ->
             // `cores` pode chegar mais curta que `shares` (os dois caminhos de construção de
             // ParaOndeFoi não garantem o mesmo tamanho); getOrElse troca um crash por um neutro.
@@ -103,12 +120,17 @@ fun TrendChart(
     // pointerInput) sempre chama a instância atual. Dois toques que deveriam ser idênticos
     // acabariam chamando callbacks diferentes. rememberUpdatedState resolve isso.
     val onMesAtual = rememberUpdatedState(onMes)
+    val oculto = LocalPrivacy.current.oculto
+    val leitura = remember(pontos, oculto) { Descricoes.tendencia(pontos, oculto) }
 
     Column(modifier) {
         Canvas(
             Modifier
                 .fillMaxWidth()
                 .height(altura)
+                // Um Canvas não tem filhos: sem isto o TalkBack passa por cima do gráfico sem
+                // nada a anunciar. A frase sai dos MESMOS dados que o desenho recebe.
+                .semantics { contentDescription = leitura }
                 .pointerInput(pontos) {
                     detectTapGestures { o ->
                         if (n > 0) onMesAtual.value(pontos[(o.x / size.width * n).toInt().coerceIn(0, n - 1)].mes)
@@ -196,7 +218,13 @@ fun TagsStack(
 ) {
     val colors = SaldoTheme.colors
     val fracoes = remember(serie) { ChartMath.empilhado(serie.meses.map { it.valores }) }
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+    val oculto = LocalPrivacy.current.oculto
+    val leitura = remember(serie, oculto) { Descricoes.tagsNoTempo(serie, oculto) }
+    Row(
+        modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = leitura },
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
         serie.meses.forEachIndexed { i, mes ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.height(altura), contentAlignment = Alignment.BottomCenter) {
@@ -245,7 +273,11 @@ fun PoupancaBars(
             metaPercent.toLong(),
         )
     }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val leitura = remember(pontos, metaPercent) { Descricoes.poupanca(pontos, metaPercent) }
+    Column(
+        modifier.semantics(mergeDescendants = true) { contentDescription = leitura },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -315,7 +347,13 @@ fun WeekdayBars(porDia: Map<DayOfWeek, Long>, destaque: DayOfWeek?, modifier: Mo
     val colors = SaldoTheme.colors
     val dias = DayOfWeek.entries
     val alturas = remember(porDia) { ChartMath.alturas(dias.map { porDia[it] ?: 0L }) }
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+    val oculto = LocalPrivacy.current.oculto
+    val leitura = remember(porDia, oculto) { Descricoes.porDiaDaSemana(porDia, oculto) }
+    Row(
+        modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = leitura },
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
         dias.forEachIndexed { i, d ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
@@ -331,15 +369,8 @@ fun WeekdayBars(porDia: Map<DayOfWeek, Long>, destaque: DayOfWeek?, modifier: Mo
     }
 }
 
-private fun rotulo(d: DayOfWeek): String = when (d) {
-    DayOfWeek.MONDAY -> "s"
-    DayOfWeek.TUESDAY -> "t"
-    DayOfWeek.WEDNESDAY -> "q"
-    DayOfWeek.THURSDAY -> "q"
-    DayOfWeek.FRIDAY -> "s"
-    DayOfWeek.SATURDAY -> "s"
-    DayOfWeek.SUNDAY -> "d"
-}
+private fun rotulo(d: DayOfWeek): String = Semana.curto(d)
+
 
 /**
  * O ritmo do mês: o acumulado de saídas (linha cheia) contra o costume dos meses anteriores
@@ -360,7 +391,16 @@ fun RitmoChart(
     val (ysMes, ysRef) = remember(acumulado, referencia) {
         ChartMath.linhasNaMesmaEscala(acumulado, referencia)
     }
-    Canvas(modifier.fillMaxWidth().height(altura)) {
+    val oculto = LocalPrivacy.current.oculto
+    val leitura = remember(acumulado, referencia, oculto) {
+        Descricoes.ritmo(acumulado.lastOrNull() ?: 0L, referencia.getOrNull(acumulado.lastIndex), oculto)
+    }
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(altura)
+            .semantics { contentDescription = leitura },
+    ) {
         if (ysMes.size < 2) return@Canvas
         val passo = size.width / (ysMes.size - 1)
         fun pontos(ys: List<Float>) = ys.mapIndexed { i, y ->
@@ -391,10 +431,21 @@ fun RitmoChart(
 
 /** A reserva acumulada mês a mês: uma linha com o ponto final marcado. */
 @Composable
-fun ReservaLine(valores: List<Long>, modifier: Modifier = Modifier, altura: Dp = 56.dp) {
+fun ReservaLine(
+    valores: List<Long>,
+    modifier: Modifier = Modifier,
+    altura: Dp = 56.dp,
+    /** A frase do TalkBack; vazia = a linha continua muda. */
+    leitura: String = "",
+) {
     val cor = SaldoTheme.colors.balance
     val ys = remember(valores) { ChartMath.linha(valores) }
-    Canvas(modifier.fillMaxWidth().height(altura)) {
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(altura)
+            .then(if (leitura.isEmpty()) Modifier else Modifier.semantics { contentDescription = leitura }),
+    ) {
         if (ys.size < 2) return@Canvas
         val passo = size.width / (ys.size - 1)
         val pts = ys.mapIndexed { i, y -> Offset(i * passo, size.height * 0.1f + size.height * 0.8f * (1f - y)) }

@@ -33,6 +33,7 @@ import com.scholze.saldo.ui.privacy.FormatoMoney
 import com.scholze.saldo.ui.privacy.MoneyText
 import com.scholze.saldo.ui.theme.SaldoColors
 import com.scholze.saldo.ui.theme.SaldoTheme
+import com.scholze.saldo.ui.totais.charts.Descricoes
 import com.scholze.saldo.ui.totais.charts.SegmentedBar
 import com.scholze.saldo.ui.totais.charts.TagsStack
 import com.scholze.saldo.ui.totais.charts.WeekdayBars
@@ -70,6 +71,12 @@ fun SegmentoMesInsights(
                     shares = p.barra.map { it.share },
                     cores = p.barra.map { corDe(it.grupo, colors) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    // Porcentagem, não valor: é o que a barra desenha, e é o que sobrevive à
+                    // privacidade — a proporção não diz quanto se gastou.
+                    leitura = Descricoes.paraOndeFoi(
+                        p.barra.map { it.grupo.nome },
+                        p.barra.map { it.centavos },
+                    ),
                 )
                 p.fatias.forEach { f ->
                     LinhaFatia(f, onClick = (f.grupo as? GrupoGasto.DeTag)?.let { g -> { onVerTag(g.tag) } })
@@ -209,11 +216,7 @@ private fun corDe(g: GrupoGasto, colors: SaldoColors): Color = when (g) {
     GrupoGasto.SemTag -> colors.insightSemTag
 }
 
-private fun nomeDe(g: GrupoGasto): String = when (g) {
-    is GrupoGasto.DeTag -> g.tag.nome
-    GrupoGasto.Outras -> "outras"
-    GrupoGasto.SemTag -> "sem tag"
-}
+private fun nomeDe(g: GrupoGasto): String = g.nome
 
 private fun nomeDia(d: DayOfWeek): String = when (d) {
     DayOfWeek.MONDAY -> "segunda"

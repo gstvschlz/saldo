@@ -10,6 +10,19 @@ sealed interface GrupoGasto {
     data class DeTag(val tag: Tag) : GrupoGasto
     data object Outras : GrupoGasto
     data object SemTag : GrupoGasto
+
+    /**
+     * Como esta fatia se chama na tela — e no TalkBack.
+     *
+     * Mora aqui, e não na tela, porque quem desenha a legenda e quem descreve o gráfico em voz
+     * alta têm de chamar a mesma fatia da mesma coisa.
+     */
+    val nome: String
+        get() = when (this) {
+            is DeTag -> tag.nome
+            Outras -> "outras"
+            SemTag -> "sem tag"
+        }
 }
 
 /**
