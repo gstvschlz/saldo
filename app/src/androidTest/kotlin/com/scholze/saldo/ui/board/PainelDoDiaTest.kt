@@ -132,7 +132,7 @@ class PainelDoDiaTest {
     fun oValorFicaEmbaixoDaDescricaoENaoAoLado() {
         montar()
         val descricao = rule.onNodeWithText("mercado").getUnclippedBoundsInRoot()
-        val valor = rule.onNodeWithText("−R$ 189,90").getUnclippedBoundsInRoot()
+        val valor = rule.onNodeWithText("−189,90").getUnclippedBoundsInRoot()
         assertTrue(
             "o valor deveria começar abaixo do fim da descrição (desc.bottom=${descricao.bottom}, valor.top=${valor.top})",
             valor.top >= descricao.bottom,

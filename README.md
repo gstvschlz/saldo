@@ -22,7 +22,7 @@ Ferramentas via [mise](https://mise.jdx.dev): `mise install` instala JDK, Gradle
 
 - **lançar** — o `+` cobra só o valor; descrição, tag e recorrência são opcionais.
 - **notificações** — `mais → notificações`: marque os apps do banco e o saldo sugere lançar cada valor que chegar. Desligado por padrão; nenhum texto de notificação vai para o disco.
-- **saldos** — o mês em quadradinhos, um por dia, colorido pelo saldo do dia. Lista, busca e recorrências pela barra.
+- **saldos** — o mês em quadradinhos, um por dia, colorido pelo saldo do dia. Toque num dia para ver os lançamentos dele; busca pela lupa.
 - **totais** — o mês, a tendência e o que ainda vem.
 - **tags** — categorize e veja para onde foi.
 - **widgets e lembretes** — opcionais, desligados por padrão.

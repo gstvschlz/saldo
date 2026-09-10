@@ -85,15 +85,6 @@ class NotificacoesTest {
         assertEquals(titulo(n), titulo(n.publicVersion))
     }
 
-    /** O slot do fim do dia limpa os DOIS ids: um lembrete que deixou de valer não fica pendurado. */
-    @Test
-    fun oSlotDoFimDoDiaConheceOsDoisIds() {
-        assertEquals(
-            listOf(Notificacoes.ID_REGISTRAR, Notificacoes.ID_ETIQUETAR),
-            Notificacoes.idsDoSlot(Slot.NUDGE),
-        )
-    }
-
     @Test
     fun fechamentoSobrouEFaltou() {
         val sobrou = Notificacoes.construir(ctx, Lembrete.FechamentoMes(YearMonth.of(2026, 7), 312_50, 8_240_00, 7_927_50)).second
@@ -104,10 +95,10 @@ class NotificacoesTest {
         assertEquals("julho fechou: faltou R$ 61,28", titulo(faltou))
     }
 
-    /** Os dois slots juntos cobrem exatamente os quatro ids fixos — nenhum sobra, nenhum falta. */
+    /** Os dois slots juntos cobrem exatamente os cinco ids fixos — nenhum sobra, nenhum falta. */
     @Test
-    fun idsDoSlotCobremOsQuatroIds() {
+    fun idsDoSlotCobremOsCincoIds() {
         assertEquals(listOf(Notificacoes.ID_FATURA, Notificacoes.ID_RECORRENCIAS, Notificacoes.ID_FECHAMENTO), Notificacoes.idsDoSlot(Slot.INFORMATIVOS))
-        assertEquals(listOf(Notificacoes.ID_REGISTRAR), Notificacoes.idsDoSlot(Slot.NUDGE))
+        assertEquals(listOf(Notificacoes.ID_REGISTRAR, Notificacoes.ID_ETIQUETAR), Notificacoes.idsDoSlot(Slot.NUDGE))
     }
 }
