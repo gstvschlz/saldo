@@ -12,6 +12,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -576,6 +577,25 @@ private fun EmptyMonth(comTagFiltro: Boolean = false, filtro: FiltroLedger = Fil
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+/** O canto dos cartões de lançamento — e do painel vermelho que aparece atrás no arrasto. */
+private val CANTO_CARTAO = 16.dp
+
+/** A coluna do marcador (bolinha ou glifo de recorrente) e o vão até a descrição. */
+private val LARGURA_MARCADOR = 12.dp
+private val GAP_MARCADOR = 8.dp
+
+/**
+ * Um dia e os seus lançamentos: o cabeçalho — a badge do dia e o saldo — e um CARTÃO por
+ * lançamento.
+ *
+ * Era uma linha só: badge à esquerda, todos os lançamentos empilhados no meio, saldo à direita.
+ * Nela a descrição e o valor dividiam a mesma linha, e quem cedia largura era sempre o número —
+ * com uma descrição longa o `R$ …` ficava espremido contra a borda. No cartão o valor tem uma
+ * linha inteira só para ele, e o tamanho da descrição deixa de decidir o que se consegue ler.
+ *
+ * O cabeçalho fica FORA dos cartões porque fala do dia, não de nenhum lançamento — e porque um
+ * cartão contendo cartões é exatamente a moldura dentro de moldura que esta tela não quer.
+ */
 @Composable
 internal fun DayRow(
     dia: DiaRow,
@@ -585,98 +605,84 @@ internal fun DayRow(
     onExcluir: (Movimentacao) -> Unit,
     onFaturaClick: (Fatura) -> Unit,
     mostrarSaldo: Boolean = true,
-    /** Não vazia só sob o filtro `sem tag`: a fileira de etiquetas embaixo de cada linha. */
+    /** Não vazia só sob o filtro `sem tag`: a fileira de etiquetas dentro de cada cartão. */
     etiquetas: List<Tag> = emptyList(),
     onEtiquetar: (Movimentacao, Tag) -> Unit = { _, _ -> },
     onMaisEtiquetas: (Movimentacao) -> Unit = {},
 ) {
     val colors = SaldoTheme.colors
     val ehHoje = dia.data == hoje
-    val fundo = if (ehHoje) colors.secondaryContainer else colors.surface
 
-    Row(
-        Modifier
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(fundo)
-            .then(if (ehHoje) Modifier.border(2.dp, colors.tint, RoundedCornerShape(20.dp)) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    Column(
+        Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        DiaBadge(
-            dia = dia.data.dayOfMonth,
-            diaSemana = dia.data.format(diaSemanaCurto).removeSuffix("."),
-            destacado = ehHoje,
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            DiaBadge(
+                dia = dia.data.dayOfMonth,
+                diaSemana = dia.data.format(diaSemanaCurto).removeSuffix("."),
+                destacado = ehHoje,
+            )
+            if (mostrarSaldo) {
+                SaldoPill(
+                    centavos = dia.saldoCentavos,
+                    nivel = nivelDeCalor(dia.saldoCentavos, faixa),
+                    modifier = Modifier.testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
+                )
+            }
+        }
 
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (dia.itens.isEmpty()) {
-                Text("sem movimentações", style = SaldoTheme.type.row, color = colors.secondaryLabel)
-            } else {
-                dia.itens.forEach { item ->
-                    // Exaustivo na interface selada: cada ramo sabe exatamente com que tipo
-                    // de item esta lidando, sem cast nenhum (nem seguro nem inseguro).
-                    when (item) {
-                        is ItemDia.Mov -> key(item.mov.id, item.descricao) {
-                            // A chave prende o `rememberSwipeToDismissBoxState` ao item, nao a
-                            // posicao: sem ela, apagar o primeiro de dois itens do mesmo dia faria
-                            // o segundo herdar o slot do primeiro - e aparecer arrastado para a
-                            // esquerda, com o painel vermelho atras, enquanto a animacao volta.
-                            val mov = item.mov
-                            val dismissState = rememberSwipeToDismissBoxState()
-                            // Reagir a TRANSICAO de currentValue, nao a um confirmValueChange.
-                            // O anchoredDraggable chama aquele callback mais de uma vez no mesmo
-                            // gesto: um swipe produzia DOIS snackbars, e o "desfazer" do segundo
-                            // reinseria a linha de novo, agora duplicada.
-                            LaunchedEffect(dismissState.currentValue) {
-                                if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                                    onExcluir(mov)
-                                    // A linha some porque o dado sumiu; se a exclusao for recusada
-                                    // (ocorrencia virtual), o reset devolve a linha ao lugar.
-                                    dismissState.reset()
-                                }
+        if (dia.itens.isEmpty()) {
+            Text(
+                "sem movimentações",
+                Modifier.padding(start = 4.dp, bottom = 4.dp),
+                style = SaldoTheme.type.row,
+                color = colors.secondaryLabel,
+            )
+        } else {
+            dia.itens.forEach { item ->
+                // Exaustivo na interface selada: cada ramo sabe exatamente com que tipo
+                // de item esta lidando, sem cast nenhum (nem seguro nem inseguro).
+                when (item) {
+                    is ItemDia.Mov -> key(item.mov.id, item.descricao) {
+                        // A chave prende o `rememberSwipeToDismissBoxState` ao item, nao a
+                        // posicao: sem ela, apagar o primeiro de dois itens do mesmo dia faria
+                        // o segundo herdar o slot do primeiro - e aparecer arrastado para a
+                        // esquerda, com o painel vermelho atras, enquanto a animacao volta.
+                        val mov = item.mov
+                        val dismissState = rememberSwipeToDismissBoxState()
+                        // Reagir a TRANSICAO de currentValue, nao a um confirmValueChange.
+                        // O anchoredDraggable chama aquele callback mais de uma vez no mesmo
+                        // gesto: um swipe produzia DOIS snackbars, e o "desfazer" do segundo
+                        // reinseria a linha de novo, agora duplicada.
+                        LaunchedEffect(dismissState.currentValue) {
+                            if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                                onExcluir(mov)
+                                // A linha some porque o dado sumiu; se a exclusao for recusada
+                                // (ocorrencia virtual), o reset devolve a linha ao lugar.
+                                dismissState.reset()
                             }
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                SwipeToDismissBox(
-                                    state = dismissState,
-                                    enableDismissFromStartToEnd = false,
-                                    backgroundContent = {
-                                        Box(
-                                            Modifier
-                                                .fillMaxSize()
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(colors.categoryVariable),
-                                            contentAlignment = Alignment.CenterEnd,
-                                        ) {
-                                            Text(
-                                                "excluir",
-                                                Modifier.padding(end = 12.dp),
-                                                style = SaldoTheme.type.footnote,
-                                                // `categoryVariable` inverte de claridade entre os
-                                                // esquemas igual ao tint: branco fixo dava 2,46:1 no
-                                                // escuro. `inverseOnSurface` tem exatamente a
-                                                // polaridade certa - tinta clara no tema claro,
-                                                // escura no escuro - e da 5,4:1 nos dois.
-                                                color = MaterialTheme.colorScheme.inverseOnSurface,
-                                            )
-                                        }
-                                    },
-                                ) {
-                                    // Base opaca: o SwipeToDismissBox mantem o backgroundContent
-                                    // ("excluir", vermelho) sempre desenhado atras do conteudo, entao
-                                    // sem ela o vermelho vazaria atraves da linha mesmo parada.
-                                    Box(Modifier.background(fundo)) {
-                                        LinhaMov(
-                                            descricao = item.descricao,
-                                            centavos = item.valorCentavos,
-                                            recorrente = item.recorrente,
-                                            natureza = mov.natureza,
-                                            onClick = { onItemClick(mov) },
-                                        )
-                                    }
-                                }
+                        }
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = false,
+                            backgroundContent = { FundoExcluir() },
+                        ) {
+                            // O cartão pinta o próprio fundo, então o painel vermelho — que o
+                            // SwipeToDismissBox mantém desenhado atrás o tempo todo — não vaza
+                            // através dele com a linha parada.
+                            CartaoMov(
+                                descricao = item.descricao,
+                                centavos = item.valorCentavos,
+                                recorrente = item.recorrente,
+                                natureza = mov.natureza,
+                                destacado = ehHoje,
+                                onClick = { onItemClick(mov) },
+                            ) {
                                 if (etiquetas.isNotEmpty()) {
                                     FileiraDeEtiquetas(
                                         etiquetas = etiquetas,
@@ -686,48 +692,78 @@ internal fun DayRow(
                                 }
                             }
                         }
-
-                        // A fatura e um total calculado, nao uma movimentacao de verdade: toca
-                        // para abrir a lista de compras, mas nao passa por onItemClick - nao ha
-                        // editor para uma linha que nao existe no banco. FaturaDia.recorrente e
-                        // sempre true, entao nunca cai no branch da bolinha colorida.
-                        is ItemDia.FaturaDia -> LinhaMov(
-                            descricao = item.descricao,
-                            centavos = item.valorCentavos,
-                            recorrente = true,
-                            natureza = Natureza.CARTAO,
-                            onClick = { onFaturaClick(item.fatura) },
-                        )
                     }
+
+                    // A fatura e um total calculado, nao uma movimentacao de verdade: toca
+                    // para abrir a lista de compras, mas nao passa por onItemClick - nao ha
+                    // editor para uma linha que nao existe no banco. FaturaDia.recorrente e
+                    // sempre true, entao nunca cai no branch da bolinha colorida.
+                    is ItemDia.FaturaDia -> CartaoMov(
+                        descricao = item.descricao,
+                        centavos = item.valorCentavos,
+                        recorrente = true,
+                        natureza = Natureza.CARTAO,
+                        destacado = ehHoje,
+                        onClick = { onFaturaClick(item.fatura) },
+                    )
                 }
             }
-        }
-
-        if (mostrarSaldo) {
-            SaldoPill(
-                centavos = dia.saldoCentavos,
-                nivel = nivelDeCalor(dia.saldoCentavos, faixa),
-                modifier = Modifier.testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
-            )
         }
     }
 }
 
-/** Uma movimentação dentro da linha do dia: marcador, descrição, valor. */
+/**
+ * Um lançamento: marcador e descrição em cima, valor embaixo.
+ *
+ * Nesta ordem porque a descrição é o que se procura e o valor é o que se confere — e porque só
+ * com o valor numa linha própria ele para de disputar largura com o texto. A descrição para em
+ * duas linhas: além disso não é mais uma descrição, é um parágrafo, e o cartão viraria um bloco.
+ */
 @Composable
-private fun LinhaMov(
+private fun CartaoMov(
     descricao: String,
     centavos: Long,
     recorrente: Boolean,
     natureza: Natureza,
+    destacado: Boolean,
     onClick: () -> Unit,
+    extra: @Composable ColumnScope.() -> Unit = {},
 ) {
     val colors = SaldoTheme.colors
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CANTO_CARTAO))
+            .background(if (destacado) colors.secondaryContainer else colors.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GAP_MARCADOR),
+        ) {
+            Marcador(recorrente, natureza)
+            DescricaoTexto(descricao, Modifier.weight(1f), style = SaldoTheme.type.row, maxLines = 2)
+        }
+        // Alinhado com a descrição, não com o marcador: as duas linhas do cartão formam uma
+        // coluna só, e o marcador fica sozinho na margem como a bolinha que é.
+        MoneyText(
+            centavos = centavos,
+            modifier = Modifier.padding(start = LARGURA_MARCADOR + GAP_MARCADOR),
+            style = SaldoTheme.type.row.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.label,
+            formato = FormatoMoney.ASSINADO,
+        )
+        extra()
+    }
+}
+
+/** A bolinha da natureza, ou o glifo de recorrente, numa coluna de largura fixa. */
+@Composable
+private fun Marcador(recorrente: Boolean, natureza: Natureza) {
+    val colors = SaldoTheme.colors
+    Box(Modifier.size(LARGURA_MARCADOR), contentAlignment = Alignment.Center) {
         if (recorrente) {
             SaldoGlyph(SaldoIcon.RECORRENTE, colors.secondaryLabel, size = 11.dp, strokeWidth = 1.3.dp)
         } else {
@@ -741,12 +777,27 @@ private fun LinhaMov(
                 ),
             )
         }
-        DescricaoTexto(descricao, style = SaldoTheme.type.row)
-        MoneyText(
-            centavos = centavos,
-            modifier = Modifier.weight(1f),
-            style = SaldoTheme.type.row, color = colors.secondaryLabel,
-            formato = FormatoMoney.ASSINADO, textAlign = TextAlign.End,
+    }
+}
+
+/** O painel que aparece atrás do cartão no arrasto para a esquerda. */
+@Composable
+private fun FundoExcluir() {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(CANTO_CARTAO))
+            .background(SaldoTheme.colors.categoryVariable),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        Text(
+            "excluir",
+            Modifier.padding(end = 16.dp),
+            style = SaldoTheme.type.footnote,
+            // `categoryVariable` inverte de claridade entre os esquemas igual ao tint: branco
+            // fixo dava 2,46:1 no escuro. `inverseOnSurface` tem exatamente a polaridade certa
+            // - tinta clara no tema claro, escura no escuro - e da 5,4:1 nos dois.
+            color = MaterialTheme.colorScheme.inverseOnSurface,
         )
     }
 }

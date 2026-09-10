@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.scholze.saldo.domain.descricaoVisivel
@@ -53,6 +54,8 @@ fun DescricaoTexto(
     descricao: String,
     modifier: Modifier = Modifier,
     style: TextStyle = SaldoTheme.type.body,
+    /** Padrão ilimitado: quem desenha num espaço fechado — o cartão do dia — é que corta. */
+    maxLines: Int = Int.MAX_VALUE,
 ) {
     val colors = SaldoTheme.colors
     Text(
@@ -60,6 +63,8 @@ fun DescricaoTexto(
         modifier = modifier,
         style = style,
         color = if (descricao.isBlank()) colors.secondaryLabel else colors.label,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
