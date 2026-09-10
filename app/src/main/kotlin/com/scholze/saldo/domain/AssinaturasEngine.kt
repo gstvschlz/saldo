@@ -50,6 +50,15 @@ object AssinaturasEngine {
     /** O teto da lista: a seção é um empurrão, não uma caixa de entrada (decisão 13). */
     private const val MAXIMO = 3
 
+    /**
+     * O maior reajuste que ainda conta como reajuste: **25%**, escrito como divisor para a conta
+     * ficar em inteiros (`|para − de| * 4 <= de`). Acima disso o nome pode até ser o mesmo, mas
+     * a cobrança não é a mesma coisa — e é este número que separa o reajuste de verdade
+     * (R$ 39,90 → R$ 44,90, +12,5%) de um gasto que só varia com o mesmo nome (+30%, que o
+     * `variacaoDeTrintaPorCentoNaoE` guarda desde a `arrumacao-1`).
+     */
+    private const val DEGRAU_MAXIMO_DIVISOR = 4
+
     fun candidatas(input: LedgerInput, hoje: LocalDate, dispensadas: Set<String>): List<Assinatura> {
         val mesCorrente = YearMonth.from(hoje)
         val inicio = mesCorrente.minusMonths(MESES_DE_JANELA)
@@ -76,10 +85,14 @@ object AssinaturasEngine {
         ocorrencias: List<Movimentacao>,
         mesCorrente: YearMonth,
     ): Assinatura? {
+        // Por data, e o id só desempata: a ordem em que o banco devolveu as linhas não pode
+        // decidir nada — e o teste do reajuste, mais abaixo, LÊ a série em ordem.
+        val ordenadas = ocorrencias.sortedWith(compareBy({ it.data }, { it.id }))
+
         // Uma cobrança por mês. Duas no mesmo mês derrubam a candidata inteira — é o
         // discriminador mais barato que existe contra o falso positivo óbvio: iFood, posto e
         // mercado saem várias vezes no mesmo mês (decisão 9).
-        val porMes = ocorrencias.groupBy { YearMonth.from(it.data) }
+        val porMes = ordenadas.groupBy { YearMonth.from(it.data) }
         if (porMes.values.any { it.size != 1 }) return null
 
         // A sequência tem de CHEGAR até agora — mês corrente ou o anterior. Uma cobrança que
@@ -96,21 +109,15 @@ object AssinaturasEngine {
         val meses = sequenciaFinal(mesesOrdenados)
         if (meses < MESES_MINIMOS) return null
 
-        // ±10% da mediana, em inteiros: `v/mediana in [0,9 .. 1,1]` vira `v*10` contra
-        // `mediana*9` e `mediana*11`, sem ponto flutuante nenhum perto de dinheiro.
-        val valores = ocorrencias.map { abs(it.valorCentavos) }
-        val medianaValor = mediana(valores)
-        if (valores.any { it * 10 < medianaValor * 9 || it * 10 > medianaValor * 11 }) return null
+        // Os valores, em ordem de data: ou são todos parecidos, ou têm UM reajuste no meio.
+        if (!pareceMesmaAssinatura(ordenadas.map { abs(it.valorCentavos) })) return null
 
         // ±5 dias, sem circularidade: dia 1 e dia 30 são 29 dias de distância, não 2 — e é isso
         // que se quer, porque uma cobrança que pula de ponta a ponta do mês não é uma assinatura.
-        val dias = ocorrencias.map { it.data.dayOfMonth.toLong() }
+        val dias = ordenadas.map { it.data.dayOfMonth.toLong() }
         val medianaDia = mediana(dias)
         if (dias.any { abs(it - medianaDia) > 5 }) return null
 
-        // Por data, e o id só desempata: duas linhas no mesmo dia já foram descartadas acima, mas
-        // a ordenação não pode depender da ordem em que o banco devolveu as linhas.
-        val ordenadas = ocorrencias.sortedWith(compareBy({ it.data }, { it.id }))
         val ultima = ordenadas.last()
         val penultima = ordenadas[ordenadas.size - 2]
         val u = abs(ultima.valorCentavos)
@@ -126,6 +133,45 @@ object AssinaturasEngine {
             meses = meses,
             ocorrenciaMaisRecente = ultima,
         )
+    }
+
+    /**
+     * Os [valores], **em ordem de data**, são a mesma assinatura?
+     *
+     * Duas formas contam. A primeira é a de sempre: todos dentro de ±10% da mediana — a
+     * assinatura que não mudou de preço. A segunda existe porque a primeira tinha um buraco que o
+     * próprio texto do app denunciava: o exemplo da copy, *"subiu de R$ 39,90 para R$ 44,90"*, é
+     * +12,5% e **não passava** — e nem passaria depois, porque enquanto o preço novo não domina a
+     * mediana são os valores VELHOS que caem fora. A detecção ficava cega exatamente no mês em
+     * que o "subiu de" seria útil.
+     *
+     * Então: **um degrau, e só um**. Existe um corte que parte a série em dois blocos, cada um
+     * coerente consigo mesmo, e o salto entre as duas medianas cabe em [DEGRAU_MAXIMO_DIVISOR]. Um
+     * degrau maior que isso não é reajuste — é outra coisa com o mesmo nome —, e dois degraus
+     * não são assinatura nenhuma: são um gasto que varia.
+     *
+     * Tudo em inteiros: `v/mediana in [0,9 .. 1,1]` vira `v*10` contra `mediana*9` e
+     * `mediana*11`, sem ponto flutuante nenhum perto de dinheiro.
+     */
+    private fun pareceMesmaAssinatura(valores: List<Long>): Boolean {
+        if (pertoDaMediana(valores)) return true
+        // `corte` é o tamanho do bloco de antes; vai de 1 até size-1, então os dois blocos nunca
+        // são vazios e a mediana de cada um existe.
+        for (corte in 1 until valores.size) {
+            val antes = valores.subList(0, corte)
+            val depois = valores.subList(corte, valores.size)
+            if (!pertoDaMediana(antes) || !pertoDaMediana(depois)) continue
+            val de = mediana(antes)
+            val para = mediana(depois)
+            if (abs(para - de) * DEGRAU_MAXIMO_DIVISOR <= de) return true
+        }
+        return false
+    }
+
+    /** Todos dentro de ±10% da mediana da própria lista. Lista de um elemento passa sempre. */
+    private fun pertoDaMediana(valores: List<Long>): Boolean {
+        val m = mediana(valores)
+        return valores.none { it * 10 < m * 9 || it * 10 > m * 11 }
     }
 
     /**

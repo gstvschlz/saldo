@@ -116,6 +116,42 @@ class AssinaturasEngineTest {
         assertEquals(-39_90L, c.valorAnteriorCentavos)
     }
 
+    /**
+     * O reajuste de verdade — e o buraco que ele denunciava. O exemplo da copy do app,
+     * "subiu de R$ 39,90 para R$ 44,90", é +12,5% e NÃO passava pela regra de ±10% da mediana:
+     * enquanto o preço novo não dominasse a mediana, eram os valores velhos que caíam fora. A
+     * detecção ficava cega justamente no mês em que o "subiu de" seria útil.
+     */
+    @Test
+    fun oReajusteDoExemploDaCopyEcandidata() {
+        val c = candidatas(listOf(mov("2026-06-10"), mov("2026-07-10"), mov("2026-08-10", -44_90))).single()
+        assertEquals(-44_90L, c.valorCentavos)
+        assertEquals(-39_90L, c.valorAnteriorCentavos)
+    }
+
+    /** E o degrau conta a partir de onde ele acontece: dois meses no preço novo também passam. */
+    @Test
+    fun oReajusteJaAssentadoTambemEcandidata() {
+        val c = candidatas(
+            listOf(mov("2026-06-10"), mov("2026-07-10", -44_90), mov("2026-08-10", -44_90)),
+        ).single()
+        assertEquals(-44_90L, c.valorCentavos)
+        // Os dois últimos são iguais: não há "subiu de" a anunciar neste mês.
+        assertNull(c.valorAnteriorCentavos)
+    }
+
+    /**
+     * UM degrau, não dois. Um valor diferente a cada mês é um gasto que varia com o mesmo nome —
+     * é o falso positivo que a tolerância existe para barrar.
+     */
+    @Test fun doisDegrausNaoSaoAssinatura() =
+        assertEquals(
+            emptyList<Assinatura>(),
+            candidatas(
+                listOf(mov("2026-06-10", -39_90), mov("2026-07-10", -47_00), mov("2026-08-10", -56_00)),
+            ),
+        )
+
     @Test fun variacaoDeTrintaPorCentoNaoE() =
         assertEquals(
             emptyList<Assinatura>(),
