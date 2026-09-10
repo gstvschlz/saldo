@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -73,6 +74,18 @@ private val NATUREZAS = listOf(Natureza.DIARIO to "diário", Natureza.ECONOMIA t
  * Tapping the amount hands off to the 1g keypad, which REPLACES the sheet content
  * rather than stacking over it.
  */
+/**
+ * O menor alvo de toque que este app aceita.
+ *
+ * 48 dp é o mínimo do Material e das diretrizes de acessibilidade do Android. Vários alvos desta
+ * tela mediam a altura do próprio texto (~22 dp) porque o `clickable` estava no `Text`, e não num
+ * contêiner — inclusive o "excluir", que é destrutivo.
+ *
+ * `defaultMinSize` e não `height`: ele só cresce o que está pequeno, então nada que já passe de
+ * 48 dp encolhe, e com fonte grande o alvo acompanha o texto em vez de cortá-lo.
+ */
+private val ALVO_MINIMO = 48.dp
+
 @Composable
 fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier = Modifier) {
     val colors = SaldoTheme.colors
@@ -123,12 +136,18 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "cancelar",
-                    Modifier.clickable(onClick = onFechar),
-                    style = SaldoTheme.type.body,
-                    color = colors.tint,
-                )
+                // O `clickable` fica no Box, não no Text: um texto de 17 sp mede ~22 dp de
+                // altura, e era esse o alvo de "cancelar" — metade do mínimo. O padding entra
+                // DENTRO do clicável, então ele conta para o alvo.
+                Box(
+                    Modifier
+                        .defaultMinSize(minHeight = ALVO_MINIMO)
+                        .clickable(onClick = onFechar)
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("cancelar", style = SaldoTheme.type.body, color = colors.tint)
+                }
                 Text(
                     if (state.editandoId == null) "nova movimentação" else "editar movimentação",
                     Modifier.weight(1f),
@@ -136,12 +155,19 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                     color = colors.label,
                     textAlign = TextAlign.Center,
                 )
-                Text(
-                    "salvar",
-                    Modifier.clickable(enabled = state.podeSalvar, onClick = salvar),
-                    style = SaldoTheme.type.body.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (state.podeSalvar) colors.tint else colors.secondaryLabel,
-                )
+                Box(
+                    Modifier
+                        .defaultMinSize(minHeight = ALVO_MINIMO)
+                        .clickable(enabled = state.podeSalvar, onClick = salvar)
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "salvar",
+                        style = SaldoTheme.type.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (state.podeSalvar) colors.tint else colors.secondaryLabel,
+                    )
+                }
             }
         }
 
@@ -164,10 +190,14 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                     val selecionada = state.natureza == n
                     Box(
                         Modifier
+                            // O chip continua visualmente baixo (7 dp de padding); o que cresce
+                            // é o ALVO, que antes media ~32 dp.
+                            .defaultMinSize(minHeight = ALVO_MINIMO)
                             .clip(RoundedCornerShape(percent = 50))
                             .background(if (selecionada) colors.tint else colors.surface)
                             .clickable { vm.definirNatureza(n) }
                             .padding(horizontal = 14.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             rotulo,
@@ -281,16 +311,22 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
             )
 
             if (state.editandoId != null) {
-                Text(
-                    if (ehRecorrente) "excluir recorrência" else "excluir movimentação",
+                // Destrutivo E o menor alvo da tela: 6 dp de padding sobre um texto de 17 sp
+                // davam ~34 dp. Um toque que apaga não pode ser o mais fácil de errar.
+                Box(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { if (ehRecorrente) pedindoExclusao = true else vm.excluir { onFechar() } }
-                        .padding(vertical = 6.dp),
-                    style = SaldoTheme.type.body,
-                    color = colors.categoryVariable,
-                    textAlign = TextAlign.Center,
-                )
+                        .defaultMinSize(minHeight = ALVO_MINIMO)
+                        .clickable { if (ehRecorrente) pedindoExclusao = true else vm.excluir { onFechar() } },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (ehRecorrente) "excluir recorrência" else "excluir movimentação",
+                        style = SaldoTheme.type.body,
+                        color = colors.categoryVariable,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
 
             val saldoFooter = state.saldoResultanteCentavos
@@ -381,7 +417,11 @@ fun NewEntrySheet(vm: EntryViewModel, onFechar: () -> Unit, modifier: Modifier =
                     state.todasTags.forEach { tag ->
                         val marcada = state.tagsSelecionadas.any { it.id == tag.id }
                         Row(
-                            Modifier.fillMaxWidth().clickable { vm.alternarTag(tag) }.padding(vertical = 6.dp),
+                            Modifier
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = ALVO_MINIMO)
+                                .clickable { vm.alternarTag(tag) }
+                                .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {

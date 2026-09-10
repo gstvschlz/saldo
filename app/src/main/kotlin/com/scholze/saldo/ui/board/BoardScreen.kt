@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -87,8 +88,6 @@ fun tagCelula(data: LocalDate): String = "board:celula:${data.toEpochDay()}"
 /** A calha do mês, à esquerda da grade. */
 private val CALHA = 22.dp
 
-/** A partir desta escala de fonte o número do dia não cabe na célula e some. */
-private const val ESCALA_SEM_NUMERO = 1.3f
 
 /**
  * Era `s t q q s s d`: quatro letras repetidas em sete colunas, que não distinguem terça de
@@ -334,7 +333,6 @@ private fun Celula(
     val oculto = LocalPrivacy.current.oculto
     val forma = RoundedCornerShape(8.dp)
     val ehHoje = dia.data == hoje
-    val mostraNumero = LocalDensity.current.fontScale < ESCALA_SEM_NUMERO
 
     val fundo = if (!dia.dentroDaJanela) colors.surface else colors.tomDoBoard(dia.nivel)
     val tinta = if (!dia.dentroDaJanela) colors.separator else colors.textoSobreBoard(dia.nivel)
@@ -347,9 +345,10 @@ private fun Celula(
             .aspectRatio(1f)
             .then(
                 when {
-                    // O dia aberto ganha o tint: é a ligação visível entre a célula tocada
-                    // e o painel que apareceu embaixo.
-                    aberto -> Modifier.border(2.dp, colors.tint, RoundedCornerShape(11.dp))
+                    // O dia aberto ganha o tint E uma borda mais grossa: é a ligação visível
+                    // entre a célula tocada e o painel que apareceu embaixo, e a espessura é o
+                    // que a distingue de hoje sem depender de enxergar a diferença de matiz.
+                    aberto -> Modifier.border(3.dp, colors.tint, RoundedCornerShape(11.dp))
                     ehHoje -> Modifier.border(2.dp, colors.label, RoundedCornerShape(11.dp))
                     else -> Modifier
                 },
@@ -367,12 +366,31 @@ private fun Celula(
                 .semantics { contentDescription = descricaoDe(dia, oculto) },
             contentAlignment = Alignment.Center,
         ) {
-            if (mostraNumero && dia.dentroDaJanela) {
-                LegendaTexto(
-                    dia.data.dayOfMonth.toString(),
-                    cor = tinta,
-                    peso = if (ehHoje) FontWeight.Bold else FontWeight.Normal,
-                )
+            // O número aparece em QUALQUER escala de fonte. Antes ele sumia acima de 1,3× —
+            // justamente para quem aumentou a fonte porque precisa —, e a grade virava
+            // quadradinhos coloridos sem data nenhuma. Em 360 dp de largura a célula tem ~48 dp
+            // e dois dígitos a 2× de 11 sp medem ~30 dp: cabe. O que a fonte grande muda é a
+            // célula ficar mais alta e a grade rolar, que ela já faz.
+            if (dia.dentroDaJanela) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    LegendaTexto(
+                        dia.data.dayOfMonth.toString(),
+                        cor = tinta,
+                        peso = if (ehHoje) FontWeight.Bold else FontWeight.Normal,
+                    )
+                    // Hoje e o dia aberto se distinguiam SÓ pela cor da borda (label × tint), e
+                    // duas bordas de 2 dp em cores diferentes é a diferença mais fácil de perder
+                    // — no daltonismo, no sol, num tema escuro. O ponto é forma, não matiz.
+                    if (ehHoje) {
+                        Box(
+                            Modifier
+                                .padding(top = 1.dp)
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(tinta),
+                        )
+                    }
+                }
             }
         }
     }
@@ -385,6 +403,22 @@ private fun Celula(
  * carregar aquela etiqueta, e aí "toque em + para lançar o primeiro" é conselho errado — o que
  * falta não é lançamento, é o × que devolve o mês inteiro.
  */
+/**
+ * Como cada tom da régua se chama em voz alta.
+ *
+ * "um dia típico" é a unidade que a própria legenda mostra logo abaixo (a mediana do mês), e os
+ * cortes são os do [com.scholze.saldo.domain.BoardEngine.nivelDe]: meio, um e meio, e acima.
+ */
+private fun nomeDoTom(nivel: Int): String = when (nivel) {
+    -3 -> "saiu muito mais que um dia típico"
+    -2 -> "saiu mais que um dia típico"
+    -1 -> "saiu menos que um dia típico"
+    0 -> "sem movimento"
+    1 -> "entrou menos que um dia típico"
+    2 -> "entrou mais que um dia típico"
+    else -> "entrou muito mais que um dia típico"
+}
+
 @Composable
 private fun BoardVazio(comTagFiltro: Boolean) {
     val colors = SaldoTheme.colors
@@ -421,7 +455,10 @@ private fun Legenda(unidadeCentavos: Long) {
                     Modifier
                         .size(12.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(colors.tomDoBoard(n)),
+                        .background(colors.tomDoBoard(n))
+                        // Sete `Box` sem semântica nenhuma: a régua que explica a cor de toda a
+                        // grade era invisível para quem não vê as cores.
+                        .semantics { contentDescription = nomeDoTom(n) },
                 )
             }
             LegendaTexto("entrou")

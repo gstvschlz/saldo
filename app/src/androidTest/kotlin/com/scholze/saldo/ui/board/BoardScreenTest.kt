@@ -272,6 +272,54 @@ class BoardScreenTest {
         rule.onNodeWithContentDescription("buscar").assertIsDisplayed()
     }
 
+    // ---- visão (widgets-a11y-1) ----
+
+    /**
+     * O número do dia sumia acima de 1,3× de fonte — justamente para quem aumentou a fonte
+     * porque precisa —, e a grade virava quadradinhos coloridos sem data nenhuma.
+     */
+    @Test
+    fun comFonteDobradaONumeroDoDiaContinuaNaTela() {
+        montar(escalaFonte = 2f)
+        celula(hoje).assertExists()
+        rule.onAllNodesWithText(hoje.dayOfMonth.toString(), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty().let { assertEquals(true, it) }
+    }
+
+    /** O cabeçalho deixou de ser `s t q q s s d`: terça e quinta eram a mesma letra. */
+    @Test
+    fun oCabecalhoTrazOsSeteDiasDistintos() {
+        montar()
+        listOf("seg", "ter", "qua", "qui", "sex", "sáb", "dom").forEach {
+            rule.onNodeWithText(it).assertIsDisplayed()
+        }
+    }
+
+    /** Sete `Box` sem semântica: a régua que explica a cor de toda a grade era invisível. */
+    @Test
+    fun aReguaDeCoresTemNomeEmCadaTom() {
+        montar()
+        rule.onNodeWithTag(TAG_BOARD_GRADE).performScrollToNode(hasTestTag(TAG_BOARD_LEGENDA))
+        listOf(
+            "saiu muito mais que um dia típico",
+            "sem movimento",
+            "entrou muito mais que um dia típico",
+        ).forEach { rule.onNodeWithContentDescription(it, useUnmergedTree = true).assertExists() }
+    }
+
+    /** O olho diz o que o toque FAZ; antes era a mesma frase ligado e desligado. */
+    @Test
+    fun oOlhoDizOQueVaiAcontecer() {
+        montar(oculto = false)
+        rule.onNodeWithContentDescription("ocultar valores").assertIsDisplayed()
+    }
+
+    @Test
+    fun comOsValoresOcultosOOlhoConvidaAMostrar() {
+        montar(oculto = true)
+        rule.onNodeWithContentDescription("mostrar valores").assertIsDisplayed()
+    }
+
     @Test
     fun semMovimentacaoNoMesAGradeConvidaALancarOPrimeiro() {
         montar(entrada = input.copy(movimentacoes = emptyList()))
