@@ -164,6 +164,10 @@ fun LembretesScreen(
                     trailing = { Switch(checked = config.registrarGastos, onCheckedChange = { mudar(config.copy(registrarGastos = it), ligando = it) }) },
                 )
                 InsetRow(
+                    label = "etiquetar os de hoje",
+                    trailing = { Switch(checked = config.etiquetarHoje, onCheckedChange = { mudar(config.copy(etiquetarHoje = it), ligando = it) }) },
+                )
+                InsetRow(
                     label = "hora do lembrete de registrar",
                     value = config.horaNudge.format(hhmm),
                     onClick = { editandoHora = Slot.NUDGE },

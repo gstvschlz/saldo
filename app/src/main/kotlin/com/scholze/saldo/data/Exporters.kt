@@ -122,6 +122,7 @@ object Exporters {
                 put("recorrenciaHoje", s.lembretes.recorrenciaHoje)
                 put("registrarGastos", s.lembretes.registrarGastos)
                 put("fechamentoMes", s.lembretes.fechamentoMes)
+                put("etiquetarHoje", s.lembretes.etiquetarHoje)
                 // "HH:mm": LocalTime.toString() omite os segundos quando são zero, e a hora do
                 // usuário sempre é redonda no minuto (o TimePicker não oferece segundos).
                 put("horaInformativos", s.lembretes.horaInformativos.toString())

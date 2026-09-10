@@ -21,6 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.RepetirOpcao
+import com.scholze.saldo.ui.board.TAG_AVISO_SEM_TAG
 import com.scholze.saldo.ui.board.TAG_BOARD_GRADE
 import com.scholze.saldo.ui.board.tagCelula
 import com.scholze.saldo.ui.components.TAG_CAMPO_BUSCA
@@ -173,6 +174,38 @@ class BoardFlowTest {
         rule.onNodeWithContentDescription("buscar").performClick()
         rule.onNodeWithContentDescription("fechar busca").performClick()
         rule.onNodeWithText(YearMonth.now().format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("pt-BR")))).assertIsDisplayed()
+    }
+
+    // ---- o lembrete de etiquetar, no painel do dia ----
+
+    /**
+     * O caminho inteiro: o aviso conta, abre a fileira, um toque etiqueta — e o "desfazer" do
+     * snackbar traz a linha de volta para a fila, sem etiqueta.
+     *
+     * Era um teste da lista, sob o filtro `sem tag`; a fila virou um aviso dentro do dia.
+     */
+    @Test
+    fun oAvisoEtiquetaEODesfazerTrazDeVolta() {
+        criarTag("comida", 0xFFB63C62L)
+        semearNoDia1EAbrir("padaria")
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithTag(TAG_AVISO_SEM_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithText("1 sem tag · etiquetar").assertIsDisplayed()
+
+        rule.onNodeWithTag(TAG_AVISO_SEM_TAG).performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithContentDescription("etiquetar como comida").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        rule.onNodeWithContentDescription("etiquetar como comida").performClick()
+        // Etiquetada, a linha sai da conta: o aviso some do dia.
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag(TAG_AVISO_SEM_TAG).fetchSemanticsNodes().isEmpty() }
+
+        rule.onNodeWithText("desfazer").performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithTag(TAG_AVISO_SEM_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     // ---- a meta no hero (arrumacao-1) ----

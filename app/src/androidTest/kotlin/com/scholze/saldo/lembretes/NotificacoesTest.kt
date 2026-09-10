@@ -67,6 +67,34 @@ class NotificacoesTest {
     }
 
     @Test
+    fun etiquetarHojeContaNoSingularENoPlural() {
+        val dia = LocalDate.parse("2026-09-10")
+        val tres = Notificacoes.construir(ctx, Lembrete.EtiquetarHoje(dia, 3))
+        assertEquals(Notificacoes.ID_ETIQUETAR, tres.first)
+        assertEquals("3 lançamentos de hoje estão sem tag", titulo(tres.second))
+        assertEquals("toque para etiquetar", texto(tres.second))
+
+        val um = Notificacoes.construir(ctx, Lembrete.EtiquetarHoje(dia, 1)).second
+        assertEquals("1 lançamento de hoje está sem tag", titulo(um))
+    }
+
+    /** Uma contagem de linhas não diz quanto se gastou: a versão da tela de bloqueio é a mesma. */
+    @Test
+    fun etiquetarHojeNaoEsconderNadaNaTelaDeBloqueio() {
+        val n = Notificacoes.construir(ctx, Lembrete.EtiquetarHoje(LocalDate.parse("2026-09-10"), 2)).second
+        assertEquals(titulo(n), titulo(n.publicVersion))
+    }
+
+    /** O slot do fim do dia limpa os DOIS ids: um lembrete que deixou de valer não fica pendurado. */
+    @Test
+    fun oSlotDoFimDoDiaConheceOsDoisIds() {
+        assertEquals(
+            listOf(Notificacoes.ID_REGISTRAR, Notificacoes.ID_ETIQUETAR),
+            Notificacoes.idsDoSlot(Slot.NUDGE),
+        )
+    }
+
+    @Test
     fun fechamentoSobrouEFaltou() {
         val sobrou = Notificacoes.construir(ctx, Lembrete.FechamentoMes(YearMonth.of(2026, 7), 312_50, 8_240_00, 7_927_50)).second
         assertEquals("julho fechou: sobrou R$ 312,50", titulo(sobrou))

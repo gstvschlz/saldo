@@ -347,6 +347,10 @@ fun SaldoApp(
                         onTogglePrivacidade = privacidade::alternar,
                         onVerGuardado = { verGuardado(boardVm.mesAtualAgora) },
                         onLimparTag = { boardVm.definirTagFiltro(null) },
+                        onEtiquetar = { mov, tag -> boardVm.etiquetar(mov.id, tag) },
+                        // O `+` cai na sheet, onde escolher várias etiquetas e criar uma na
+                        // hora já existe — e ela já recusa `id == 0` sozinha.
+                        onMaisEtiquetas = abrirMovimentacao,
                         onTentar = boardVm::tentarDeNovo,
                         metaGuardarPercent = s.metaGuardarPercent,
                         busca = buscaBoard,

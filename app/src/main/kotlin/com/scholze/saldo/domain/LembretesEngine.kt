@@ -13,6 +13,8 @@ sealed interface Lembrete {
     /** As linhas fixas de [dia] (hoje): recorrências e uma fatura que vença nesse dia. */
     data class RecorrenciasHoje(val dia: LocalDate, val itens: List<ItemDia>) : Lembrete
     data object RegistrarGastos : Lembrete
+    /** [quantos] lançamentos de [dia] estão sem etiqueta; sempre >= 1 (zero não vira lembrete). */
+    data class EtiquetarHoje(val dia: LocalDate, val quantos: Int) : Lembrete
     data class FechamentoMes(
         val mes: YearMonth,
         val sobrouCentavos: Long,
@@ -40,8 +42,28 @@ object LembretesEngine {
             if (config.recorrenciaHoje) recorrenciasHoje(input)?.let(::add)
             if (config.fechamentoMes) fechamentoMes(input)?.let(::add)
         }
-        Slot.NUDGE ->
-            if (config.registrarGastos && nadaCriadoHoje(input, zona)) listOf(Lembrete.RegistrarGastos) else emptyList()
+        Slot.NUDGE -> buildList {
+            if (config.registrarGastos && nadaCriadoHoje(input, zona)) add(Lembrete.RegistrarGastos)
+            if (config.etiquetarHoje) etiquetarHoje(input)?.let(::add)
+        }
+    }
+
+    /**
+     * Os lançamentos de HOJE que ainda não têm etiqueta.
+     *
+     * O mesmo corte da fila de "sem tag" ([ProjectionEngine.MesLedger.semTag]), estreitado ao dia:
+     * linha real (`id != 0`, uma ocorrência virtual não tem onde receber etiqueta) e fora do
+     * cartão (uma compra de cartão não aparece como linha, ela entra no total da fatura). Zero
+     * não vira lembrete — "hoje: nada a etiquetar" é ruído, e o app não manda notificação vazia.
+     *
+     * Convive com [Lembrete.RegistrarGastos] no mesmo slot sem se contradizer: aquele só sai
+     * quando NADA foi criado hoje, este só quando alguma coisa foi — e ficou sem etiqueta.
+     */
+    private fun etiquetarHoje(input: LedgerInput): Lembrete.EtiquetarHoje? {
+        val quantos = input.movimentacoes.count {
+            it.data == input.hoje && it.id != 0L && it.tags.isEmpty() && it.natureza != Natureza.CARTAO
+        }
+        return if (quantos == 0) null else Lembrete.EtiquetarHoje(input.hoje, quantos)
     }
 
     /** A fatura com vencimento em hoje+1, se tiver compras. */

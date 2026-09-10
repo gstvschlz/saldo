@@ -79,5 +79,5 @@ class LembretesScheduler(private val context: Context) {
 
 private fun LembretesConfig.doSlot(slot: Slot): Pair<Boolean, LocalTime> = when (slot) {
     Slot.INFORMATIVOS -> algumInformativo to horaInformativos
-    Slot.NUDGE -> registrarGastos to horaNudge
+    Slot.NUDGE -> algumDoFimDoDia to horaNudge
 }

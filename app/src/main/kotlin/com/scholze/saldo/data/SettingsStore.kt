@@ -70,6 +70,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val lembreteRecorrenciaHoje = booleanPreferencesKey("lembrete_recorrencia_hoje")
         val lembreteRegistrarGastos = booleanPreferencesKey("lembrete_registrar_gastos")
         val lembreteFechamentoMes = booleanPreferencesKey("lembrete_fechamento_mes")
+        val lembreteEtiquetarHoje = booleanPreferencesKey("lembrete.etiquetarHoje")
         /** Minutos desde a meia-noite (0..1439). */
         val lembretesHoraInformativos = intPreferencesKey("lembretes_hora_informativos")
         val lembretesHoraNudge = intPreferencesKey("lembretes_hora_nudge")
@@ -164,6 +165,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         recorrenciaHoje = this[Keys.lembreteRecorrenciaHoje] ?: false,
         registrarGastos = this[Keys.lembreteRegistrarGastos] ?: false,
         fechamentoMes = this[Keys.lembreteFechamentoMes] ?: false,
+        etiquetarHoje = this[Keys.lembreteEtiquetarHoje] ?: false,
         horaInformativos = hora(Keys.lembretesHoraInformativos, LembretesConfig().horaInformativos),
         horaNudge = hora(Keys.lembretesHoraNudge, LembretesConfig().horaNudge),
     )
@@ -219,6 +221,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[Keys.lembreteRecorrenciaHoje] = config.recorrenciaHoje
             it[Keys.lembreteRegistrarGastos] = config.registrarGastos
             it[Keys.lembreteFechamentoMes] = config.fechamentoMes
+            it[Keys.lembreteEtiquetarHoje] = config.etiquetarHoje
             it[Keys.lembretesHoraInformativos] = config.horaInformativos.toSecondOfDay() / 60
             it[Keys.lembretesHoraNudge] = config.horaNudge.toSecondOfDay() / 60
         }
@@ -337,6 +340,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             p[Keys.lembreteRecorrenciaHoje] = novo.lembretes.recorrenciaHoje
             p[Keys.lembreteRegistrarGastos] = novo.lembretes.registrarGastos
             p[Keys.lembreteFechamentoMes] = novo.lembretes.fechamentoMes
+            p[Keys.lembreteEtiquetarHoje] = novo.lembretes.etiquetarHoje
             p[Keys.lembretesHoraInformativos] = novo.lembretes.horaInformativos.toSecondOfDay() / 60
             p[Keys.lembretesHoraNudge] = novo.lembretes.horaNudge.toSecondOfDay() / 60
             p[Keys.capturaLigada] = novo.captura.ligada

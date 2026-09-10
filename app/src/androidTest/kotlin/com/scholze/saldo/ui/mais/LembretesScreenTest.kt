@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.isOn
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
@@ -36,8 +37,8 @@ class LembretesScreenTest {
     @get:Rule(order = 2)
     val rule = createComposeRule()
 
-    @Test
-    fun ligarUmLembreteGravaAConfig() {
+    /** A tela ligada ao `MaisViewModel` de verdade: o switch renderiza do que foi gravado. */
+    private fun montar() {
         val app = ApplicationProvider.getApplicationContext<SaldoApplication>()
         val vm = MaisViewModel(
             settingsStore = app.container.settings,
@@ -55,6 +56,23 @@ class LembretesScreenTest {
                     LembretesScreen(config = s.lembretes, onDefinir = vm::definirLembretes, onVoltar = {})
                 }
             }
+        }
+    }
+
+    @Test
+    fun oInterruptorDeEtiquetarEstaNaTela() {
+        montar()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithText("etiquetar os de hoje").fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithText("etiquetar os de hoje").assertIsDisplayed()
+    }
+
+    @Test
+    fun ligarUmLembreteGravaAConfig() {
+        montar()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithText("fatura vence amanhã").fetchSemanticsNodes().isNotEmpty()
         }
         rule.onNodeWithText("fatura vence amanhã").assertIsDisplayed()
 

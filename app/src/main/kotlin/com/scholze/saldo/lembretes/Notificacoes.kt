@@ -34,6 +34,7 @@ object Notificacoes {
     const val ID_RECORRENCIAS = 1002
     const val ID_FECHAMENTO = 1003
     const val ID_REGISTRAR = 1004
+    const val ID_ETIQUETAR = 1005
 
     private val ptBr = Locale.forLanguageTag("pt-BR")
     private val diaDeMes = DateTimeFormatter.ofPattern("d 'de' MMMM", ptBr)
@@ -42,7 +43,7 @@ object Notificacoes {
         NotificationManagerCompat.from(context).createNotificationChannel(
             NotificationChannelCompat.Builder(CANAL, NotificationManagerCompat.IMPORTANCE_DEFAULT)
                 .setName("lembretes")
-                .setDescription("fatura, recorrências, registrar gastos e fechamento do mês")
+                .setDescription("fatura, recorrências, registrar gastos, etiquetar e fechamento do mês")
                 .build(),
         )
     }
@@ -58,7 +59,7 @@ object Notificacoes {
     /** Os ids que [construir] pode gerar para o [slot] — a lista que [sincronizar] varre para decidir o que cancelar. */
     fun idsDoSlot(slot: Slot): List<Int> = when (slot) {
         Slot.INFORMATIVOS -> listOf(ID_FATURA, ID_RECORRENCIAS, ID_FECHAMENTO)
-        Slot.NUDGE -> listOf(ID_REGISTRAR)
+        Slot.NUDGE -> listOf(ID_REGISTRAR, ID_ETIQUETAR)
     }
 
     /**
@@ -104,6 +105,21 @@ object Notificacoes {
                 titulo = if (linhas.size == 1) "hoje: ${linhas.single()}" else "hoje: ${linhas.size} movimentações fixas",
                 texto = linhas.joinToString(" · "),
                 tituloPublico = "movimentações fixas de hoje",
+                destino = Destino.Saldos(YearMonth.from(lembrete.dia), lembrete.dia.dayOfMonth),
+            )
+        }
+        is Lembrete.EtiquetarHoje -> {
+            val quantos = lembrete.quantos
+            val titulo =
+                if (quantos == 1) "1 lançamento de hoje está sem tag"
+                else "$quantos lançamentos de hoje estão sem tag"
+            ID_ETIQUETAR to notificacao(
+                context, ID_ETIQUETAR,
+                titulo = titulo,
+                texto = "toque para etiquetar",
+                // Sem valor no texto, então a versão pública é a mesma: uma contagem de linhas
+                // não diz quanto se gastou.
+                tituloPublico = titulo,
                 destino = Destino.Saldos(YearMonth.from(lembrete.dia), lembrete.dia.dayOfMonth),
             )
         }

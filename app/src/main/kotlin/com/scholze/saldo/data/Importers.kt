@@ -146,6 +146,7 @@ object Importers {
                 recorrenciaHoje = l.optBoolean("recorrenciaHoje", false),
                 registrarGastos = l.optBoolean("registrarGastos", false),
                 fechamentoMes = l.optBoolean("fechamentoMes", false),
+                etiquetarHoje = l.optBoolean("etiquetarHoje", false),
                 horaInformativos = hora(l.textoOuNulo("horaInformativos"), padraoLembretes.horaInformativos),
                 horaNudge = hora(l.textoOuNulo("horaNudge"), padraoLembretes.horaNudge),
             ),

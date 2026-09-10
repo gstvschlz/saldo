@@ -51,6 +51,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -342,6 +344,26 @@ internal fun descricaoDoTeto(teto: Teto, oculto: Boolean): String {
     return "$abertura, $resta"
 }
 
+/** O aviso "N sem tag · etiquetar" no topo do painel do dia. */
+const val TAG_AVISO_SEM_TAG = "dia:semTag"
+
+/**
+ * O lembrete de etiquetar do painel do dia, e o que ele abre.
+ *
+ * `null` em [DayRow] = não desenhar aviso nenhum (é o caso dos resultados da busca, onde uma
+ * linha solta não é "o dia" e cobrar etiquetas ali seria fora de hora).
+ *
+ * [aberto] é estado de tela, não de dado: o aviso é um interruptor que revela a fileira de
+ * etiquetas DENTRO de cada cartão sem tag, em vez de mandar o usuário para outra tela.
+ */
+data class LembreteDeTags(
+    val aberto: Boolean,
+    val etiquetas: List<Tag>,
+    val onAlternar: () -> Unit,
+    val onEtiquetar: (Movimentacao, Tag) -> Unit,
+    val onMais: (Movimentacao) -> Unit,
+)
+
 /** O canto dos cartões de lançamento — e do painel vermelho que aparece atrás no arrasto. */
 private val CANTO_CARTAO = 16.dp
 
@@ -370,13 +392,16 @@ internal fun DayRow(
     onExcluir: (Movimentacao) -> Unit,
     onFaturaClick: (Fatura) -> Unit,
     mostrarSaldo: Boolean = true,
-    /** Não vazia só sob o filtro `sem tag`: a fileira de etiquetas dentro de cada cartão. */
-    etiquetas: List<Tag> = emptyList(),
-    onEtiquetar: (Movimentacao, Tag) -> Unit = { _, _ -> },
-    onMaisEtiquetas: (Movimentacao) -> Unit = {},
+    /** `null` = sem aviso de etiquetar neste contexto. Ver [LembreteDeTags]. */
+    lembrete: LembreteDeTags? = null,
 ) {
     val colors = SaldoTheme.colors
     val ehHoje = dia.data == hoje
+
+    // O mesmo corte da fila de "sem tag", estreitado a este dia: linha real (uma ocorrência
+    // virtual não tem onde receber etiqueta) e nada do futuro. Compra de cartão nem chega aqui
+    // — ela entra no total da fatura, não como linha do dia.
+    val semTag = remember(dia, hoje) { dia.itens.count { it.precisaDeTag(hoje) } }
 
     Column(
         Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
@@ -399,6 +424,10 @@ internal fun DayRow(
                     modifier = Modifier.testTag(tagSaldoDoDia(dia.data.dayOfMonth)),
                 )
             }
+        }
+
+        if (lembrete != null && semTag > 0) {
+            AvisoSemTag(semTag, lembrete.aberto, lembrete.onAlternar)
         }
 
         if (dia.itens.isEmpty()) {
@@ -448,11 +477,14 @@ internal fun DayRow(
                                 destacado = ehHoje,
                                 onClick = { onItemClick(mov) },
                             ) {
-                                if (etiquetas.isNotEmpty()) {
+                                // Só nos cartões que de fato estão sem etiqueta: nos outros a
+                                // fileira seria um segundo jeito de editar a linha, competindo
+                                // com o toque que abre o editor.
+                                if (lembrete != null && lembrete.aberto && item.precisaDeTag(hoje)) {
                                     FileiraDeEtiquetas(
-                                        etiquetas = etiquetas,
-                                        onEtiquetar = { onEtiquetar(mov, it) },
-                                        onMais = { onMaisEtiquetas(mov) },
+                                        etiquetas = lembrete.etiquetas,
+                                        onEtiquetar = { lembrete.onEtiquetar(mov, it) },
+                                        onMais = { lembrete.onMais(mov) },
                                     )
                                 }
                             }
@@ -474,6 +506,58 @@ internal fun DayRow(
                 }
             }
         }
+    }
+}
+
+/**
+ * Este item é uma linha REAL, já acontecida e sem etiqueta nenhuma?
+ *
+ * `id != 0`: uma ocorrência virtual — a expansão de uma recorrência num mês ainda não
+ * materializado — não tem linha no banco para receber etiqueta. `data <= hoje`: o futuro entra
+ * na fila quando virar presente. Uma fatura nunca conta: ela é o agregado de um ciclo e não
+ * carrega etiqueta. É o mesmo critério de `MesLedger.semTag`, para o aviso e a fila do mês nunca
+ * discordarem sobre o que é "sem tag".
+ */
+private fun ItemDia.precisaDeTag(hoje: LocalDate): Boolean =
+    this is ItemDia.Mov && mov.id != 0L && mov.tags.isEmpty() && mov.data <= hoje
+
+/**
+ * "2 sem tag · etiquetar": o lembrete no topo do dia.
+ *
+ * Um interruptor, não um link: aberto, a fileira de etiquetas aparece dentro de cada cartão sem
+ * tag, e etiquetar não tira ninguém da tela em que já está. Só existe quando há trabalho — um
+ * aviso permanente anunciando uma tarefa é ruído nos dias em que está tudo etiquetado.
+ */
+@Composable
+private fun AvisoSemTag(quantos: Int, aberto: Boolean, onAlternar: () -> Unit) {
+    val colors = SaldoTheme.colors
+    val contagem = if (quantos == 1) "1 sem tag" else "$quantos sem tag"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CANTO_CARTAO))
+            .background(colors.secondaryContainer)
+            .clickable(onClick = onAlternar)
+            // Uma frase só para o TalkBack, em vez de dois nós soltos. Sem `contentDescription`
+            // próprio: o texto já diz tudo, e sobrepor uma descrição aqui só criaria uma segunda
+            // fonte de verdade para a mesma linha.
+            .semantics(mergeDescendants = true) { role = Role.Button }
+            .testTag(TAG_AVISO_SEM_TAG)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            if (aberto) "$contagem · escolha uma etiqueta" else "$contagem · etiquetar",
+            Modifier.weight(1f),
+            style = SaldoTheme.type.footnote,
+            color = colors.onPrimaryContainer,
+        )
+        Text(
+            if (aberto) "\u00d7" else "\u203a",
+            style = SaldoTheme.type.footnote,
+            color = colors.onPrimaryContainer,
+        )
     }
 }
 

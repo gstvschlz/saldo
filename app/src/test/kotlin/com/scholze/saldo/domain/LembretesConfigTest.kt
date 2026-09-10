@@ -24,4 +24,19 @@ class LembretesConfigTest {
         assertTrue(config.algum)
         assertFalse(config.algumInformativo)
     }
+
+    /** O slot do fim do dia tem dois lembretes; só um ligado já basta para ele ser agendado. */
+    @Test
+    fun soEtiquetarJaLigaOSlotDoFimDoDia() {
+        val config = LembretesConfig(etiquetarHoje = true)
+        assertTrue(config.algumDoFimDoDia)
+        assertTrue(config.algum)
+        assertFalse(config.algumInformativo)
+        assertEquals(1, config.ativos)
+    }
+
+    @Test
+    fun semNenhumDosDoisOSlotDoFimDoDiaFicaDesligado() {
+        assertFalse(LembretesConfig(faturaAmanha = true).algumDoFimDoDia)
+    }
 }

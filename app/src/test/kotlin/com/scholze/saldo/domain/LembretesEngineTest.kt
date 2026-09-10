@@ -13,13 +13,23 @@ class LembretesEngineTest {
     /** Fecha 28, vence 5 do mês seguinte: uma compra de julho vence em 5 de agosto. */
     private val cartao = CartaoConfig(nome = "nubank", fechamentoDia = 28, vencimentoDia = 5)
     private val zona = ZoneId.of("America/Sao_Paulo")
-    private val tudo = LembretesConfig(faturaAmanha = true, recorrenciaHoje = true, registrarGastos = true, fechamentoMes = true)
+    private val tudo = LembretesConfig(
+        faturaAmanha = true, recorrenciaHoje = true, registrarGastos = true, fechamentoMes = true,
+        etiquetarHoje = true,
+    )
 
-    private fun mov(dia: String, centavos: Long, natureza: Natureza = Natureza.DIARIO, rec: Long? = null, criadaEm: Long = 0) =
-        Movimentacao(
-            descricao = "m", valorCentavos = centavos, data = LocalDate.parse(dia), natureza = natureza,
-            recorrenciaId = rec, criadaEm = criadaEm,
-        )
+    private fun mov(
+        dia: String,
+        centavos: Long,
+        natureza: Natureza = Natureza.DIARIO,
+        rec: Long? = null,
+        criadaEm: Long = 0,
+        id: Long = 0,
+        tags: List<Tag> = emptyList(),
+    ) = Movimentacao(
+        id = id, descricao = "m", valorCentavos = centavos, data = LocalDate.parse(dia), natureza = natureza,
+        recorrenciaId = rec, criadaEm = criadaEm, tags = tags,
+    )
 
     private fun input(
         movs: List<Movimentacao> = emptyList(),
@@ -144,6 +154,71 @@ class LembretesEngineTest {
         val criadaAs2330 = LocalDate.parse("2026-07-20").atTime(23, 30).atZone(zona).toInstant().toEpochMilli()
         val i = input(movs = listOf(mov("2026-07-20", -30_00, criadaEm = criadaAs2330)), hoje = "2026-07-20")
         assertEquals(emptyList<Lembrete>(), avaliar(i, Slot.NUDGE))
+    }
+
+    // ---- etiquetar os de hoje ----
+
+    private val comida = Tag(id = 9, nome = "comida", cor = 0xFFB63C62L)
+
+    @Test
+    fun avisaQuantosLancamentosDeHojeEstaoSemTag() {
+        val i = input(
+            movs = listOf(
+                mov("2026-07-20", -30_00, id = 1),
+                mov("2026-07-20", -12_00, id = 2),
+                mov("2026-07-20", -50_00, id = 3, tags = listOf(comida)),
+            ),
+        )
+        val l = avaliar(i, Slot.NUDGE).filterIsInstance<Lembrete.EtiquetarHoje>().single()
+        assertEquals(2, l.quantos)
+        assertEquals(LocalDate.parse("2026-07-20"), l.dia)
+    }
+
+    /** Zero não vira notificação: "hoje: nada a etiquetar" é ruído. */
+    @Test
+    fun tudoEtiquetadoHojeNaoAvisa() {
+        val i = input(movs = listOf(mov("2026-07-20", -30_00, id = 1, tags = listOf(comida))))
+        assertTrue(avaliar(i, Slot.NUDGE).none { it is Lembrete.EtiquetarHoje })
+    }
+
+    /** Só HOJE: a fila do mês inteiro é assunto da tela, não desta notificação. */
+    @Test
+    fun lancamentoDeOntemSemTagNaoEntra() {
+        val i = input(movs = listOf(mov("2026-07-19", -30_00, id = 1)))
+        assertTrue(avaliar(i, Slot.NUDGE).none { it is Lembrete.EtiquetarHoje })
+    }
+
+    /** Ocorrência virtual (`id == 0`) não tem linha no banco para receber etiqueta. */
+    @Test
+    fun ocorrenciaVirtualNaoEntra() {
+        val i = input(movs = listOf(mov("2026-07-20", -2_400_00, rec = 1L)))
+        assertTrue(avaliar(i, Slot.NUDGE).none { it is Lembrete.EtiquetarHoje })
+    }
+
+    /** Compra de cartão não aparece como linha do dia: ela entra no total da fatura. */
+    @Test
+    fun compraDeCartaoNaoEntra() {
+        val i = input(movs = listOf(mov("2026-07-20", -80_00, Natureza.CARTAO, id = 1)))
+        assertTrue(avaliar(i, Slot.NUDGE).none { it is Lembrete.EtiquetarHoje })
+    }
+
+    @Test
+    fun desligadoNaoAvisa() {
+        val i = input(movs = listOf(mov("2026-07-20", -30_00, id = 1)))
+        val so = LembretesConfig(registrarGastos = true)
+        assertTrue(avaliar(i, Slot.NUDGE, so).none { it is Lembrete.EtiquetarHoje })
+    }
+
+    /**
+     * Os dois do fim do dia não se contradizem: "registrar gastos" só sai quando NADA foi criado
+     * hoje, "etiquetar" só quando alguma coisa foi — e ficou sem etiqueta.
+     */
+    @Test
+    fun registrarEEtiquetarNuncaSaemJuntos() {
+        val criouHoje = input(movs = listOf(mov("2026-07-20", -30_00, id = 1, criadaEm = criadaEm("2026-07-20"))))
+        val lembretes = avaliar(criouHoje, Slot.NUDGE)
+        assertTrue(lembretes.none { it is Lembrete.RegistrarGastos })
+        assertTrue(lembretes.any { it is Lembrete.EtiquetarHoje })
     }
 
     // ---- slots e toggles ----

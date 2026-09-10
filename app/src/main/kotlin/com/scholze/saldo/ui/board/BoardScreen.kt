@@ -118,6 +118,10 @@ fun BoardScreen(
     onVerGuardado: () -> Unit,
     /** Tira o filtro de etiqueta — o `×` do chip. */
     onLimparTag: () -> Unit = {},
+    /** Um toque num chip da fileira do aviso "sem tag". */
+    onEtiquetar: (Movimentacao, Tag) -> Unit = { _, _ -> },
+    /** O `+` da fileira: abre a sheet, onde escolher várias etiquetas já existe. */
+    onMaisEtiquetas: (Movimentacao) -> Unit = {},
     onTentar: () -> Unit = {},
     /** A meta de guardar, em %; `0` = sem meta. */
     metaGuardarPercent: Int = 0,
@@ -135,6 +139,10 @@ fun BoardScreen(
     val semanas = remember(board) { board?.let { semanasDe(it.dias) }.orEmpty() }
     // O diálogo da fatura é só leitura — não edita nada — então fechar na rotação é aceitável.
     var faturaAberta by remember { mutableStateOf<Fatura?>(null) }
+
+    // O aviso de etiquetar é um interruptor por DIA: trocar de dia aberto o fecha, senão o dia
+    // seguinte já chegaria com as fileiras abertas por uma decisão tomada sobre outro dia.
+    var etiquetando by remember(state.diaAberto) { mutableStateOf(false) }
 
     Box(
         modifier
@@ -217,6 +225,13 @@ fun BoardScreen(
                         onItemClick = onItemClick,
                         onExcluir = onExcluir,
                         onFaturaClick = { faturaAberta = it },
+                        lembrete = LembreteDeTags(
+                            aberto = etiquetando,
+                            etiquetas = state.tagsSugeridas,
+                            onAlternar = { etiquetando = !etiquetando },
+                            onEtiquetar = onEtiquetar,
+                            onMais = onMaisEtiquetas,
+                        ),
                     )
                 }
                 // Mês sem uma movimentação sequer: a régua explicaria a cor de células que

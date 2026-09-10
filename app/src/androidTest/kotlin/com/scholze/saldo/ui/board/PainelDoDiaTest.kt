@@ -4,10 +4,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -15,13 +19,15 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.scholze.saldo.domain.CartaoConfig
 import com.scholze.saldo.domain.Fatura
 import com.scholze.saldo.domain.FiltroLedger
+import com.scholze.saldo.domain.ItemDia
 import com.scholze.saldo.domain.LedgerInput
 import com.scholze.saldo.domain.MesLedger
 import com.scholze.saldo.domain.Movimentacao
 import com.scholze.saldo.domain.Natureza
 import com.scholze.saldo.domain.ProjectionEngine
-import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
+import com.scholze.saldo.domain.Tag
 import com.scholze.saldo.ui.privacy.LocalPrivacy
+import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
 import com.scholze.saldo.ui.privacy.PrivacyState
 import com.scholze.saldo.ui.theme.SaldoTheme
 import java.time.LocalDate
@@ -169,5 +175,98 @@ class PainelDoDiaTest {
     fun umDiaSemLancamentoDizQueEstaVazio() {
         montar(dia = 1)
         rule.onNodeWithText("sem movimentações").assertIsDisplayed()
+    }
+
+    // ---- o lembrete de etiquetar ----
+
+    private val comida = Tag(id = 9, nome = "comida", cor = 0xFFB63C62L)
+
+    /**
+     * [DayRow] com o aviso ligado. `aberto` decide se as fileiras de etiqueta aparecem.
+     *
+     * `useUnmergedTree` em toda busca por tag dentro do aviso: ele é um bloco com
+     * `semantics(mergeDescendants = true)`, e isso tira os `testTag` dos filhos da árvore
+     * mesclada — inclusive das asserções de ausência, que ficariam verdes sem provar nada.
+     */
+    private fun montarComLembrete(
+        dia: Int = 6,
+        aberto: Boolean = false,
+        entrada: MesLedger = mes,
+        onAlternar: () -> Unit = {},
+        onEtiquetar: (Movimentacao, Tag) -> Unit = { _, _ -> },
+    ) {
+        rule.setContent {
+            SaldoTheme(darkTheme = false) {
+                CompositionLocalProvider(LocalPrivacy provides PrivacyState(ocultoInicial = false)) {
+                    DayRow(
+                        dia = entrada.dias[dia - 1],
+                        faixa = entrada.faixaSaldos(),
+                        hoje = hoje,
+                        onItemClick = {},
+                        onExcluir = {},
+                        onFaturaClick = {},
+                        lembrete = LembreteDeTags(
+                            aberto = aberto,
+                            etiquetas = listOf(comida),
+                            onAlternar = onAlternar,
+                            onEtiquetar = onEtiquetar,
+                            onMais = {},
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun oAvisoContaOsLancamentosSemTagDoDia() {
+        montarComLembrete()
+        rule.onNodeWithTag(TAG_AVISO_SEM_TAG).assertIsDisplayed()
+        rule.onNodeWithText("1 sem tag · etiquetar").assertIsDisplayed()
+    }
+
+    /** Sem trabalho, sem aviso: um aviso permanente é ruído nos dias já etiquetados. */
+    @Test
+    fun semLancamentoSemTagNaoHaAviso() {
+        val etiquetado = mes.copy(
+            dias = mes.dias.map { d ->
+                d.copy(
+                    itens = d.itens.map { item ->
+                        if (item is ItemDia.Mov) ItemDia.Mov(item.mov.copy(tags = listOf(comida))) else item
+                    },
+                )
+            },
+        )
+        montarComLembrete(entrada = etiquetado)
+        rule.onAllNodesWithTag(TAG_AVISO_SEM_TAG, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    /** Fechado, o aviso não mostra etiqueta nenhuma. */
+    @Test
+    fun comOAvisoFechadoNaoHaFileira() {
+        montarComLembrete(aberto = false)
+        rule.onAllNodesWithContentDescription("etiquetar como comida").assertCountEquals(0)
+    }
+
+    @Test
+    fun comOAvisoAbertoAFileiraAparece() {
+        montarComLembrete(aberto = true)
+        rule.onNodeWithContentDescription("etiquetar como comida").assertIsDisplayed()
+    }
+
+    @Test
+    fun tocarNoAvisoPedeParaAlternar() {
+        var alternou = 0
+        montarComLembrete(onAlternar = { alternou++ })
+        rule.onNodeWithTag(TAG_AVISO_SEM_TAG).performClick()
+        assertEquals(1, alternou)
+    }
+
+    @Test
+    fun umToqueNoChipEtiquetaALinha() {
+        var etiquetada: Pair<Long, String>? = null
+        montarComLembrete(aberto = true, onEtiquetar = { mov, tag -> etiquetada = mov.id to tag.nome })
+        rule.onNodeWithContentDescription("etiquetar como comida").performClick()
+        assertEquals(2L to "comida", etiquetada)
     }
 }
