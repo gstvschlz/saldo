@@ -4,13 +4,19 @@
     tocar no app, então não há dado real a mostrar — e um valor plausível diz mais sobre o widget
     do que um "R$ 0,00" que parece defeito. As cores vêm de `values/colors.xml`, espelho de
     `CoresWidget` (ver o comentário lá).
+
+    `HardcodedText` ignorado: este app não tem `strings.xml` — nenhuma string dele tem, e extrair
+    as strings ficou explicitamente fora do escopo desta fatia. Um texto de prévia é, além disso,
+    o caso em que a string PRECISA ser fixa: ela não representa dado nenhum.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/preview_cartao"
-    android:padding="12dp">
+    android:padding="12dp"
+    tools:ignore="HardcodedText,NestedWeights">
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -21,192 +27,13 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="6dp"
-        android:orientation="vertical">
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginBottom="3dp"
-            android:orientation="horizontal">
+        android:layout_marginBottom="3dp"
+        android:orientation="horizontal">
             <View
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/preview_celula_neg1" />
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginBottom="3dp"
-            android:orientation="horizontal">
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/preview_celula_zero" />
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginBottom="3dp"
-            android:orientation="horizontal">
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/preview_celula_pos1" />
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginBottom="3dp"
-            android:orientation="horizontal">
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos2" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_neg1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos1" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/preview_celula_neg1" />
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginBottom="3dp"
-            android:orientation="horizontal">
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_zero" />
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" android:layout_marginEnd="3dp"
-                android:background="@drawable/preview_celula_pos2" />
+                android:background="@drawable/preview_celula_neg3" />
             <View
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -226,12 +53,183 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg2" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/preview_celula_pos2" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="3dp"
+        android:orientation="horizontal">
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos1" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg2" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos2" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
                 android:background="@drawable/preview_celula_neg1" />
             <View
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
+                android:background="@drawable/preview_celula_zero" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="3dp"
+        android:orientation="horizontal">
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos2" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg1" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_zero" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos1" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
                 android:background="@drawable/preview_celula_neg2" />
-        </LinearLayout>
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/preview_celula_pos3" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="3dp"
+        android:orientation="horizontal">
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_zero" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos1" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg2" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos2" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/preview_celula_neg1" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos2" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg3" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_neg1" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_zero" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginEnd="3dp"
+                android:background="@drawable/preview_celula_pos1" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/preview_celula_neg2" />
     </LinearLayout>
 </LinearLayout>

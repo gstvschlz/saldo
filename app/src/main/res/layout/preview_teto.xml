@@ -4,13 +4,19 @@
     tocar no app, então não há dado real a mostrar — e um valor plausível diz mais sobre o widget
     do que um "R$ 0,00" que parece defeito. As cores vêm de `values/colors.xml`, espelho de
     `CoresWidget` (ver o comentário lá).
+
+    `HardcodedText` ignorado: este app não tem `strings.xml` — nenhuma string dele tem, e extrair
+    as strings ficou explicitamente fora do escopo desta fatia. Um texto de prévia é, além disso,
+    o caso em que a string PRECISA ser fixa: ela não representa dado nenhum.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/preview_cartao"
-    android:padding="12dp">
+    android:padding="12dp"
+    tools:ignore="HardcodedText">
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

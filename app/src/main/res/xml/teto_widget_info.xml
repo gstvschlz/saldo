@@ -3,7 +3,14 @@
     4x1: uma linha so - o teto, o rotulo e o que resta. Como o do ritmo, precisa de
     LARGURA e nao de altura, senao o "restam R$ ..." nao cabe ao lado do numero.
 -->
+<!--
+    `previewLayout` só existe no Android 12+, e é isso mesmo: a decisão foi prévia em XML,
+    sem `previewImage` de vetor para as versões antigas. Abaixo do 12 o seletor mostra o
+    ícone, como sempre mostrou.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedAttribute"
     android:minWidth="250dp"
     android:minHeight="60dp"
     android:minResizeWidth="250dp"

@@ -4,7 +4,14 @@
     a lista cai para duas fatias. A largura importa mais que a altura aqui — a barra e
     calculada em dp a partir da largura viva do widget.
 -->
+<!--
+    `previewLayout` só existe no Android 12+, e é isso mesmo: a decisão foi prévia em XML,
+    sem `previewImage` de vetor para as versões antigas. Abaixo do 12 o seletor mostra o
+    ícone, como sempre mostrou.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedAttribute"
     android:minWidth="250dp"
     android:minHeight="110dp"
     android:minResizeWidth="110dp"
