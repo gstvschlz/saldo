@@ -125,14 +125,19 @@ class PainelDoDiaTest {
      * O ponto do cartão: o valor tem uma LINHA só para ele, embaixo da descrição.
      *
      * Era o defeito que o usuário viu — descrição e valor dividiam a mesma linha, e com uma
-     * descrição longa o `R$ …` era espremido contra a borda. Aqui a prova é geométrica: o topo
+     * descrição longa o número era espremido contra a borda. Aqui a prova é geométrica: o topo
      * do valor fica abaixo do fim da descrição, então eles não disputam largura nenhuma.
+     *
+     * `useUnmergedTree` nas DUAS buscas, e não é detalhe: o cartão é clicável, logo mesclado, e
+     * na árvore mesclada os dois textos casam com o MESMO nó — o cartão inteiro. O teste passava
+     * a comparar um nó consigo mesmo e não provava nada (foi assim que ele falhou primeiro, com
+     * desc.bottom=121dp e valor.top=60dp, que são as bordas do cartão).
      */
     @Test
     fun oValorFicaEmbaixoDaDescricaoENaoAoLado() {
         montar()
-        val descricao = rule.onNodeWithText("mercado").getUnclippedBoundsInRoot()
-        val valor = rule.onNodeWithText("−189,90").getUnclippedBoundsInRoot()
+        val descricao = rule.onNodeWithText("mercado", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val valor = rule.onNodeWithText("−189,90", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue(
             "o valor deveria começar abaixo do fim da descrição (desc.bottom=${descricao.bottom}, valor.top=${valor.top})",
             valor.top >= descricao.bottom,
