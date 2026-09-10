@@ -19,7 +19,10 @@ import com.scholze.saldo.data.db.SaldoDatabase
 import com.scholze.saldo.captura.NotificacaoSugestao
 import com.scholze.saldo.lembretes.LembretesScheduler
 import com.scholze.saldo.lembretes.Notificacoes
+import com.scholze.saldo.widget.AtualizacaoDiariaWorker
 import com.scholze.saldo.widget.WidgetRefresher
+import com.scholze.saldo.widget.haWidget
+import com.scholze.saldo.widget.haWidgetNaTela
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +94,14 @@ class SaldoApplication : Application() {
         // terminar atrasaria a abertura do app por um dado que nenhuma tela precisa naquele
         // instante. As tags chegam às telas por um `Flow`, então o repintar recompõe sozinho.
         container.scope.launch { container.repository.aplicarPaletaV2() }
+        // Quem responde "há widget na tela?" é o launcher, e a resposta se perde a cada morte do
+        // processo — os receivers só falam quando um widget entra ou sai. Sem esta pergunta no
+        // arranque, o refresher ficaria desligado até o usuário mexer num widget.
+        container.scope.launch {
+            val ha = haWidgetNaTela(this@SaldoApplication)
+            haWidget.value = ha
+            if (ha) AtualizacaoDiariaWorker.agendar(this@SaldoApplication)
+        }
         container.scope.launch {
             // Rede de segurança (KEEP): normalmente os trabalhos já existem — o WorkManager
             // sobrevive ao reboot — mas depois de "limpar dados" ou de um restore precisam voltar.

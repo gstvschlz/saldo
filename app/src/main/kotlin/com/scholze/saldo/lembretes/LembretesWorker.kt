@@ -2,13 +2,12 @@ package com.scholze.saldo.lembretes
 
 import android.content.Context
 import android.util.Log
-import androidx.glance.appwidget.updateAll
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.scholze.saldo.SaldoApplication
 import com.scholze.saldo.domain.LembretesEngine
 import com.scholze.saldo.domain.Slot
-import com.scholze.saldo.widget.SaldoWidget
+import com.scholze.saldo.widget.atualizarTodos
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.first
 
@@ -45,8 +44,9 @@ class LembretesWorker(context: Context, params: WorkerParameters) : CoroutineWor
         try {
             val input = container.repository.ledger.first()
             Notificacoes.sincronizar(applicationContext, slot, LembretesEngine.avaliar(input, config, slot))
-            // De graça: o widget acorda uma vez por dia mesmo com o processo morto o resto do tempo.
-            SaldoWidget().updateAll(applicationContext)
+            // De graça: os widgets acordam junto com o lembrete, mesmo com o processo morto o
+            // resto do tempo. Os OITO, não só o de saldo — era o que esta linha fazia antes.
+            atualizarTodos(applicationContext)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

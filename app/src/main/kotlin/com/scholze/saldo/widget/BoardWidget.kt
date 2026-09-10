@@ -11,7 +11,6 @@ import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -115,7 +114,7 @@ internal fun semanasDoWidget(niveis: List<Int?>, inicio: LocalDate): List<List<I
     return (List<Int?>(antes) { null } + niveis + List<Int?>(depois) { null }).chunked(7)
 }
 
-class BoardWidgetReceiver : GlanceAppWidgetReceiver() {
+class BoardWidgetReceiver : SaldoWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = BoardWidget()
 }
 

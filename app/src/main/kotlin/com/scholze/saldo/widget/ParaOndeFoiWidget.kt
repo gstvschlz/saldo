@@ -12,7 +12,6 @@ import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -115,7 +114,7 @@ class ParaOndeFoiWidget : GlanceAppWidget() {
     }
 }
 
-class ParaOndeFoiWidgetReceiver : GlanceAppWidgetReceiver() {
+class ParaOndeFoiWidgetReceiver : SaldoWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ParaOndeFoiWidget()
 }
 

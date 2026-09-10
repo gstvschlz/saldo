@@ -8,7 +8,6 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -90,7 +89,7 @@ class TetoWidget : GlanceAppWidget() {
     }
 }
 
-class TetoWidgetReceiver : GlanceAppWidgetReceiver() {
+class TetoWidgetReceiver : SaldoWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TetoWidget()
 }
 

@@ -5,7 +5,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import com.scholze.saldo.domain.FiltroLedger
@@ -53,6 +52,6 @@ class SaldoWidget : GlanceAppWidget() {
     }
 }
 
-class SaldoWidgetReceiver : GlanceAppWidgetReceiver() {
+class SaldoWidgetProvider : SaldoWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SaldoWidget()
 }
