@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Prévia do seletor de widgets. Conteúdo FIXO de propósito: o launcher infla este layout sem
+    tocar no app, então não há dado real a mostrar — e um valor plausível diz mais sobre o widget
+    do que um "R$ 0,00" que parece defeito. As cores vêm de `values/colors.xml`, espelho de
+    `CoresWidget` (ver o comentário lá).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/preview_cartao"
+    android:padding="12dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="poupança"
+            android:textColor="@color/widget_secundario"
+            android:textSize="11sp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="12 %"
+            android:textColor="@color/widget_positivo"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="30dp"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+        <View
+            android:layout_width="0dp"
+            android:layout_height="10dp"
+            android:layout_weight="1"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="4dp"
+            android:background="@color/widget_tint" />
+        <View
+            android:layout_width="0dp"
+            android:layout_height="16dp"
+            android:layout_weight="1"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="4dp"
+            android:background="@color/widget_tint" />
+        <View
+            android:layout_width="0dp"
+            android:layout_height="12dp"
+            android:layout_weight="1"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="4dp"
+            android:background="@color/widget_tint" />
+        <View
+            android:layout_width="0dp"
+            android:layout_height="22dp"
+            android:layout_weight="1"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="4dp"
+            android:background="@color/widget_tint" />
+        <View
+            android:layout_width="0dp"
+            android:layout_height="18dp"
+            android:layout_weight="1"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="4dp"
+            android:background="@color/widget_tint" />
+        <View
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:layout_weight="1"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="4dp"
+            android:background="@color/widget_tint" />
+    </LinearLayout>
+</LinearLayout>

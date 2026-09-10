@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Prévia do seletor de widgets. Conteúdo FIXO de propósito: o launcher infla este layout sem
+    tocar no app, então não há dado real a mostrar — e um valor plausível diz mais sobre o widget
+    do que um "R$ 0,00" que parece defeito. As cores vêm de `values/colors.xml`, espelho de
+    `CoresWidget` (ver o comentário lá).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/preview_cartao"
+    android:padding="12dp">
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ritmo"
+        android:textColor="@color/widget_secundario"
+        android:textSize="11sp" />
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:layout_marginTop="8dp"
+        android:background="@color/widget_trilha" />
+    <View
+        android:layout_width="180dp"
+        android:layout_height="8dp"
+        android:layout_marginTop="4dp"
+        android:background="@color/widget_tint" />
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="R$ 1.200 · o costume é R$ 1.500"
+        android:textColor="@color/widget_secundario"
+        android:textSize="11sp" />
+</LinearLayout>

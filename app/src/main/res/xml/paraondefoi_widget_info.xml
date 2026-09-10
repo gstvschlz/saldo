@@ -17,4 +17,5 @@
     android:updatePeriodMillis="21600000"
     android:widgetCategory="home_screen"
     android:description="@string/widget_paraondefoi_descricao"
-    android:initialLayout="@layout/glance_default_loading_layout" />
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:previewLayout="@layout/preview_paraondefoi" />

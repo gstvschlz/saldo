@@ -1,4 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    As cores dos widgets, em XML.
+
+    O widget em si é desenhado pelo Glance e pinta a partir de `CoresWidget`, que lê os tokens do
+    tema em Kotlin. As PRÉVIAS do seletor não podem: `previewLayout` é uma view clássica, inflada
+    pelo launcher, e o launcher não roda o nosso Kotlin. Então os mesmos valores existem aqui,
+    espelhados — e há um teste instrumentado (`PreviewLayoutsTest`) comparando os dois lados nos
+    dois modos, para eles não se desencontrarem em silêncio.
+
+    Ao mexer num token de `Color.kt` que apareça abaixo, mexa aqui e em `values-night/colors.xml`.
+-->
 <resources>
     <color name="ic_launcher_background">#2E7D32</color>
+
+    <!-- surface -->
+    <color name="widget_fundo">#FFF2F5EE</color>
+    <!-- label -->
+    <color name="widget_label">#FF191D18</color>
+    <!-- secondaryLabel -->
+    <color name="widget_secundario">#FF414941</color>
+    <!-- tint -->
+    <color name="widget_tint">#FF2F6A45</color>
+    <!-- positive -->
+    <color name="widget_positivo">#FF2F6A45</color>
+    <!-- categoryVariable -->
+    <color name="widget_negativo">#FF8C4F63</color>
+    <!-- primaryContainer -->
+    <color name="widget_container">#FFB4F1C7</color>
+    <!-- onPrimaryContainer -->
+    <color name="widget_sobre_container">#FF00210F</color>
+    <!-- insightSemTag -->
+    <color name="widget_trilha">#FFB9C0B5</color>
+    <!-- insightOutras -->
+    <color name="widget_outras">#FF5C5F66</color>
+
+    <!-- Os sete tons do board, de −3 (saiu muito) a +3 (entrou muito). -->
+    <color name="widget_board_neg3">#FF8C4F63</color>
+    <color name="widget_board_neg2">#FFD7A9B7</color>
+    <color name="widget_board_neg1">#FFF0DDE3</color>
+    <color name="widget_board_zero">#FFE7EBE4</color>
+    <color name="widget_board_pos1">#FFCBE7D2</color>
+    <color name="widget_board_pos2">#FF79C293</color>
+    <color name="widget_board_pos3">#FF2F6A45</color>
 </resources>

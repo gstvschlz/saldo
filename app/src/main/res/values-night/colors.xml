@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- O espelho noturno de `values/colors.xml`; a explicação de por que isto existe está lá. -->
+<resources>
+    <!-- surface -->
+    <color name="widget_fundo">#FF191F1A</color>
+    <!-- label -->
+    <color name="widget_label">#FFE0E4DC</color>
+    <!-- secondaryLabel -->
+    <color name="widget_secundario">#FFBFC9BD</color>
+    <!-- tint -->
+    <color name="widget_tint">#FF99D5AC</color>
+    <!-- positive -->
+    <color name="widget_positivo">#FF7FD79B</color>
+    <!-- categoryVariable -->
+    <color name="widget_negativo">#FFD493A8</color>
+    <!-- primaryContainer -->
+    <color name="widget_container">#FF1E5133</color>
+    <!-- onPrimaryContainer -->
+    <color name="widget_sobre_container">#FFB4F1C7</color>
+    <!-- insightSemTag -->
+    <color name="widget_trilha">#FF4A524A</color>
+    <!-- insightOutras -->
+    <color name="widget_outras">#FFC0C6CC</color>
+
+    <!-- Os sete tons do board, de −3 (saiu muito) a +3 (entrou muito). -->
+    <color name="widget_board_neg3">#FFC98FA4</color>
+    <color name="widget_board_neg2">#FF6B3C4C</color>
+    <color name="widget_board_neg1">#FF3A2830</color>
+    <color name="widget_board_zero">#FF232A24</color>
+    <color name="widget_board_pos1">#FF223A2A</color>
+    <color name="widget_board_pos2">#FF3E7A55</color>
+    <color name="widget_board_pos3">#FF7FD79B</color>
+</resources>

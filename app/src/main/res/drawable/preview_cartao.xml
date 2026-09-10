@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- O fundo arredondado que o Glance desenha em código; aqui em XML, para as prévias. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_fundo" />
+    <corners android:radius="16dp" />
+</shape>
