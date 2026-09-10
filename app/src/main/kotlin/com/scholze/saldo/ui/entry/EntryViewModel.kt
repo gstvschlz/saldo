@@ -20,6 +20,7 @@ import com.scholze.saldo.domain.Tag
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +74,19 @@ data class EntryUiState(
  * Because the form is ViewModel-scoped it survives rotation; only the sheet's own open/closed
  * flag needs `rememberSaveable`.
  */
-class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
+class EntryViewModel(
+    private val repo: SaldoRepository,
+    /**
+     * Onde a conta pesada roda. `Default` em produção; o teste passa o seu.
+     *
+     * Fixar `Dispatchers.Default` aqui dentro deixava um pedaço da cadeia fora do alcance do
+     * `TestDispatcher`: `dispatcher.scheduler.advanceUntilIdle()` drena o dispatcher de teste e
+     * NADA mais, então uma corrotina deste `flowOn` podia retomar depois do `resetMain()` e ter a
+     * exceção cobrada de outro teste, de outra classe. Era a flakiness que a `dados-1` já
+     * documentava e que o merge da v0.7.0 fez reaparecer.
+     */
+    private val calculo: CoroutineDispatcher = Dispatchers.Default,
+) : ViewModel() {
 
     private val form = MutableStateFlow(EntryUiState())
 
@@ -110,7 +123,7 @@ class EntryViewModel(private val repo: SaldoRepository) : ViewModel() {
             )
         }
             // A projeção do mês inteiro roda fora da main thread.
-            .flowOn(Dispatchers.Default)
+            .flowOn(calculo)
             // Uma falha vinda do banco não pode matar o StateFlow do formulário: registrar e
             // parar de emitir preserva o último estado, em vez de congelar a sheet vazia.
             .catch { Log.e(TAG, "fluxo do formulário falhou", it) }

@@ -30,6 +30,7 @@ import com.scholze.saldo.ui.toYearMonth
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -116,6 +117,16 @@ class BoardViewModel(
      * toda troca de tema recalcular o board inteiro.
      */
     private val metaGuardar: Flow<Int> = flowOf(0),
+    /**
+     * Onde a conta pesada roda. `Default` em produção; o teste passa o seu.
+     *
+     * Fixar `Dispatchers.Default` aqui dentro deixava um pedaço da cadeia fora do alcance do
+     * `TestDispatcher`: `dispatcher.scheduler.advanceUntilIdle()` drena o dispatcher de teste e
+     * NADA mais, então uma corrotina deste `flowOn` podia retomar depois do `resetMain()` e ter a
+     * exceção cobrada de outro teste, de outra classe. Era a flakiness que a `dados-1` já
+     * documentava e que o merge da v0.7.0 fez reaparecer.
+     */
+    private val calculo: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     // Mês, dia aberto, etiqueta e busca no SavedStateHandle: sobrevivem à morte do processo, e
@@ -195,7 +206,7 @@ class BoardViewModel(
             )
         }
             // O agrupamento por dia mais a projeção do mês: fora da main thread.
-            .flowOn(Dispatchers.Default)
+            .flowOn(calculo)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), inicial)
 
@@ -211,7 +222,7 @@ class BoardViewModel(
                 Busca.filtrar(ProjectionEngine.movimentacoesAte(input, YearMonth.from(input.hoje)), it, input.hoje)
             }
         }
-            .flowOn(Dispatchers.Default)
+            .flowOn(calculo)
             // Continua sendo um `.catch` seco, ao contrário do [state]: uma busca que falha não
             // congela a tela (a grade continua lá, vindo do outro fluxo) e não há botão só dela
             // para reassinar — fechar e reabrir a busca já refaz a leitura.

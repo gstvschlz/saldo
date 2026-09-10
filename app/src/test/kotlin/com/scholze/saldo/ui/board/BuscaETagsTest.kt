@@ -64,7 +64,7 @@ class BuscaETagsTest {
     private fun vm(saved: SavedStateHandle = SavedStateHandle()) = vmCom(RepositorioFixo(input), saved)
 
     private fun vmCom(repo: SaldoRepository, saved: SavedStateHandle = SavedStateHandle()) =
-        BoardViewModel(repo, saved).also { criados += it }
+        BoardViewModel(repo, saved, calculo = dispatcher).also { criados += it }
 
     @Before fun setMain() = Dispatchers.setMain(dispatcher)
 

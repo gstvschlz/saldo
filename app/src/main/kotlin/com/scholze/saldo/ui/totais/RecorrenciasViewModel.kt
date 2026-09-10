@@ -20,6 +20,7 @@ import com.scholze.saldo.ui.fluxoComErro
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -44,6 +45,16 @@ data class RecorrenciasUiState(
 class RecorrenciasViewModel(
     private val repo: SaldoRepository,
     private val settingsStore: SettingsStore,
+    /**
+     * Onde a conta pesada roda. `Default` em produção; o teste passa o seu.
+     *
+     * Fixar `Dispatchers.Default` aqui dentro deixava um pedaço da cadeia fora do alcance do
+     * `TestDispatcher`: `dispatcher.scheduler.advanceUntilIdle()` drena o dispatcher de teste e
+     * NADA mais, então uma corrotina deste `flowOn` podia retomar depois do `resetMain()` e ter a
+     * exceção cobrada de outro teste, de outra classe. Era a flakiness que a `dados-1` já
+     * documentava e que o merge da v0.7.0 fez reaparecer.
+     */
+    private val calculo: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     private val mes = MutableStateFlow(YearMonth.now())
@@ -76,7 +87,7 @@ class RecorrenciasViewModel(
                 assinaturas = AssinaturasEngine.candidatas(input, input.hoje, dispensadas),
             )
         }
-            .flowOn(Dispatchers.Default)
+            .flowOn(calculo)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecorrenciasUiState())
 

@@ -53,19 +53,19 @@ class TotaisViewModelTest {
     @Test
     fun oMesVistoSobreviveNoSavedState() = runTest(dispatcher) {
         val saved = SavedStateHandle()
-        val vm = TotaisViewModel(RepositorioFixo(input), saved).also { criados += it }
+        val vm = TotaisViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }
         vm.irPara(YearMonth.of(2026, 12))
         advanceUntilIdle()
-        val outro = TotaisViewModel(RepositorioFixo(input), saved).also { criados += it }
+        val outro = TotaisViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }
         assertEquals(YearMonth.of(2026, 12), outro.mesAtualAgora)
     }
 
     @Test
     fun oSegmentoSobreviveNoSavedState() {
         val saved = SavedStateHandle()
-        val vm = TotaisViewModel(RepositorioFixo(input), saved).also { criados += it }
+        val vm = TotaisViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }
         vm.selecionarSegmento(SegmentoTotais.TENDENCIA)
-        val outro = TotaisViewModel(RepositorioFixo(input), saved).also { criados += it }
+        val outro = TotaisViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }
         assertEquals(SegmentoTotais.TENDENCIA, outro.segmento.value)
     }
 
@@ -73,7 +73,7 @@ class TotaisViewModelTest {
 
     @Test
     fun oSegmentoMesNaoCalculaTendenciaNemACaminho() = runTest(dispatcher) {
-        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), calculo = dispatcher).also { criados += it }
         val estado = vm.state.first { it.totais != null }
         assertNotNull(estado.insights)
         assertNotNull(estado.ritmo)
@@ -83,7 +83,7 @@ class TotaisViewModelTest {
 
     @Test
     fun escolherTendenciaCalculaTendenciaESoEla() = runTest(dispatcher) {
-        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), calculo = dispatcher).also { criados += it }
         vm.selecionarSegmento(SegmentoTotais.TENDENCIA)
         advanceUntilIdle()
         val estado = vm.state.first { it.tendencia != null }
@@ -94,7 +94,7 @@ class TotaisViewModelTest {
 
     @Test
     fun escolherACaminhoCalculaACaminhoEAsRecorrencias() = runTest(dispatcher) {
-        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), calculo = dispatcher).also { criados += it }
         vm.selecionarSegmento(SegmentoTotais.A_CAMINHO)
         advanceUntilIdle()
         val estado = vm.state.first { it.aCaminho != null }
@@ -106,7 +106,7 @@ class TotaisViewModelTest {
     /** `totais` e a estimativa são do cabeçalho e valem para os três. */
     @Test
     fun oCabecalhoValeParaTodosOsSegmentos() = runTest(dispatcher) {
-        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), calculo = dispatcher).also { criados += it }
         SegmentoTotais.entries.forEach { seg ->
             vm.selecionarSegmento(seg)
             advanceUntilIdle()
@@ -119,7 +119,7 @@ class TotaisViewModelTest {
     /** A meta chega por um fluxo só dela e vai ao estado, que é de onde a régua do gráfico lê. */
     @Test
     fun aMetaDosAjustesChegaAoEstado() = runTest(dispatcher) {
-        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), flowOf(35))
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), flowOf(35), calculo = dispatcher)
             .also { criados += it }
         assertEquals(35, vm.state.first { it.totais != null }.metaGuardarPercent)
     }
@@ -130,7 +130,7 @@ class TotaisViewModelTest {
      */
     @Test
     fun semOFluxoDaMetaOEstadoFicaSemMeta() = runTest(dispatcher) {
-        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
+        val vm = TotaisViewModel(RepositorioFixo(input), SavedStateHandle(), calculo = dispatcher).also { criados += it }
         assertEquals(0, vm.state.first { it.totais != null }.metaGuardarPercent)
     }
 }

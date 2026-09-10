@@ -69,7 +69,7 @@ class EntryViewModelTest {
     @Test
     fun avulsaQueViraMensalConverte() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo).also { criados += it }
+        val vm = EntryViewModel(repo, calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(avulsa)
         vm.definirRepetir(RepetirOpcao.TodoMes(10))
         vm.salvar(EscopoEdicao.SO_ESTE_MES) {}
@@ -82,7 +82,7 @@ class EntryViewModelTest {
     @Test
     fun mensalQueParaEncerra() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo).also { criados += it }
+        val vm = EntryViewModel(repo, calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         vm.definirRepetir(RepetirOpcao.Nao)
         vm.salvar(EscopoEdicao.SO_ESTE_MES) {}
@@ -99,7 +99,7 @@ class EntryViewModelTest {
     @Test
     fun mensalQueParaComADataMovidaEncerraNoMesOriginal() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo).also { criados += it }
+        val vm = EntryViewModel(repo, calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10) // instancia.data = 2026-09-10
         vm.definirData(LocalDate.parse("2026-12-25"))
         vm.definirRepetir(RepetirOpcao.Nao)
@@ -111,7 +111,7 @@ class EntryViewModelTest {
     @Test
     fun mensalQueContinuaMensalSoEdita() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo).also { criados += it }
+        val vm = EntryViewModel(repo, calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         vm.definirCentavos(130_00)
         vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
@@ -127,7 +127,7 @@ class EntryViewModelTest {
     @Test
     fun trocarODiaDoTodoMesRoteiaParaEditar() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo).also { criados += it }
+        val vm = EntryViewModel(repo, calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         vm.definirRepetir(RepetirOpcao.TodoMes(15))
         vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
@@ -143,7 +143,7 @@ class EntryViewModelTest {
     @Test
     fun oDia31SobreviveASalvarAInstanciaDeFevereiro() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo).also { criados += it }
+        val vm = EntryViewModel(repo, calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(instancia.copy(data = LocalDate.parse("2026-02-28")), diaDoTemplate = 31)
         vm.definirCentavos(130_00)
         vm.salvar(EscopoEdicao.DAQUI_EM_DIANTE) {}
@@ -159,7 +159,7 @@ class EntryViewModelTest {
     @Test
     fun excluirMandaALinhaOriginalNaoORascunhoDoFormulario() = runTest(dispatcher) {
         val repo = RepoEspiao(input)
-        val vm = EntryViewModel(repo).also { criados += it }
+        val vm = EntryViewModel(repo, calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(avulsa)                                // ledger: -120_00
         vm.definirCentavos(999_00)                              // rascunho: -999_00
         val excluidas = mutableListOf<Movimentacao>()
@@ -177,7 +177,7 @@ class EntryViewModelTest {
 
     @Test
     fun oDiaMostradoEODoTemplateNaoODaData() {
-        val vm = EntryViewModel(RepoEspiao(input)).also { criados += it }
+        val vm = EntryViewModel(RepoEspiao(input), calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(instancia.copy(data = LocalDate.parse("2026-02-28")), diaDoTemplate = 31)
         assertEquals(RepetirOpcao.TodoMes(31), vm.formAgora.repetir)
         assertEquals(RepetirOpcao.TodoMes(31), vm.formAgora.repetirOriginal)
@@ -185,7 +185,7 @@ class EntryViewModelTest {
 
     @Test
     fun soPedeEscopoQuandoContinuaMensal() {
-        val vm = EntryViewModel(RepoEspiao(input)).also { criados += it }
+        val vm = EntryViewModel(RepoEspiao(input), calculo = dispatcher).also { criados += it }
         vm.iniciarEdicao(instancia, diaDoTemplate = 10)
         assertEquals(true, vm.formAgora.precisaEscopo)
         vm.definirRepetir(RepetirOpcao.Nao)

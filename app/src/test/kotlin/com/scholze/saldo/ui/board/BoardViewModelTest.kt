@@ -45,10 +45,10 @@ class BoardViewModelTest {
     @Test
     fun oMesEODiaAbertoSobrevivemNoSavedState() {
         val saved = SavedStateHandle()
-        val vm = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }
+        val vm = BoardViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }
         vm.irPara(YearMonth.of(2026, 5), dia = 12)              // grava direto no handle (Task 9)
 
-        val outro = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }   // "processo novo", mesmo handle
+        val outro = BoardViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }   // "processo novo", mesmo handle
         assertEquals(YearMonth.of(2026, 5), outro.mesAtualAgora)
         assertEquals(LocalDate.parse("2026-05-12"), outro.diaAbertoAgora)
     }
@@ -56,15 +56,15 @@ class BoardViewModelTest {
     @Test
     fun fecharODiaTambemSobrevive() {
         val saved = SavedStateHandle()
-        val vm = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }
+        val vm = BoardViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }
         vm.alternarDia(LocalDate.now())                         // hoje estava aberto: fecha
-        val outro = BoardViewModel(RepositorioFixo(input), saved).also { criados += it }
+        val outro = BoardViewModel(RepositorioFixo(input), saved, calculo = dispatcher).also { criados += it }
         assertEquals(null, outro.diaAbertoAgora)
     }
 
     @Test
     fun semSavedStateAbreNoMesCorrenteComHojeAberto() {
-        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle()).also { criados += it }
+        val vm = BoardViewModel(RepositorioFixo(input), SavedStateHandle(), calculo = dispatcher).also { criados += it }
         assertEquals(YearMonth.now(), vm.mesAtualAgora)
         assertEquals(LocalDate.now(), vm.diaAbertoAgora)
     }
