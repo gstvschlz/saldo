@@ -17,8 +17,8 @@ android {
         applicationId = "com.scholze.saldo"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.7.0"
+        versionCode = 9
+        versionName = "0.8.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // O semeador de demonstração mora no mesmo source set dos testes — é a única forma de
