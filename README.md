@@ -26,8 +26,6 @@ o app do banco que você marcou.
 | <img src=".github/media/saldos.png" width="190" alt="o mês em quadradinhos"> | <img src=".github/media/totais.png" width="190" alt="entradas, saídas e ritmo do mês"> | <img src=".github/media/tags.png" width="190" alt="total por tag no mês"> | <img src=".github/media/nova.png" width="190" alt="a sheet de nova movimentação"> |
 | um quadradinho por dia, colorido pelo saldo | o que entrou, o que saiu e o ritmo | para onde o dinheiro foi | o valor primeiro; o resto é opcional |
 
-Os números são de mentira — saem do `mise run demo-seed`, logo abaixo.
-
 ## dando uma volta
 
 <p align="center">
