@@ -21,6 +21,10 @@ android {
         versionName = "0.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // O semeador de demonstração mora no mesmo source set dos testes — é a única forma de
+        // escrever pelo repositório de verdade —, mas não é um teste: deixa estado para trás de
+        // propósito. Fora da suíte; quem o chama é `mise run demo-seed`, pelo `am instrument`.
+        testInstrumentationRunnerArguments["notAnnotation"] = "com.scholze.saldo.Semeadura"
     }
 
     buildTypes {
