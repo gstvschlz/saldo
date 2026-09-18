@@ -113,11 +113,13 @@ object NotificacaoSugestao {
 
         val publica = NotificationCompat.Builder(context, CANAL)
             .setSmallIcon(R.drawable.ic_notificacao)
+            .setColor(ContextCompat.getColor(context, R.color.ic_launcher_background))
             .setContentTitle("sugestão de lançamento")
             .build()
 
         return NotificationCompat.Builder(context, CANAL)
             .setSmallIcon(R.drawable.ic_notificacao)
+            .setColor(ContextCompat.getColor(context, R.color.ic_launcher_background))
             .setContentTitle("$rotulo · $valor")
             .setContentText(texto)
             .setStyle(NotificationCompat.BigTextStyle().bigText(texto))

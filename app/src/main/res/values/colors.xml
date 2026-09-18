@@ -11,7 +11,8 @@
     Ao mexer num token de `Color.kt` que apareça abaixo, mexa aqui e em `values-night/colors.xml`.
 -->
 <resources>
-    <color name="ic_launcher_background">#2E7D32</color>
+    <!-- O verde do app (`tint`): fundo do ícone e cor das notificações. -->
+    <color name="ic_launcher_background">#2F6A45</color>
 
     <!-- surface -->
     <color name="widget_fundo">#FFF2F5EE</color>
