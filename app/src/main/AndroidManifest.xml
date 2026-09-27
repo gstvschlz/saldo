@@ -55,17 +55,6 @@
             android:exported="false" />
 
         <receiver
-            android:name=".widget.SaldoWidgetProvider"
-            android:exported="true"
-            android:label="@string/app_name">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/saldo_widget_info" />
-        </receiver>
-        <receiver
             android:name=".widget.ACaminhoWidgetReceiver"
             android:exported="true"
             android:label="saldo · a caminho">
@@ -90,7 +79,7 @@
         <receiver
             android:name=".widget.BoardWidgetReceiver"
             android:exported="true"
-            android:label="saldo · board">
+            android:label="saldo · mês">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -123,7 +112,7 @@
         <receiver
             android:name=".widget.PoupancaWidgetReceiver"
             android:exported="true"
-            android:label="saldo · poupança">
+            android:label="saldo · guardou">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

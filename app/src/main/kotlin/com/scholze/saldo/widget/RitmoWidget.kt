@@ -2,89 +2,87 @@ package com.scholze.saldo.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.action.clickable
+import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.cornerRadius
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
-import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
-import androidx.glance.layout.height
 import androidx.glance.layout.padding
-import androidx.glance.semantics.semantics
-import androidx.glance.semantics.testTag
-import androidx.glance.text.FontWeight
-import androidx.glance.text.Text
-import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
+import androidx.glance.layout.width
+import com.scholze.saldo.domain.Ritmo
 import com.scholze.saldo.domain.RitmoEngine
-import com.scholze.saldo.ui.money.centavosComSimbolo
 import com.scholze.saldo.ui.nav.Destino
-import com.scholze.saldo.ui.privacy.MASCARA_PRIVACIDADE
 import java.time.YearMonth
 
-const val TAG_RITMO_TOTAL = "widget:ritmo:total"
-const val TAG_RITMO_DESVIO = "widget:ritmo:desvio"
-
-/** O que o widget do ritmo desenha. Sem Context e sem repositório, para ser testado na JVM. */
 sealed interface RitmoWidgetEstado {
     data object SemOnboarding : RitmoWidgetEstado
     data object Falha : RitmoWidgetEstado
 
     /**
-     * [fracao] é a altura da barra do mês contra a maior das duas séries (0..1), e
-     * [fracaoCostume] a do costume na mesma escala — as duas juntas são a comparação.
-     * [desvioPercentual] é `null` quando não há mês anterior com que comparar.
+     * [mes] e [costume] são as duas curvas acumuladas em 0..1, na MESMA escala (a maior das duas
+     * vale 1). Sem eixo nem escala, a curva não diz quanto — só como o mês anda contra o costume.
      */
     data class Pronto(
-        val mes: YearMonth,
-        val diasDecorridos: Int,
-        val gastoCentavos: Long,
-        val desvioPercentual: Int?,
-        /** Há mês anterior com que comparar, mesmo que o costume aqui seja zero. */
+        val mesAno: YearMonth,
+        val diasNoMes: Int,
+        val mes: List<Float>,
+        val costume: List<Float>,
+        val desvio: Int?,
         val temComparacao: Boolean,
         val gastouAlgo: Boolean,
-        val fracao: Float,
-        val fracaoCostume: Float,
-        val mostrarValores: Boolean,
-    ) : RitmoWidgetEstado
+    ) : RitmoWidgetEstado {
+        val hoje: Int get() = mes.size
+        val acima: Boolean get() = temComparacao && (desvio?.let { it > 0 } ?: gastouAlgo)
+
+        /** O número grande: o desvio com sinal, ou um traço quando não há porcentagem. */
+        val numero: String get() = desvio?.takeIf { temComparacao }?.let { if (it > 0) "+$it%" else porcento(it) } ?: "—"
+
+        val legenda: String get() = when {
+            !temComparacao -> "sem mês anterior"
+            desvio == null -> if (gastouAlgo) "acima do costume" else "no costume"
+            desvio > 0 -> "acima do costume"
+            desvio < 0 -> "abaixo do costume"
+            else -> "no costume"
+        }
+    }
 }
 
-/**
- * "ritmo": quanto já saiu no mês, e se isso é muito para a altura do mês em que se está.
- *
- * O widget mais estreito dos oito (4×1) porque a resposta cabe numa linha: um número, um
- * desvio e duas barras — a do mês e a do costume, na mesma escala.
- */
+internal fun ritmoDoWidget(r: Ritmo): RitmoWidgetEstado.Pronto {
+    val escala = maxOf(r.acumulado.maxOrNull() ?: 0L, r.referencia.maxOrNull() ?: 0L, 1L).toFloat()
+    return RitmoWidgetEstado.Pronto(
+        mesAno = r.mes,
+        diasNoMes = r.mes.lengthOfMonth(),
+        mes = r.acumulado.map { it / escala },
+        costume = r.referencia.map { it / escala },
+        desvio = r.desvioPercentual,
+        temComparacao = r.temComparacao,
+        gastouAlgo = r.gastoAteAgora > 0,
+    )
+}
+
+/** "ritmo": o mês contra o costume, em porcentagem e numa curva sem escala. */
 class RitmoWidget : GlanceAppWidget() {
+
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val estado = when (val carga = carregarWidget(context)) {
             Carga.SemOnboarding -> RitmoWidgetEstado.SemOnboarding
             Carga.Falha -> RitmoWidgetEstado.Falha
-            is Carga.Pronto -> {
-                val r = RitmoEngine.ritmo(carga.input, carga.mes)
-                val maior = maxOf(r.gastoAteAgora, r.referenciaAteAgora)
-                RitmoWidgetEstado.Pronto(
-                    mes = carga.mes,
-                    diasDecorridos = r.acumulado.size,
-                    gastoCentavos = r.gastoAteAgora,
-                    desvioPercentual = r.desvioPercentual,
-                    temComparacao = r.temComparacao,
-                    gastouAlgo = r.gastoAteAgora > 0,
-                    fracao = if (maior > 0) r.gastoAteAgora.toFloat() / maior else 0f,
-                    fracaoCostume = if (maior > 0) r.referenciaAteAgora.toFloat() / maior else 0f,
-                    mostrarValores = carga.mostrarValores,
-                )
-            }
+            is Carga.Pronto -> ritmoDoWidget(RitmoEngine.ritmo(carga.input, carga.mes))
         }
         provideContent { RitmoWidgetContent(estado) }
     }
@@ -96,104 +94,69 @@ class RitmoWidgetReceiver : SaldoWidgetReceiver() {
 
 @Composable
 fun RitmoWidgetContent(estado: RitmoWidgetEstado) {
-    val mes = (estado as? RitmoWidgetEstado.Pronto)?.mes ?: mesDeHoje()
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(CoresWidget.fundo)
-            .cornerRadius(16.dp)
-            .clickable(abrirWidget(Destino.Totais(mes)))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
+    val formato = formatoDe(LocalSize.current)
+    val pronto = estado as? RitmoWidgetEstado.Pronto
+    val descricao = pronto?.let { "ritmo do mês: ${it.numero.replace("—", "")} ${it.legenda}".replace("  ", " ") } ?: "ritmo do mês"
+    Moldura(Destino.Totais(pronto?.mesAno ?: mesDeHoje()), formato, descricao) {
         when (estado) {
-            RitmoWidgetEstado.SemOnboarding -> AvisoRitmo("toque para começar")
-            RitmoWidgetEstado.Falha -> AvisoRitmo("não foi possível carregar")
-            is RitmoWidgetEstado.Pronto -> CorpoRitmo(estado)
+            RitmoWidgetEstado.SemOnboarding -> Aviso("toque para começar")
+            RitmoWidgetEstado.Falha -> Aviso("não foi possível carregar")
+            is RitmoWidgetEstado.Pronto -> CorpoRitmo(estado, formato)
         }
     }
 }
 
 @Composable
-private fun CorpoRitmo(estado: RitmoWidgetEstado.Pronto) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = GlanceModifier.fillMaxWidth()) {
-        Text(
-            if (estado.mostrarValores) estado.gastoCentavos.centavosComSimbolo() else MASCARA_PRIVACIDADE,
-            modifier = GlanceModifier.semantics { testTag = TAG_RITMO_TOTAL },
-            style = TextStyle(color = CoresWidget.label, fontSize = 18.sp, fontWeight = FontWeight.Bold),
-            maxLines = 1,
-        )
-        Box(GlanceModifier.padding(start = 6.dp).defaultWeight()) {
-            Text(
-                "saiu em " + estado.diasDecorridos + " dias",
-                style = TextStyle(color = CoresWidget.secundario, fontSize = 12.sp),
-                maxLines = 1,
-            )
+private fun androidx.glance.layout.ColumnScope.CorpoRitmo(e: RitmoWidgetEstado.Pronto, formato: Formato) {
+    val tamanho = LocalSize.current
+    val m = margemDe(formato)
+    val w = tamanho.width - m * 2
+    val h = tamanho.height - m * 2
+    val cor = if (e.acima) CoresWidget.negativo else CoresWidget.tint
+    when (formato) {
+        Formato.MINI -> Column(GlanceModifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalAlignment = Alignment.CenterVertically) {
+            Numero(e.numero, 24.sp, cor)
+            Vao(6.dp)
+            Meta("ritmo")
         }
-        Text(
-            textoDoDesvio(estado.desvioPercentual, estado.temComparacao, estado.gastouAlgo),
-            modifier = GlanceModifier.semantics { testTag = TAG_RITMO_DESVIO },
-            style = TextStyle(
-                color = if (acimaDoCostume(estado)) CoresWidget.negativo else CoresWidget.secundario,
-                fontSize = 12.sp,
-            ),
-            maxLines = 1,
-        )
-    }
-    // Duas trilhas de 4dp: a do mês na cor de saída, a do costume em cinza logo abaixo.
-    Box(GlanceModifier.padding(top = 8.dp)) {
-        Column(GlanceModifier.fillMaxWidth()) {
-            Barra(estado.fracao, CoresWidget.negativo)
-            Box(GlanceModifier.padding(top = 3.dp)) { Barra(estado.fracaoCostume, CoresWidget.trilha) }
+        Formato.LINHA -> Row(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Meta("ritmo")
+                Numero(e.numero, 20.sp, cor)
+                Meta(e.legenda)
+            }
+            Spacer(GlanceModifier.width(14.dp))
+            Box(GlanceModifier.defaultWeight().fillMaxHeight()) { Grafico(e, w * 0.55f, h) }
+        }
+        else -> {
+            val grande = formato == Formato.GRANDE
+            Cabecalho("ritmo do mês", if (formato == Formato.QUADRADO) null else "dia ${e.hoje} de ${e.diasNoMes}")
+            Vao(6.dp)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Numero(e.numero, if (grande) 40.sp else 28.sp, cor)
+                Spacer(GlanceModifier.width(8.dp))
+                Meta(e.legenda)
+            }
+            Vao()
+            val sobra = h - 16.dp - 6.dp - (if (grande) 40.dp else 28.dp) - 8.dp - if (grande) 24.dp else 0.dp
+            Box(GlanceModifier.fillMaxWidth().defaultWeight()) { Grafico(e, w, sobra) }
+            if (grande) {
+                Vao()
+                Row(GlanceModifier.fillMaxWidth()) {
+                    Meta("dia 1")
+                    Meta("— este mês   - - o costume", GlanceModifier.defaultWeight().padding(horizontal = 8.dp))
+                    Meta("dia ${e.diasNoMes}")
+                }
+            }
         }
     }
-}
-
-/**
- * Uma barra proporcional feita de caixas com peso — o Glance não tem largura fracionária, e
- * `defaultWeight` divide igual entre os filhos. Fração zero não desenha nada.
- */
-@Composable
-private fun Barra(fracao: Float, cor: ColorProvider) {
-    val cheias = pesoCheio(fracao)
-    val vazias = PESO_TOTAL - cheias
-    Row(GlanceModifier.fillMaxWidth().height(4.dp)) {
-        if (cheias > 0) {
-            Box(GlanceModifier.defaultWeight().height(4.dp).cornerRadius(2.dp).background(cor)) {}
-        }
-        repeat(vazias) { Box(GlanceModifier.defaultWeight().height(4.dp)) {} }
-    }
-}
-
-/**
- * Em quantas das [PESO_TOTAL] fatias a barra cheia cabe.
- *
- * A resolução é grosseira de propósito: um widget de 4×1 não tem pixel para mais do que
- * doze passos, e o número exato já está escrito ao lado em reais.
- */
-internal fun pesoCheio(fracao: Float): Int =
-    (fracao.coerceIn(0f, 1f) * PESO_TOTAL).toInt().coerceIn(0, PESO_TOTAL)
-
-internal const val PESO_TOTAL = 12
-
-/**
- * [temComparacao] separa "não há mês anterior" de "o costume neste ponto do mês era zero" —
- * no dia 3, o segundo é comum e não quer dizer que falte histórico.
- */
-internal fun textoDoDesvio(desvio: Int?, temComparacao: Boolean, gastouAlgo: Boolean): String = when {
-    !temComparacao -> "sem comparação"
-    desvio == null -> if (gastouAlgo) "acima do costume" else "no costume"
-    desvio > 0 -> "+" + desvio + "% vs costume"
-    desvio < 0 -> desvio.toString() + "% vs costume"
-    else -> "no costume"
-}
-
-/** Gastando mais do que o costume — com ou sem porcentagem para expressar quanto. */
-internal fun acimaDoCostume(estado: RitmoWidgetEstado.Pronto): Boolean {
-    if (!estado.temComparacao) return false
-    return (estado.desvioPercentual ?: return estado.gastouAlgo) > 0
 }
 
 @Composable
-private fun AvisoRitmo(texto: String) {
-    Text(texto, style = TextStyle(color = CoresWidget.label, fontSize = 15.sp, fontWeight = FontWeight.Medium))
+private fun Grafico(e: RitmoWidgetEstado.Pronto, largura: Dp, altura: Dp) {
+    if (largura < 24.dp || altura < 16.dp) return
+    val c = curva(LocalContext.current, largura, altura, e.mes, e.costume, e.diasNoMes)
+    Pintado(c.area, CoresWidget.tint)
+    c.costume?.let { Pintado(it, CoresWidget.secundario) }
+    Pintado(c.linha, if (e.acima) CoresWidget.negativo else CoresWidget.tint)
 }

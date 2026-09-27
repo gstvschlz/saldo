@@ -29,7 +29,6 @@ class ImportersTest {
             cartao = CartaoConfig("nubank", 28, 5),
             comecarOculto = true,
             tema = Tema.ESCURO,
-            widgetMostrarValores = true,
             lembretes = LembretesConfig(
                 faturaAmanha = true, registrarGastos = true,
                 horaInformativos = LocalTime.of(8, 30), horaNudge = LocalTime.of(21, 15),

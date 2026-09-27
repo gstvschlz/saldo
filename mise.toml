@@ -59,3 +59,7 @@ run_windows = [
     "adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
     "adb shell am instrument -w -e class com.scholze.saldo.SemearDemo com.scholze.saldo.test/androidx.test.runner.AndroidJUnitRunner",
 ]
+
+[tasks.previas]
+description = "Regenerate the widget picker previews (needs Chrome)"
+run = "bash tools/previas/gerar.sh"

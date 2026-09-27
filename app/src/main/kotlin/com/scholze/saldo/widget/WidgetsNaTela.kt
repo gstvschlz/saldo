@@ -17,14 +17,13 @@ import kotlinx.coroutines.launch
 private const val TAG = "saldo"
 
 /**
- * Os oito tipos de widget, num lugar só.
+ * Os sete tipos de widget, num lugar só.
  *
  * Existia uma lista destas dentro do [WidgetRefresher] e outra, de UM item, dentro do
  * `LembretesWorker` — que por isso acordava só o widget de saldo. Widget novo agora entra aqui e
  * em nenhum outro lugar.
  */
 internal fun todosOsWidgets(): List<GlanceAppWidget> = listOf(
-    SaldoWidget(),
     ACaminhoWidget(),
     ParaOndeFoiWidget(),
     LancarWidget(),

@@ -61,7 +61,6 @@ class ExportersTest {
         cartao = CartaoConfig("nubank", 28, 5),
         comecarOculto = true,
         tema = Tema.ESCURO,
-        widgetMostrarValores = true,
         lembretes = LembretesConfig(
             faturaAmanha = true, recorrenciaHoje = false, registrarGastos = true, fechamentoMes = false,
             horaInformativos = LocalTime.of(8, 30), horaNudge = LocalTime.of(21, 15),
@@ -98,7 +97,6 @@ class ExportersTest {
         assertEquals(5, s.getInt("cartaoVencimentoDia"))
         assertEquals(true, s.getBoolean("comecarOculto"))
         assertEquals("ESCURO", s.getString("tema"))
-        assertEquals(true, s.getBoolean("widgetMostrarValores"))
         assertEquals(true, s.getJSONObject("lembretes").getBoolean("faturaAmanha"))
         assertEquals("08:30", s.getJSONObject("lembretes").getString("horaInformativos"))
         assertEquals("21:15", s.getJSONObject("lembretes").getString("horaNudge"))

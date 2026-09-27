@@ -6,17 +6,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalSize
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
-import androidx.glance.action.clickable
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
+import androidx.glance.layout.Column
 import androidx.glance.layout.Row
+import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
-import androidx.glance.layout.padding
+import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.height
+import androidx.glance.layout.width
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import androidx.glance.semantics.testTag
@@ -29,11 +35,12 @@ const val TAG_LANCAR_SAIDA = "widget:lancar:saida"
 const val TAG_LANCAR_ENTRADA = "widget:lancar:entrada"
 
 /**
- * O widget mais simples dos quatro: dois botões que abrem a sheet **já do lado certo**, poupando
- * o toque que hoje se gasta trocando entrada/saída. Não lê motor nenhum — só precisa saber se o
- * onboarding já aconteceu, porque antes disso não há saldo inicial e a sheet não tem o que fazer.
+ * Dois botões que abrem a sheet já do lado certo. Não lê motor nenhum — só precisa saber se o
+ * onboarding já aconteceu. No 1×1 vira um `+` só, que abre a sheet no padrão dela.
  */
 class LancarWidget : GlanceAppWidget() {
+
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val pronto = carregarWidget(context) is Carga.Pronto
@@ -47,56 +54,41 @@ class LancarWidgetReceiver : SaldoWidgetReceiver() {
 
 @Composable
 fun LancarWidgetContent(pronto: Boolean) {
-    Row(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(CoresWidget.fundo)
-            .cornerRadius(16.dp)
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (!pronto) {
-            Box(
-                modifier = GlanceModifier.fillMaxSize().clickable(abrirWidget(Destino.Saldos(mesDeHoje()))),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "toque para começar",
-                    style = TextStyle(color = CoresWidget.label, fontSize = 15.sp, fontWeight = FontWeight.Medium),
-                )
+    val formato = formatoDe(LocalSize.current)
+    Moldura(Destino.Saldos(mesDeHoje()), formato, "lançar", margem = 8.dp) {
+        when {
+            !pronto -> Aviso("toque para começar")
+            formato == Formato.MINI -> Botao("+", null, "lançar", null, 32, GlanceModifier.fillMaxSize())
+            formato == Formato.QUADRADO -> Column(GlanceModifier.fillMaxSize()) {
+                Botao("− saiu", true, "nova saída", TAG_LANCAR_SAIDA, 16, GlanceModifier.fillMaxWidth().defaultWeight())
+                Spacer(GlanceModifier.height(8.dp))
+                Botao("+ entrou", false, "nova entrada", TAG_LANCAR_ENTRADA, 16, GlanceModifier.fillMaxWidth().defaultWeight())
             }
-            return@Row
+            else -> Row(GlanceModifier.fillMaxSize()) {
+                val tamanho = if (formato == Formato.GRANDE) 20 else if (LocalSize.current.width < 200.dp) 14 else 16
+                Botao("− saiu", true, "nova saída", TAG_LANCAR_SAIDA, tamanho, GlanceModifier.defaultWeight().fillMaxHeight())
+                Spacer(GlanceModifier.width(8.dp))
+                Botao("+ entrou", false, "nova entrada", TAG_LANCAR_ENTRADA, tamanho, GlanceModifier.defaultWeight().fillMaxHeight())
+            }
         }
-        Botao("− saída", TAG_LANCAR_SAIDA, saida = true, modifier = GlanceModifier.defaultWeight())
-        Box(GlanceModifier.padding(horizontal = 4.dp)) {}
-        Botao("+ entrada", TAG_LANCAR_ENTRADA, saida = false, modifier = GlanceModifier.defaultWeight())
     }
 }
 
 @Composable
-private fun Botao(rotulo: String, tag: String, saida: Boolean, modifier: GlanceModifier) {
+private fun Botao(rotulo: String, saida: Boolean?, descricao: String, tag: String?, tamanho: Int, modifier: GlanceModifier) {
+    val fundo = if (saida == true) CoresWidget.tomDoBoard(-1) else CoresWidget.tint
+    val tinta = if (saida == true) CoresWidget.negativo else CoresWidget.sobreTint
     Box(
         modifier = modifier
-            .fillMaxHeight()
-            // Saída é o caso comum (é um app de gasto), então ela leva o preenchimento cheio e a
-            // entrada fica tonal — a hierarquia diz qual é o botão do dia a dia.
-            .background(if (saida) CoresWidget.tint else CoresWidget.container)
-            .cornerRadius(12.dp)
+            .background(fundo)
+            .cornerRadius(18.dp)
             .clickable(abrirWidget(Destino.NovaMovimentacao(saida = saida)))
             .semantics {
-                testTag = tag
-                contentDescription = if (saida) "nova saída" else "nova entrada"
+                if (tag != null) testTag = tag
+                contentDescription = descricao
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            rotulo,
-            style = TextStyle(
-                color = if (saida) CoresWidget.sobreTint else CoresWidget.sobreContainer,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-            maxLines = 1,
-        )
+        Text(rotulo, style = TextStyle(color = tinta, fontSize = tamanho.sp, fontWeight = FontWeight.Bold), maxLines = 1)
     }
 }

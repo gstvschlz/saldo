@@ -56,7 +56,6 @@ class SettingsStoreTest {
         assertTrue(s.comecarOculto)
         assertEquals(Tema.SISTEMA, s.tema)
         assertEquals(28, s.cartao.fechamentoDia)
-        assertFalse(s.widgetMostrarValores)          // widget mascarado por padrão
         assertEquals(LembretesConfig(), s.lembretes)  // tudo desligado, 09:00 / 20:00
     }
 
@@ -84,10 +83,8 @@ class SettingsStoreTest {
             faturaAmanha = true, recorrenciaHoje = false, registrarGastos = true, fechamentoMes = true,
             horaInformativos = LocalTime.of(8, 30), horaNudge = LocalTime.of(21, 15),
         )
-        st.definirWidgetMostrarValores(true)
         st.definirLembretes(config)
         val s = st.settings.first()
-        assertTrue(s.widgetMostrarValores)
         assertEquals(config, s.lembretes)
     }
 
@@ -155,7 +152,6 @@ class SettingsStoreTest {
         val st = store()
         st.definirSaldoInicial(1_00, LocalDate.parse("2026-01-01"))
         st.definirTema(Tema.CLARO)
-        st.definirWidgetMostrarValores(true)
         st.definirCapturaLigada(true)
         st.definirAppMarcado("com.antigo", true)
 
@@ -165,7 +161,6 @@ class SettingsStoreTest {
             cartao = CartaoConfig("nubank", 27, 4),
             comecarOculto = false,
             tema = Tema.ESCURO,
-            widgetMostrarValores = false,
             lembretes = LembretesConfig(faturaAmanha = true, horaInformativos = LocalTime.of(8, 30)),
             captura = CapturaConfig(ligada = false, marcados = setOf("com.novo"), vistos = emptySet()),
         )

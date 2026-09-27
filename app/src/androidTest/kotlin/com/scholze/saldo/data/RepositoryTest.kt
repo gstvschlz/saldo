@@ -816,7 +816,6 @@ class RepositoryTest {
             val antes = emissoes.size
 
             settings.definirTema(Tema.ESCURO)
-            settings.definirWidgetMostrarValores(true)
             settings.definirLembretes(LembretesConfig(faturaAmanha = true))
             delay(300)
 

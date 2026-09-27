@@ -45,6 +45,9 @@ internal object CoresWidget {
         ColorProvider(day = LightSaldoColors.boardPos3, night = DarkSaldoColors.boardPos3),
     )
 
+    /** O verde claro das barras que não são o mês corrente. */
+    val suave: ProvedorDeCor get() = board[4]
+
     /** O tom de um nível −3..3; fora da faixa, o neutro. */
     fun tomDoBoard(nivel: Int): ProvedorDeCor = board[(nivel.coerceIn(-3, 3)) + 3]
 

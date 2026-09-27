@@ -121,9 +121,6 @@ class MaisViewModel(
     fun definirMetaGuardar(percent: Int) =
         escrever("definirMetaGuardar") { settingsStore.definirMetaGuardar(percent) }
 
-    fun definirWidgetMostrarValores(v: Boolean) =
-        escrever("definirWidgetMostrarValores") { settingsStore.definirWidgetMostrarValores(v) }
-
     fun definirCapturaLigada(v: Boolean) =
         escrever("definirCapturaLigada") { settingsStore.definirCapturaLigada(v) }
 

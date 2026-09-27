@@ -26,8 +26,6 @@ internal sealed interface Carga {
     data class Pronto(
         val input: LedgerInput,
         val mes: YearMonth,
-        /** `false` = mascarado. É o padrão — ver "mostrar valores no widget". */
-        val mostrarValores: Boolean,
         /** A meta de guardar, em %; `0` = sem meta. Lida junto com o resto dos ajustes. */
         val metaGuardarPercent: Int,
     ) : Carga
@@ -47,7 +45,6 @@ internal suspend fun carregarWidget(context: Context): Carga = try {
         Carga.Pronto(
             input = input,
             mes = YearMonth.from(input.hoje),
-            mostrarValores = settings.widgetMostrarValores,
             metaGuardarPercent = settings.metaGuardarPercent,
         )
     }

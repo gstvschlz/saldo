@@ -241,15 +241,6 @@ fun MaisScreen(
                     label = "começar oculto",
                     trailing = { Switch(checked = s.comecarOculto, onCheckedChange = { vm.definirComecarOculto(it) }) },
                 )
-                InsetRow(
-                    label = "mostrar valores no widget",
-                    trailing = { Switch(checked = s.widgetMostrarValores, onCheckedChange = { vm.definirWidgetMostrarValores(it) }) },
-                )
-                Text(
-                    "o widget mostra o saldo projetado na tela inicial; desligado, mostra R$ •••••",
-                    Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                    style = SaldoTheme.type.caption, color = colors.secondaryLabel,
-                )
                 InsetRow(label = "tema", value = rotulo(s.tema), onClick = { escolhendoTema = true })
             }
 

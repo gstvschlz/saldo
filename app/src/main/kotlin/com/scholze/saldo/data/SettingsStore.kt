@@ -33,8 +33,6 @@ data class Settings(
     val cartao: CartaoConfig,
     val comecarOculto: Boolean,
     val tema: Tema,
-    /** O widget mostra dinheiro na tela inicial? Padrão `false`: `R$ •••••` até o usuário optar. */
-    val widgetMostrarValores: Boolean = false,
     val lembretes: LembretesConfig = LembretesConfig(),
     val captura: CapturaConfig = CapturaConfig(),
     /**
@@ -65,7 +63,6 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val cartaoVencimento = intPreferencesKey("cartao_vencimento_dia")
         val comecarOculto = booleanPreferencesKey("comecar_oculto")
         val tema = stringPreferencesKey("tema")
-        val widgetMostrarValores = booleanPreferencesKey("widget_mostrar_valores")
         val lembreteFaturaAmanha = booleanPreferencesKey("lembrete_fatura_amanha")
         val lembreteRecorrenciaHoje = booleanPreferencesKey("lembrete_recorrencia_hoje")
         val lembreteRegistrarGastos = booleanPreferencesKey("lembrete_registrar_gastos")
@@ -108,7 +105,6 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             comecarOculto = p[Keys.comecarOculto] ?: true,
             // Tolerante a um valor gravado por uma versão futura/antiga do enum.
             tema = p[Keys.tema]?.let { v -> Tema.entries.find { it.name == v } } ?: Tema.SISTEMA,
-            widgetMostrarValores = p[Keys.widgetMostrarValores] ?: false,
             lembretes = p.lembretes(),
             captura = p.captura(),
             backup = p.backup(),
@@ -209,10 +205,6 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 
     suspend fun definirTema(tema: Tema) {
         dataStore.edit { it[Keys.tema] = tema.name }
-    }
-
-    suspend fun definirWidgetMostrarValores(v: Boolean) {
-        dataStore.edit { it[Keys.widgetMostrarValores] = v }
     }
 
     suspend fun definirLembretes(config: LembretesConfig) {
@@ -335,7 +327,6 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             p[Keys.cartaoVencimento] = novo.cartao.vencimentoDia
             p[Keys.comecarOculto] = novo.comecarOculto
             p[Keys.tema] = novo.tema.name
-            p[Keys.widgetMostrarValores] = novo.widgetMostrarValores
             p[Keys.lembreteFaturaAmanha] = novo.lembretes.faturaAmanha
             p[Keys.lembreteRecorrenciaHoje] = novo.lembretes.recorrenciaHoje
             p[Keys.lembreteRegistrarGastos] = novo.lembretes.registrarGastos

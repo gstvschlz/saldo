@@ -1,24 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Nasce 4x2 e encolhe ate 2x2 (minResize* abaixo de min*): o conteudo mede a largura viva e
-    escolhe o lado do quadradinho, entao a grade inteira continua cabendo — so menor. A altura
-    nao desce de 110dp porque as seis semanas mais o nome do mes precisam disso, em qualquer
-    tamanho de celula.
--->
-<!--
-    `previewLayout` só existe no Android 12+, e é isso mesmo: a decisão foi prévia em XML,
-    sem `previewImage` de vetor para as versões antigas. Abaixo do 12 o seletor mostra o
-    ícone, como sempre mostrou.
+    Sem maxResize: o widget cresce até onde o launcher deixar, e encolhe até 1×1 — o conteúdo
+    escolhe um de cinco layouts pelo tamanho de verdade (ver Molde.kt). A prévia é uma imagem
+    (previewImage), não um layout, porque vários launchers ignoram previewLayout; as duas versões,
+    clara e escura, saem de tools/previas (mise run previas).
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="UnusedAttribute"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="110dp"
-    android:minResizeHeight="110dp"
-    android:maxResizeWidth="400dp"
-    android:maxResizeHeight="220dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
@@ -26,4 +19,4 @@
     android:widgetCategory="home_screen"
     android:description="@string/widget_board_descricao"
     android:initialLayout="@layout/glance_default_loading_layout"
-    android:previewLayout="@layout/preview_board" />
+    android:previewImage="@drawable/previa_board" />

@@ -1,0 +1,650 @@
+<!doctype html>
+<!--
+  As prévias do seletor de widgets (previewImage). É o mesmo desenho do canvas de design
+  ("saldo · widgets 2"), com dados de exemplo — nunca dados reais. `gerar.sh` abre este arquivo no
+  Chrome headless, um widget por vez (#kind=mes&cols=4&rows=2&dark=0), e salva o PNG.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..800&display=swap">
+<style>html,body{margin:0;background:transparent;overflow:hidden}</style>
+</head>
+<body>
+<template id="t">
+<div style="{{rootStyle}}" aria-label="{{aria}}">
+
+<sc-if value="{{is.mes}}" hint-placeholder-val="{{true}}">
+  <sc-if value="{{mes.showHead}}" hint-placeholder-val="{{true}}">
+    <div style="{{s.head}}">
+      <span style="{{s.title}}">setembro</span>
+      <sc-if value="{{mes.showCounts}}" hint-placeholder-val="{{true}}">
+        <span style="{{s.meta}}"><b style="{{mes.posInk}}">{{mes.pos}}</b> no verde · <b style="{{mes.negInk}}">{{mes.neg}}</b> no rosa</span>
+      </sc-if>
+      <sc-if value="{{mes.showDia}}" hint-placeholder-val="{{false}}">
+        <span style="{{s.meta}}">dia 26</span>
+      </sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.linha}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; gap: 4px; flex-grow: 1; min-height: 0">
+      <sc-for list="{{mes.last14}}" as="c" hint-placeholder-count="14">
+        <div style="{{c.style}}"></div>
+      </sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{mes.full}}" hint-placeholder-val="{{true}}">
+    <sc-if value="{{mes.showDow}}" hint-placeholder-val="{{false}}">
+      <div style="{{mes.dowStyle}}">
+        <sc-for list="{{mes.dow}}" as="d" hint-placeholder-count="7">
+          <span style="{{s.dow}}">{{d}}</span>
+        </sc-for>
+      </div>
+    </sc-if>
+    <div style="{{mes.gridStyle}}">
+      <sc-for list="{{mes.cells}}" as="c" hint-placeholder-count="35">
+        <div style="{{c.style}}"></div>
+      </sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{mes.showFoot}}" hint-placeholder-val="{{false}}">
+    <span style="{{s.meta}}">{{mes.streak}} dias seguidos no verde · o mês até hoje</span>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{is.guardou}}" hint-placeholder-val="{{false}}">
+  <sc-if value="{{lay.linha}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; gap: 14px; align-items: center; flex-grow: 1; min-height: 0">
+      <div style="display: flex; flex-direction: column; gap: 4px; flex-shrink: 0">
+        <span style="{{s.meta}}">guardou</span>
+        <span style="{{g.lineBig}}">17%</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1; min-width: 0">
+        <div style="{{g.trackStyle}}"><div style="{{g.fillStyle}}"></div></div>
+        <span style="{{s.meta}}">{{g.lineCap}}</span>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{g.notLine}}" hint-placeholder-val="{{true}}">
+    <sc-if value="{{g.head}}" hint-placeholder-val="{{true}}">
+      <div style="{{s.head}}">
+        <span style="{{s.title}}">{{g.headTxt}}</span>
+        <span style="{{s.meta}}">meta 20%</span>
+      </div>
+    </sc-if>
+    <div style="{{g.bodyStyle}}">
+      <div style="{{g.ringWrap}}">
+        <div style="{{g.ringStyle}}">
+          <div style="{{g.ringInner}}">
+            <span style="{{g.pctStyle}}">17%</span>
+            <sc-if value="{{g.ringSub}}" hint-placeholder-val="{{true}}">
+              <span style="{{s.meta}}">da renda</span>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+      <sc-if value="{{g.showBars}}" hint-placeholder-val="{{true}}">
+        <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+          <div style="flex-grow: 1; min-height: 0; position: relative; display: flex; align-items: flex-end; gap: 6px">
+            <div style="{{g.metaLine}}"></div>
+            <sc-for list="{{g.bars}}" as="b" hint-placeholder-count="6">
+              <div style="{{b.style}}"></div>
+            </sc-for>
+          </div>
+          <div style="display: flex; gap: 6px">
+            <sc-for list="{{g.bars}}" as="b" hint-placeholder-count="6">
+              <div style="{{b.lblStyle}}">
+                <span>{{b.m}}</span>
+                <sc-if value="{{g.pctLabels}}" hint-placeholder-val="{{false}}">
+                  <span style="{{b.pctStyle}}">{{b.pct}}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    <sc-if value="{{lay.quadrado}}" hint-placeholder-val="{{false}}">
+      <span style="{{s.metaC}}">faltam 3 pontos para a meta</span>
+    </sc-if>
+    <sc-if value="{{lay.grande}}" hint-placeholder-val="{{false}}">
+      <span style="{{s.meta}}">2 dos últimos 6 meses bateram a meta · faltam 3 pontos</span>
+    </sc-if>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{is.ritmo}}" hint-placeholder-val="{{false}}">
+  <sc-if value="{{lay.mini}}" hint-placeholder-val="{{false}}">
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px">
+      <span style="{{r.bigStyle}}">−12%</span>
+      <span style="{{s.meta}}">ritmo</span>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.linha}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; gap: 14px; align-items: stretch; flex-grow: 1; min-height: 0">
+      <div style="display: flex; flex-direction: column; justify-content: center; gap: 4px; flex-shrink: 0">
+        <span style="{{s.meta}}">ritmo</span>
+        <span style="{{r.lineBig}}">{{r.lineTxt}}</span>
+      </div>
+      <div style="{{r.chartBox}}">
+        <svg viewBox="0 0 300 100" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible">
+          <path d="{{r.area}}" style="{{r.areaSt}}"></path>
+          <path d="{{r.cost}}" style="{{r.costSt}}"></path>
+          <path d="{{r.line}}" style="{{r.lineSt}}"></path>
+        </svg>
+        <div style="{{r.dot}}"></div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{r.full}}" hint-placeholder-val="{{true}}">
+    <div style="{{s.head}}">
+      <span style="{{s.title}}">ritmo do mês</span>
+      <sc-if value="{{r.showDia}}" hint-placeholder-val="{{true}}">
+        <span style="{{s.meta}}">dia 26 de 30</span>
+      </sc-if>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap">
+      <span style="{{r.bigStyle}}">−12%</span>
+      <span style="{{s.meta}}">abaixo do costume</span>
+    </div>
+    <div style="{{r.chartBox}}">
+      <svg viewBox="0 0 300 100" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible">
+        <path d="{{r.area}}" style="{{r.areaSt}}"></path>
+        <path d="{{r.cost}}" style="{{r.costSt}}"></path>
+        <path d="{{r.line}}" style="{{r.lineSt}}"></path>
+      </svg>
+      <div style="{{r.dot}}"></div>
+    </div>
+    <sc-if value="{{lay.grande}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; justify-content: space-between; gap: 8px">
+        <span style="{{s.meta}}">dia 1</span>
+        <span style="{{s.meta}}">— este mês   - - o costume</span>
+        <span style="{{s.meta}}">dia 30</span>
+      </div>
+    </sc-if>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{is.hoje}}" hint-placeholder-val="{{false}}">
+  <sc-if value="{{lay.mini}}" hint-placeholder-val="{{false}}">
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px">
+      <span style="{{hj.bigStyle}}">60%</span>
+      <span style="{{s.meta}}">cabe hoje</span>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.linha}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; gap: 14px; align-items: center; flex-grow: 1; min-height: 0">
+      <div style="display: flex; flex-direction: column; gap: 4px; flex-shrink: 0">
+        <span style="{{s.meta}}">hoje ainda cabe</span>
+        <span style="{{hj.lineBig}}">60%</span>
+      </div>
+      <div style="{{hj.segRow}}">
+        <sc-for list="{{hj.segs}}" as="sg" hint-placeholder-count="10">
+          <div style="{{sg.style}}"></div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{hj.full}}" hint-placeholder-val="{{true}}">
+    <div style="{{s.head}}">
+      <span style="{{s.title}}">hoje</span>
+      <span style="{{s.meta}}">{{hj.headRight}}</span>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap">
+      <span style="{{hj.bigStyle}}">60%</span>
+      <span style="{{s.meta}}">do teto ainda cabe no dia</span>
+    </div>
+    <div style="flex-grow: 1; min-height: 0"></div>
+    <div style="{{hj.segRow}}">
+      <sc-for list="{{hj.segs}}" as="sg" hint-placeholder-count="10">
+        <div style="{{sg.style}}"></div>
+      </sc-for>
+    </div>
+    <sc-if value="{{hj.showStreak}}" hint-placeholder-val="{{true}}">
+      <span style="{{s.meta}}">últimos 14 dias dentro do teto</span>
+      <div style="{{hj.streakStyle}}">
+        <sc-for list="{{hj.streak}}" as="sk" hint-placeholder-count="14">
+          <div style="{{sk.style}}"></div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{lay.quadrado}}" hint-placeholder-val="{{false}}">
+      <span style="{{s.meta}}">7 dias seguidos no teto</span>
+    </sc-if>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{is.paraondefoi}}" hint-placeholder-val="{{false}}">
+  <sc-if value="{{pf.head}}" hint-placeholder-val="{{true}}">
+    <div style="{{s.head}}">
+      <span style="{{s.title}}">para onde foi</span>
+      <sc-if value="{{pf.legendOn}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; gap: 10px; min-width: 0; overflow: hidden">
+          <sc-for list="{{pf.legend}}" as="lg" hint-placeholder-count="3">
+            <span style="{{lg.style}}"><span style="{{lg.dot}}"></span>{{lg.txt}}</span>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{pf.monthOn}}" hint-placeholder-val="{{true}}">
+        <span style="{{s.meta}}">setembro</span>
+      </sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.linha}}" hint-placeholder-val="{{false}}">
+    <div style="flex-grow: 1; min-height: 0; display: flex; gap: 2px; border-radius: 10px; overflow: hidden">
+      <sc-for list="{{pf.stack}}" as="st" hint-placeholder-count="6">
+        <div style="{{st.style}}"></div>
+      </sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{pf.map}}" hint-placeholder-val="{{true}}">
+    <div style="{{pf.mapStyle}}">
+      <div style="{{pf.a.style}}">
+        <sc-if value="{{pf.a.showName}}" hint-placeholder-val="{{true}}"><span style="{{s.tileName}}">{{pf.a.n}}</span></sc-if>
+        <sc-if value="{{pf.a.showPct}}" hint-placeholder-val="{{true}}"><span style="{{s.tilePct}}">{{pf.a.v}}%</span></sc-if>
+      </div>
+      <div style="{{pf.colStyle}}">
+        <div style="{{pf.row1Style}}">
+          <sc-for list="{{pf.row1}}" as="tl" hint-placeholder-count="2">
+            <div style="{{tl.style}}">
+              <sc-if value="{{tl.showName}}" hint-placeholder-val="{{true}}"><span style="{{s.tileName}}">{{tl.n}}</span></sc-if>
+              <sc-if value="{{tl.showPct}}" hint-placeholder-val="{{true}}"><span style="{{s.tilePct}}">{{tl.v}}%</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="{{pf.row2Style}}">
+          <sc-for list="{{pf.row2}}" as="tl" hint-placeholder-count="3">
+            <div style="{{tl.style}}">
+              <sc-if value="{{tl.showName}}" hint-placeholder-val="{{true}}"><span style="{{s.tileName}}">{{tl.n}}</span></sc-if>
+              <sc-if value="{{tl.showPct}}" hint-placeholder-val="{{true}}"><span style="{{s.tilePct}}">{{tl.v}}%</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{is.acaminho}}" hint-placeholder-val="{{false}}">
+  <sc-if value="{{lay.mini}}" hint-placeholder-val="{{false}}">
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px">
+      <span style="{{ac.bigStyle}}">4</span>
+      <span style="{{s.meta}}">a caminho</span>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.linha}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; gap: 14px; align-items: stretch; flex-grow: 1; min-height: 0">
+      <div style="display: flex; flex-direction: column; justify-content: center; gap: 3px; flex-shrink: 0; min-width: 0">
+        <span style="{{s.meta}}">a caminho</span>
+        <span style="{{ac.lineBig}}">4 até dia 30</span>
+        <sc-if value="{{ac.lineNext}}" hint-placeholder-val="{{false}}">
+          <span style="{{s.meta}}">próximo: aluguel, 28</span>
+        </sc-if>
+      </div>
+      <sc-if value="{{ac.lineTimeline}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; gap: 4px; flex-grow: 1; min-width: 0">
+          <sc-for list="{{ac.days}}" as="dy" hint-placeholder-count="4">
+            <div style="{{dy.miniCol}}">
+              <span style="{{s.metaC}}">{{dy.d}}</span>
+              <div style="display: flex; gap: 3px; justify-content: center">
+                <sc-for list="{{dy.items}}" as="it" hint-placeholder-count="1">
+                  <span style="{{it.arrowSt}}">{{it.arrow}}</span>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.quadrado}}" hint-placeholder-val="{{false}}">
+    <div style="{{s.head}}">
+      <span style="{{s.title}}">a caminho</span>
+      <span style="{{s.meta}}">até 30</span>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 8px">
+      <span style="{{ac.bigStyle}}">4</span>
+      <span style="{{s.meta}}">lançamentos</span>
+    </div>
+    <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; gap: 6px">
+      <sc-for list="{{ac.first2}}" as="it" hint-placeholder-count="2">
+        <div style="{{s.acRow}}">
+          <span style="{{ac.badge}}">{{it.d}}</span>
+          <span style="{{s.acDesc}}">{{it.desc}}</span>
+          <span style="{{it.arrowSt}}">{{it.arrow}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <span style="{{s.meta}}">+2 depois</span>
+  </sc-if>
+  <sc-if value="{{lay.largo}}" hint-placeholder-val="{{false}}">
+    <div style="{{s.head}}">
+      <span style="{{s.title}}">a caminho</span>
+      <span style="{{s.meta}}">4 lançamentos até 30 set</span>
+    </div>
+    <div style="flex-grow: 1; min-height: 0; display: flex; gap: 6px">
+      <sc-for list="{{ac.days}}" as="dy" hint-placeholder-count="4">
+        <div style="{{dy.col}}">
+          <div style="display: flex; align-items: baseline; gap: 4px">
+            <span style="{{s.dayNum}}">{{dy.d}}</span>
+            <span style="{{s.meta}}">{{dy.w}}</span>
+          </div>
+          <sc-for list="{{dy.items}}" as="it" hint-placeholder-count="1">
+            <div style="{{s.chip}}">
+              <span style="{{it.arrowSt}}">{{it.arrow}}</span>
+              <span style="{{s.chipTxt}}">{{it.desc}}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{dy.empty}}" hint-placeholder-val="{{false}}">
+            <span style="{{s.meta}}">livre</span>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.grande}}" hint-placeholder-val="{{false}}">
+    <div style="{{s.head}}">
+      <span style="{{s.title}}">a caminho</span>
+      <span style="{{s.meta}}">até 30 set</span>
+    </div>
+    <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px">
+      <sc-for list="{{ac.items}}" as="it" hint-placeholder-count="4">
+        <div style="{{ac.bigRow}}">
+          <span style="{{ac.badgeL}}">{{it.d}}</span>
+          <div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0">
+            <span style="{{s.acDesc}}">{{it.desc}}</span>
+            <span style="{{s.meta}}">{{it.w}} · {{it.kind}}</span>
+          </div>
+          <span style="{{it.arrowStL}}">{{it.arrow}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <span style="{{s.meta}}">próximo em 2 dias · 1 entra, 3 saem</span>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{is.lancar}}" hint-placeholder-val="{{false}}">
+  <sc-if value="{{lay.mini}}" hint-placeholder-val="{{false}}">
+    <button type="button" aria-label="lançar" style="{{ln.plus}}">+</button>
+  </sc-if>
+  <sc-if value="{{ln.two}}" hint-placeholder-val="{{true}}">
+    <div style="{{ln.pairStyle}}">
+      <button type="button" style="{{ln.out}}">− saiu</button>
+      <button type="button" style="{{ln.inn}}">+ entrou</button>
+    </div>
+  </sc-if>
+  <sc-if value="{{lay.grande}}" hint-placeholder-val="{{false}}">
+    <div style="flex: 1 1 0; min-height: 0; display: flex; gap: 8px">
+      <sc-for list="{{ln.tags}}" as="tg" hint-placeholder-count="3">
+        <button type="button" style="{{ln.chip}}"><span style="{{tg.dot}}"></span>{{tg.n}}</button>
+      </sc-for>
+    </div>
+  </sc-if>
+</sc-if>
+
+</div>
+</template>
+<script>
+class DCLogic { constructor(props) { this.props = props; this.state = {}; } }
+class Component extends DCLogic {
+  renderVals() {
+    const kind = this.props.kind ?? 'mes';
+    const cols = Math.min(5, Math.max(1, Number(this.props.cols ?? 4)));
+    const rows = Math.min(5, Math.max(1, Number(this.props.rows ?? 2)));
+    const dark = this.props.dark === true || this.props.dark === 'true';
+    const w = cols * 92 - 12, h = rows * 108 - 12;
+    const L = cols === 1 && rows === 1 ? 'mini' : rows === 1 ? 'linha' : cols <= 2 ? 'quadrado' : rows === 2 ? 'largo' : 'grande';
+    const lay = { mini: L === 'mini', linha: L === 'linha', quadrado: L === 'quadrado', largo: L === 'largo', grande: L === 'grande' };
+    const is = { mes: kind === 'mes', guardou: kind === 'guardou', ritmo: kind === 'ritmo', hoje: kind === 'hoje', paraondefoi: kind === 'paraondefoi', acaminho: kind === 'acaminho', lancar: kind === 'lancar' };
+
+    const t = dark ? {
+      surface: '#191F1A', label: '#E0E4DC', sec: '#BFC9BD', tint: '#99D5AC', onTint: '#003919',
+      pos: '#7FD79B', neg: '#D493A8', zero: '#2A322B', negSoft: '#3A2830', soft: '#33463A', pos2: '#3E7A55', neg2: '#6B3C4C', outras: '#C0C6CC', outrasInk: '#191D18',
+      ramp: { '-3': '#C98FA4', '-2': '#6B3C4C', '-1': '#3A2830', '0': '#2A322B', '1': '#223A2A', '2': '#3E7A55', '3': '#7FD79B' }
+    } : {
+      surface: '#F2F5EE', label: '#191D18', sec: '#414941', tint: '#2F6A45', onTint: '#FFFFFF',
+      pos: '#2F6A45', neg: '#8C4F63', zero: '#E1E6DE', negSoft: '#F0DDE3', soft: '#CBE7D2', pos2: '#79C293', neg2: '#D7A9B7', outras: '#5C5F66', outrasInk: '#FFFFFF',
+      ramp: { '-3': '#8C4F63', '-2': '#D7A9B7', '-1': '#F0DDE3', '0': '#E1E6DE', '1': '#CBE7D2', '2': '#79C293', '3': '#2F6A45' }
+    };
+
+    const p = kind === 'lancar' || L === 'mini' ? 8 : L === 'linha' ? 12 : 14;
+    const cw = w - 2 * p, ch = h - 2 * p;
+    const big = (px, color) => `font-size:${px}px;font-weight:720;line-height:1;letter-spacing:-0.02em;color:${color || t.label};font-variant-numeric:tabular-nums;white-space:nowrap`;
+    const s = {
+      head: 'display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-shrink:0;min-width:0;height:16px',
+      title: `font-size:13px;font-weight:650;color:${t.label};white-space:nowrap;overflow:hidden;text-overflow:ellipsis`,
+      meta: `font-size:11.5px;line-height:1.25;color:${t.sec};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0`,
+      metaC: `font-size:11.5px;line-height:1.25;color:${t.sec};white-space:nowrap;text-align:center`,
+      dow: `font-size:10px;font-weight:600;color:${t.sec};text-align:center`,
+      tileName: 'font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis',
+      tilePct: 'font-size:15px;font-weight:720;line-height:1.1;font-variant-numeric:tabular-nums',
+      acRow: 'display:flex;align-items:center;gap:8px;min-width:0',
+      acDesc: `font-size:13px;font-weight:550;color:${t.label};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-grow:1;min-width:0`,
+      dayNum: `font-size:17px;font-weight:720;color:${t.label};line-height:1`,
+      chip: `display:flex;align-items:center;gap:4px;min-width:0;padding:4px 6px;border-radius:8px;background:${t.surface}`,
+      chipTxt: `font-size:11.5px;font-weight:550;color:${t.label};white-space:nowrap;overflow:hidden;text-overflow:ellipsis`
+    };
+    const rootStyle = `width:${w}px;height:${h}px;box-sizing:border-box;padding:${p}px;border-radius:${L === 'mini' ? 20 : 24}px;background:${t.surface};color:${t.label};font-family:'Roboto Flex',system-ui,sans-serif;display:flex;flex-direction:column;gap:${L === 'mini' ? 0 : 8}px;overflow:hidden;position:relative`;
+
+    // ---------- mês (o board) ----------
+    const lv = [1, -1, 0, 2, -2, 1, 3, -1, 0, 1, -3, 2, 1, 0, -1, 1, 2, -2, 0, 1, 1, -1, 2, 1, 1, 2];
+    const today = 26, nd = 30, off = 1;
+    const rad = L === 'mini' ? 3 : L === 'grande' ? 7 : 5;
+    const cellStyle = (d) => {
+      if (d < 1 || d > nd) return 'visibility:hidden';
+      if (d > today) return `border-radius:${rad}px;box-shadow:inset 0 0 0 1.5px ${t.zero}`;
+      let st = `border-radius:${rad}px;background:${t.ramp[String(lv[d - 1])]}`;
+      if (d === today) st += `;box-shadow:0 0 0 2px ${t.surface},0 0 0 3.5px ${t.label}`;
+      return st;
+    };
+    let streak = 0;
+    for (let i = lv.length - 1; i >= 0 && lv[i] > 0; i--) streak++;
+    const mes = {
+      showHead: !lay.mini,
+      showCounts: lay.largo || lay.grande || (lay.linha && cols >= 3),
+      showDia: lay.quadrado,
+      full: !lay.linha,
+      showDow: lay.grande,
+      showFoot: lay.grande,
+      pos: lv.filter(v => v > 0).length,
+      neg: lv.filter(v => v < 0).length,
+      posInk: `color:${t.pos}`, negInk: `color:${t.neg}`,
+      streak,
+      dow: ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'],
+      dowStyle: `display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:${L === 'grande' ? 5 : 3}px`,
+      gridStyle: `flex-grow:1;min-height:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:repeat(5,minmax(0,1fr));gap:${L === 'mini' ? 2 : L === 'grande' ? 5 : 3}px`,
+      cells: Array.from({ length: 35 }, (_, i) => ({ style: cellStyle(i - off + 1) })),
+      last14: Array.from({ length: 14 }, (_, i) => ({ style: 'flex:1;min-width:0;' + cellStyle(today - 13 + i) }))
+    };
+
+    // ---------- guardou ----------
+    const taxa = 17, meta = 20;
+    const hist = [['abr', 14], ['mai', 18], ['jun', 9], ['jul', 21], ['ago', 25], ['set', 17]];
+    const prog = Math.min(1, taxa / meta);
+    let d = 0;
+    if (lay.mini) d = Math.min(cw, ch);
+    else if (lay.quadrado) d = Math.min(cw, ch - 16 - 8 - 15 - 8);
+    else if (lay.largo) d = Math.min(ch - 24, cw * 0.42);
+    else if (lay.grande) d = Math.min(ch - 24 - 23, cw * 0.46);
+    d = Math.max(0, Math.floor(d));
+    const th = Math.max(7, Math.round(d * 0.1));
+    const deg = Math.round(prog * 360);
+    const g = {
+      notLine: !lay.linha,
+      head: !lay.mini,
+      headTxt: lay.quadrado ? 'guardou' : 'guardou em setembro',
+      lineBig: big(26, t.tint),
+      lineCap: cols >= 3 ? 'meta 20% · faltam 3 pontos' : 'meta 20%',
+      trackStyle: `height:12px;border-radius:6px;background:${t.zero};overflow:hidden`,
+      fillStyle: `height:100%;width:${prog * 100}%;border-radius:6px;background:${t.tint}`,
+      bodyStyle: lay.largo || lay.grande
+        ? 'flex-grow:1;min-height:0;display:flex;gap:16px;align-items:stretch'
+        : 'flex-grow:1;min-height:0;display:flex;align-items:center;justify-content:center',
+      ringWrap: 'display:flex;align-items:center;justify-content:center;flex-shrink:0;align-self:center',
+      ringStyle: `position:relative;width:${d}px;height:${d}px;border-radius:50%;background:conic-gradient(${t.tint} 0deg ${deg}deg, ${t.zero} ${deg}deg 360deg)`,
+      ringInner: `position:absolute;inset:${th}px;border-radius:50%;background:${t.surface};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px`,
+      pctStyle: big(Math.max(15, Math.round(d * 0.27))),
+      ringSub: d >= 100,
+      showBars: lay.largo || lay.grande,
+      pctLabels: lay.grande,
+      metaLine: `position:absolute;left:0;right:0;bottom:${meta / 30 * 100}%;border-top:1.5px dashed ${t.sec};opacity:.55`,
+      bars: hist.map(([m, v], i) => ({
+        m, pct: v + '%',
+        style: `flex:1;min-width:0;height:${v / 30 * 100}%;border-radius:5px 5px 2px 2px;background:${i === hist.length - 1 ? t.tint : t.soft}`,
+        lblStyle: `flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10.5px;color:${i === hist.length - 1 ? t.label : t.sec};font-weight:${i === hist.length - 1 ? 650 : 450}`,
+        pctStyle: 'font-variant-numeric:tabular-nums'
+      }))
+    };
+
+    // ---------- ritmo ----------
+    const cost = (x) => 100 * Math.pow(x / 30, 0.9);
+    const month = (x) => cost(x) * (0.88 + 0.07 * Math.sin(x / 2.6) * (26 - x) / 26);
+    const X = (x) => ((x - 1) / 29 * 300).toFixed(1);
+    const Y = (v) => (100 - v * 0.95).toFixed(1);
+    let costD = '', lineD = '';
+    for (let x = 1; x <= 30; x++) costD += (x === 1 ? 'M' : 'L') + X(x) + ' ' + Y(cost(x)) + ' ';
+    for (let x = 1; x <= today; x++) lineD += (x === 1 ? 'M' : 'L') + X(x) + ' ' + Y(month(x)) + ' ';
+    const r = {
+      full: lay.quadrado || lay.largo || lay.grande,
+      showDia: !lay.quadrado,
+      bigStyle: big(lay.mini ? 26 : lay.grande ? 40 : lay.quadrado ? 30 : 28, t.tint),
+      lineBig: big(19),
+      lineTxt: cols >= 3 ? '12% abaixo do costume' : '12% abaixo',
+      chartBox: 'position:relative;flex-grow:1;min-height:0;min-width:0',
+      cost: costD, line: lineD, area: lineD + `L${X(today)} 100 L0 100 Z`,
+      costSt: `fill:none;stroke:${t.sec};stroke-width:1.5;stroke-dasharray:4 4;vector-effect:non-scaling-stroke;opacity:.55`,
+      lineSt: `fill:none;stroke:${t.tint};stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke`,
+      areaSt: `fill:${t.tint};opacity:.14;stroke:none`,
+      dot: `position:absolute;left:calc(${(today - 1) / 29 * 100}% - 5px);top:calc(${Y(month(today))}% - 5px);width:10px;height:10px;border-radius:50%;background:${t.tint};box-shadow:0 0 0 2.5px ${t.surface}`
+    };
+
+    // ---------- hoje (o teto) ----------
+    const usados = 4;
+    const streak14 = [1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1];
+    const hj = {
+      full: lay.quadrado || lay.largo || lay.grande,
+      bigStyle: big(lay.mini ? 26 : lay.grande ? 46 : 34, t.tint),
+      lineBig: big(26, t.tint),
+      headRight: lay.quadrado ? 'teto do dia' : '7 dias seguidos no teto',
+      segRow: `display:flex;gap:3px;height:${lay.linha ? 28 : lay.grande ? 20 : 14}px;flex-grow:${lay.linha ? 1 : 0};flex-shrink:0;min-width:0`,
+      segs: Array.from({ length: 10 }, (_, i) => ({ style: `flex:1;min-width:0;border-radius:4px;background:${i < usados ? t.negSoft : t.tint}` })),
+      showStreak: lay.largo || lay.grande,
+      streakStyle: lay.grande
+        ? 'display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:4px;flex:1 1 0;min-height:24px;max-height:64px'
+        : 'display:flex;gap:3px;height:12px;flex-shrink:0',
+      streak: streak14.map((v, i) => ({ style: `flex:1;min-width:0;border-radius:${lay.grande ? 5 : 3}px;background:${v ? t.pos2 : t.neg2}${i === 13 ? `;box-shadow:0 0 0 1.5px ${t.surface},0 0 0 3px ${t.label}` : ''}` }))
+    };
+
+    // ---------- para onde foi ----------
+    const tags = [
+      { n: 'mercado', v: 34, c: '#079E92', ink: '#0B1F1C' },
+      { n: 'casa', v: 22, c: '#036EAE', ink: '#FFFFFF' },
+      { n: 'transporte', v: 14, c: '#9A5A00', ink: '#FFFFFF' },
+      { n: 'lazer', v: 11, c: '#A672DC', ink: '#1A0F26' },
+      { n: 'saúde', v: 8, c: '#B63C62', ink: '#FFFFFF' },
+      { n: 'outras', v: 11, c: t.outras, ink: t.outrasInk }
+    ];
+    const headOn = !lay.mini;
+    const mapH = ch - (headOn ? 24 : 0), mapW = cw;
+    const gp = lay.mini ? 2 : 3;
+    const tile = (tg, tw, tH) => ({
+      n: tg.n, v: tg.v,
+      showName: !lay.mini && tw >= 58 && tH >= 40,
+      showPct: !lay.mini && tw >= 32 && tH >= 24,
+      style: `flex:${tg.v} 1 0;min-width:0;min-height:0;border-radius:${lay.mini ? 4 : 8}px;background:${tg.c};color:${tg.ink};padding:${lay.mini ? 0 : '6px 8px'};box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden`
+    });
+    const pf = {
+      head: headOn,
+      legendOn: lay.linha,
+      monthOn: lay.largo || lay.grande,
+      legend: tags.slice(0, cols >= 4 ? 3 : cols >= 3 ? 2 : 1).map(tg => ({
+        txt: `${tg.n} ${tg.v}%`,
+        style: `display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:${t.sec};white-space:nowrap`,
+        dot: `width:8px;height:8px;border-radius:2px;background:${tg.c};flex-shrink:0`
+      })),
+      stack: tags.map(tg => ({ style: `flex:${tg.v} 1 0;min-width:0;background:${tg.c}` })),
+      map: !lay.linha,
+      mapStyle: `flex-grow:1;min-height:0;display:flex;gap:${gp}px`,
+      colStyle: `flex:66 1 0;min-width:0;display:flex;flex-direction:column;gap:${gp}px`,
+      row1Style: `flex:36 1 0;min-height:0;display:flex;gap:${gp}px`,
+      row2Style: `flex:30 1 0;min-height:0;display:flex;gap:${gp}px`,
+      a: tile(tags[0], mapW * 0.34, mapH),
+      row1: tags.slice(1, 3).map(tg => tile(tg, mapW * 0.66 * tg.v / 36, mapH * 36 / 66)),
+      row2: tags.slice(3).map(tg => tile(tg, mapW * 0.66 * tg.v / 30, mapH * 30 / 66))
+    };
+
+    // ---------- a caminho ----------
+    const arrowSt = (inn, px) => `font-size:${px}px;font-weight:800;line-height:1;color:${inn ? t.pos : t.neg};flex-shrink:0`;
+    const items = [
+      { d: 28, w: 'seg', desc: 'aluguel', inn: false },
+      { d: 29, w: 'ter', desc: 'internet', inn: false },
+      { d: 30, w: 'qua', desc: 'salário', inn: true },
+      { d: 30, w: 'qua', desc: 'academia', inn: false }
+    ].map(it => ({ ...it, arrow: it.inn ? '↑' : '↓', kind: it.inn ? 'entra' : 'sai', arrowSt: arrowSt(it.inn, 14), arrowStL: arrowSt(it.inn, 18) }));
+    const ac = {
+      bigStyle: big(lay.mini ? 34 : 30),
+      lineBig: big(17),
+      lineNext: cols <= 2,
+      lineTimeline: cols >= 3,
+      badge: `width:26px;height:26px;border-radius:8px;background:${t.zero};font-size:12px;font-weight:720;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:${t.label}`,
+      badgeL: `width:36px;height:36px;border-radius:10px;background:${t.zero};font-size:15px;font-weight:720;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:${t.label}`,
+      bigRow: 'flex:1 1 0;min-height:0;display:flex;align-items:center;gap:10px;min-width:0',
+      first2: items.slice(0, 2),
+      items,
+      days: [[27, 'dom'], [28, 'seg'], [29, 'ter'], [30, 'qua']].map(([dd, ww]) => {
+        const its = items.filter(i => i.d === dd);
+        return {
+          d: dd, w: ww, items: its, empty: its.length === 0,
+          col: `flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;border-radius:12px;background:${t.zero};padding:8px;box-sizing:border-box;${its.length === 0 ? 'opacity:.6' : ''}`,
+          miniCol: `flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:10px;background:${t.zero}`
+        };
+      })
+    };
+
+    // ---------- lançar ----------
+    const btn = (bg, ink, px) => `flex:1 1 0;min-width:0;min-height:0;border:0;border-radius:${lay.mini ? 16 : 18}px;background:${bg};color:${ink};font-family:inherit;font-size:${px}px;font-weight:680;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap`;
+    const bpx = lay.linha && cols <= 2 ? 14 : lay.grande ? 19 : 16;
+    const ln = {
+      two: !lay.mini,
+      pairStyle: `flex:${lay.grande ? 2 : 1} 1 0;min-height:0;display:flex;flex-direction:${lay.quadrado ? 'column' : 'row'};gap:8px`,
+      out: btn(t.negSoft, t.neg, bpx),
+      inn: btn(t.tint, t.onTint, bpx),
+      plus: btn(t.tint, t.onTint, 34) + ';width:100%;height:100%',
+      chip: btn(t.zero, t.label, 13) + ';border-radius:14px;gap:6px',
+      tags: tags.slice(0, 3).map(tg => ({ n: tg.n, dot: `width:8px;height:8px;border-radius:2px;background:${tg.c};flex-shrink:0` }))
+    };
+
+    const aria = {
+      mes: `setembro até hoje: ${mes.pos} dias no verde, ${mes.neg} no rosa`,
+      guardou: 'guardou 17% da renda em setembro, meta de 20%',
+      ritmo: 'gastando 12% abaixo do costume no dia 26',
+      hoje: 'hoje ainda cabe 60% do teto do dia',
+      paraondefoi: 'para onde foi: mercado 34%, casa 22%, transporte 14%',
+      acaminho: '4 lançamentos a caminho até dia 30',
+      lancar: 'lançar uma saída ou uma entrada'
+    }[kind];
+
+    return { is, lay, t, s, rootStyle, aria, mes, g, r, hj, pf, ac, ln };
+  }
+}
+// Um motor mínimo para o formato do canvas: {{caminho}}, <sc-if value> e <sc-for list as>.
+const pegar = (esc, c) => { c = c.replace(/[{}\s]/g, ''); if (c === 'true') return true; if (c === 'false') return false; return c.split('.').reduce((o, k) => (o == null ? undefined : o[k]), esc); };
+const trocar = (s, esc) => { const m = s.match(/^\{\{([^}]+)\}\}$/); if (m) return pegar(esc, m[1]); return s.replace(/\{\{([^}]+)\}\}/g, (_, c) => { const v = pegar(esc, c); return v == null ? '' : v; }); };
+function desenhar(no, esc, fora) {
+  for (const f of [...no.childNodes]) {
+    if (f.nodeType === 3) { fora.appendChild(document.createTextNode(String(trocar(f.textContent, esc) ?? ''))); continue; }
+    if (f.nodeType !== 1) continue;
+    if (f.localName === 'sc-if') { if (pegar(esc, f.getAttribute('value'))) desenhar(f, esc, fora); continue; }
+    if (f.localName === 'sc-for') { const como = f.getAttribute('as'); (pegar(esc, f.getAttribute('list')) || []).forEach((it, i) => desenhar(f, { ...esc, [como]: it, $index: i }, fora)); continue; }
+    const el = document.createElementNS(f.namespaceURI, f.localName);
+    for (const a of f.attributes) if (!a.name.startsWith('hint-')) el.setAttribute(a.name, String(trocar(a.value, esc) ?? ''));
+    desenhar(f, esc, el);
+    fora.appendChild(el);
+  }
+}
+const p = new URLSearchParams(location.hash.slice(1));
+const vals = new Component({ kind: p.get('kind'), cols: p.get('cols'), rows: p.get('rows'), dark: p.get('dark') === '1' }).renderVals();
+desenhar(document.getElementById('t').content, vals, document.body);
+</script>
+</body>
+</html>
